@@ -1,0 +1,43 @@
+name: rong
+
+services:
+  postgres:
+    # PostGIS bắt buộc: truy vấn "điểm nào nằm trong polygon" là trái tim của F1.
+    image: postgis/postgis:16-3.4
+    container_name: rong-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rong
+      POSTGRES_PASSWORD: rong
+      POSTGRES_DB: rong
+    ports:
+      # Cổng host là 5433 chứ không phải 5432: máy dev thường đã có sẵn một
+      # Postgres cài trực tiếp giữ 5432, và khi đó container sẽ bị che mất.
+      # Trong container vẫn là 5432 như thường.
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rong -d rong"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    # Dùng cho Socket.IO adapter (đồng bộ nhóm real-time, FR-10.5) và hàng đợi worker.
+    image: redis:7-alpine
+    container_name: rong-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
