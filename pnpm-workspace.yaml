@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm chặn post-install script theo mặc định. Chỉ những package thực sự cần
+# biên dịch native binary mới được bật ở đây.
+allowBuilds:
+  # Resolver viết bằng Rust, dùng bởi eslint-plugin-import-x trong eslint-config-next.
+  unrs-resolver: true
+  # sharp (toi uu anh cua Next) khong can build tu nguon tren dev machine.
+  sharp: false
