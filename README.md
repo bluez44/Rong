@@ -240,9 +240,80 @@ Because an itinerary only really matters once the whole group is looking at the 
 
 ---
 
+## 📦 Repository layout
+
+```text
+rong/
+├── apps/
+│   ├── mobile/          Expo SDK 57 · React Native 0.86 · expo-router
+│   ├── web/             Next.js 16 App Router · Tailwind 4
+│   └── backend/         NestJS 12 · TypeORM · PostGIS
+├── packages/
+│   └── shared-types/    The data contract shared by all three apps
+├── infra/
+│   └── docker-compose.yml   PostGIS 16 + Redis 7
+└── docs/PRD-Rong.md
+```
+
+Inside `apps/backend/src/modules/`, every folder maps to a feature group in the
+PRD — see [the module map](./apps/backend/src/modules/README.md). One rule worth
+knowing up front: **`modules/google/` is the only place allowed to call Google
+APIs.** The PRD's compliance constraints (store nothing but `place_id`, cache
+coordinates ≤ 30 days, never rank on Google data) are only auditable if those
+calls live behind a single door.
+
+## 🏁 Getting started
+
+Requires **Node 20+**, **pnpm**, and **Docker** for local Postgres and Redis.
+
+```bash
+pnpm install
+
+# Start Postgres + PostGIS and Redis
+pnpm infra:up
+
+# Backend — copy env, run migrations, start on :3001
+cp apps/backend/.env.example apps/backend/.env
+pnpm --filter @rong/backend migration:run
+pnpm --filter @rong/backend start:dev
+
+# Web — :3000
+pnpm --filter @rong/web dev
+
+# Mobile — Metro bundler, then open in Expo dev client
+pnpm --filter @rong/mobile start
+```
+
+Verify the backend and its database wiring in one call:
+
+```bash
+curl http://localhost:3001/api/health
+```
+
+A healthy response reports the live PostGIS version — not just that Postgres
+accepted a connection, since a database without the `postgis` extension would
+break the entire discovery flow.
+
+### Workspace tasks
+
+| Command | Does |
+| --- | --- |
+| `pnpm build` | Build every app through Turborepo |
+| `pnpm typecheck` | Type-check every workspace |
+| `pnpm lint` | Lint every workspace |
+| `pnpm test` | Run all test suites |
+| `pnpm infra:up` / `infra:down` | Start / stop Postgres + Redis |
+
+### Environment variables
+
+Each app ships a `.env.example`. Copy it to `.env` and fill in the blanks — no
+API keys are committed to this repository, and the mobile Google Maps keys are
+read at Expo config evaluation time from `apps/mobile/.env`.
+
 ## 📄 Documentation
 
-- [`PRD-Rong.md`](./PRD-Rong.md) — the full Product Requirements Document (in Vietnamese): user stories, F1–F11 specs, data model, compliance principles, analytics, risks.
+- [`docs/PRD-Rong.md`](./docs/PRD-Rong.md) — the full Product Requirements Document (in Vietnamese): user stories, F1–F11 specs, data model, compliance principles, analytics, risks.
+- [`apps/backend/src/modules/README.md`](./apps/backend/src/modules/README.md) — backend module map, folder by folder.
 
 ## 🙏 Attribution
 
