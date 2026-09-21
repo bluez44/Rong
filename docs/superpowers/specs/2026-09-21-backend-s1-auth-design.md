@@ -68,11 +68,23 @@ thứ hai sẽ buộc phải migration và viết lại luồng đăng nhập.
 | Session opaque, tra DB mỗi request | Thu hồi tốt nhất | Mỗi request một truy vấn | Loại |
 
 Phương án thứ hai bị loại vì PRD F11 yêu cầu "xóa tài khoản và toàn bộ dữ liệu
-ngay trong app". Xóa xong mà token cũ vẫn gọi được API thì lời hứa đó là giả.
+ngay trong app". Refresh token sống 60 ngày mà không thu hồi được thì lời hứa
+đó là giả.
 
 **Vòng đời token:** access token sống 15 phút, refresh token sống 60 ngày. App
 di động ít khi mở lại sau nhiều tháng, nhưng cũng không nên bắt người dùng đăng
 nhập lại mỗi tuần.
+
+**Giới hạn phải nói rõ:** access token là JWT stateless, nên sau khi xóa tài
+khoản hoặc đăng xuất, một access token đã cấp vẫn được chấp nhận cho tới khi
+hết hạn — tối đa 15 phút. Phiên **không thể gia hạn** vì refresh token đã bị
+thu hồi, nên cửa sổ này đóng lại sau đúng một lần hết hạn access token.
+
+Có thể đóng cửa sổ này ngay lập tức bằng một danh sách chặn trong Redis tra ở
+mỗi request. S1 không làm, vì nó thêm một lượt Redis vào mọi request đã xác
+thực và buộc phải trả lời câu hỏi "Redis chết thì chặn hay cho qua" — cái giá
+đó không tương xứng với một cửa sổ 15 phút ở giai đoạn MVP. Nếu sau này có yêu
+cầu tuân thủ chặt hơn thì thêm sau, không phá vỡ thiết kế hiện tại.
 
 ### 2.3 Chỉ lưu hash của refresh token
 
@@ -305,8 +317,10 @@ không lộ chi tiết nội bộ ra ngoài.
 
 ### 6.2 Request id và log có cấu trúc
 
-Middleware gán mỗi request một id (ULID), đưa vào context để log kèm, và trả
-lại trong header `x-request-id`.
+Middleware gán mỗi request một id bằng `crypto.randomUUID()`, đưa vào đối tượng
+request để log kèm, và trả lại trong header `x-request-id`. Dùng hàm có sẵn
+trong Node thay vì thêm thư viện ULID: id này chỉ cần duy nhất, không cần sắp
+xếp được.
 
 ### 6.3 Quy ước phân trang con trỏ
 
@@ -379,8 +393,12 @@ Các khẳng định phải có:
 - Sau `upgrade`, `user_id` không đổi và dữ liệu guest tạo ra vẫn còn.
 - Sau `refresh`, refresh token cũ không dùng lại được.
 - Dùng lại refresh token đã thu hồi thì **mọi** phiên của người đó bị thu hồi.
-- Sau `DELETE /users/me`, access token cũ bị từ chối và các dòng liên quan
-  trong `auth_identities`, `refresh_tokens` đã biến mất.
+- Sau `DELETE /users/me`, refresh token cũ bị từ chối, và các dòng trong
+  `users`, `auth_identities`, `refresh_tokens` đã biến mất.
+
+Lưu ý khi viết test: **không** khẳng định access token bị từ chối ngay sau khi
+xóa tài khoản. Theo mục 2.2, token đó còn hiệu lực tới 15 phút; khẳng định
+ngược lại sẽ là một test mô tả sai hành vi của hệ thống.
 
 ## 8. Ngoài phạm vi S1
 
