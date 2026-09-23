@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AppController } from './app.controller.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
+import { LangchainModule } from './langchain/langchain.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
     HealthModule,
     AuthModule,
     UsersModule,
+    LangchainModule,
   ],
   controllers: [AppController],
   providers: [JwtAuthGuard],
