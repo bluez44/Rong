@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { OpenDataConfig } from '../../config/configuration.js';
-import { ThrottledHttp } from './http.js';
+import { OpenDataError, ThrottledHttp } from './http.js';
 import type {
   Bbox,
   NominatimResult,
@@ -53,26 +53,38 @@ export class OpenDataService {
   }
 
   /**
-   * Danh sách relation ranh giới hành chính ở một cấp, kèm tag và khung bao
-   * (không kèm hình học), tùy chọn tại một thời điểm trong quá khứ. Nhẹ (vài
-   * trăm KB), được cache trong bộ nhớ vì dùng lại cho mọi vùng cùng cấp.
+   * Relation ranh giới hành chính ở một cấp, kèm tag và khung bao (không kèm
+   * hình học), tùy chọn tại một thời điểm trong quá khứ.
+   *
+   * Có `nameContains` thì chỉ lấy relation có tên chứa chuỗi đó — truy vấn nhỏ
+   * và nhanh. Không có thì lấy cả danh sách cấp đó (nặng hơn nhiều với dữ liệu
+   * quá khứ). Chỉ cache kết quả khác rỗng, để một lần lỗi không kéo dài cả ngày.
    */
   listBoundaries(
     adminLevel: string,
     date?: string,
+    nameContains?: string,
   ): Promise<OverpassElement[]> {
-    const key = `${adminLevel}@${date ?? 'now'}`;
+    const key = `${adminLevel}@${date ?? 'now'}#${nameContains ?? '*'}`;
     const cached = this.boundaryListCache.get(key);
     if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) {
       return cached.value;
     }
 
     const [s, w, n, e] = VIETNAM_BBOX;
+    const nameFilter = nameContains
+      ? `["name"~"${escapeOverpassRegex(nameContains)}",i]`
+      : '';
     const value = this.overpass<{ elements: OverpassElement[] }>(
-      `${this.header(60, date)}rel["boundary"="administrative"]["admin_level"~"^(${adminLevel})$"](${s},${w},${n},${e});out tags bb;`,
+      `${this.header(90, date)}rel["boundary"="administrative"]["admin_level"~"^(${adminLevel})$"]${nameFilter}(${s},${w},${n},${e});out tags bb;`,
     ).then((body) => body.elements);
-    value.catch(() => this.boundaryListCache.delete(key));
     this.boundaryListCache.set(key, { at: Date.now(), value });
+    value.then(
+      (elements) => {
+        if (elements.length === 0) this.boundaryListCache.delete(key);
+      },
+      () => this.boundaryListCache.delete(key),
+    );
     return value;
   }
 
@@ -132,8 +144,12 @@ export class OpenDataService {
     return `[out:json][timeout:${timeoutSeconds}]${date ? `[date:"${date}"]` : ''};`;
   }
 
-  private overpass<T>(query: string): Promise<T> {
-    return this.http.getJson<T>(
+  /**
+   * Overpass báo hết giờ hay hết bộ nhớ bằng HTTP 200 kèm `remark` và danh
+   * sách rỗng — phải coi đó là lỗi, không phải "không có kết quả".
+   */
+  private async overpass<T>(query: string): Promise<T> {
+    const body = await this.http.getJson<T & { remark?: string }>(
       this.config.overpassUrl,
       {
         method: 'POST',
@@ -142,5 +158,14 @@ export class OpenDataService {
       },
       200_000,
     );
+    if (body.remark && /error|timed out|out of memory/i.test(body.remark)) {
+      throw new OpenDataError(`Overpass: ${body.remark}`);
+    }
+    return body;
   }
+}
+
+/** Thoát ký tự đặc biệt để đưa tên vào biểu thức chính quy của Overpass. */
+function escapeOverpassRegex(text: string): string {
+  return text.replace(/[\\^$.*+?()[\]{}|"]/g, '\\$&');
 }

@@ -106,13 +106,15 @@ export class RegionAreaService {
     }
 
     if (source.name && source.adminLevel) {
-      const candidates = await this.openData.listBoundaries(
+      const bounds = await this.findRelationBounds(
+        source.name,
         source.adminLevel,
         source.date,
       );
-      const bounds = pickRelation(candidates, source.name)?.bounds;
-      if (bounds)
-        return [bounds.minlat, bounds.minlon, bounds.maxlat, bounds.maxlon];
+      if (bounds) return bounds;
+      this.logger.warn(
+        `Không thấy relation "${source.name}" (cấp ${source.adminLevel}${source.date ? `, ngày ${source.date}` : ''}) trên OSM; dùng phương án dự phòng.`,
+      );
     }
 
     if (row.lat !== null && row.lng !== null) {
@@ -133,6 +135,30 @@ export class RegionAreaService {
       bboxFromNominatim(hit) ??
       bboxAround(Number(hit.lat), Number(hit.lon), FALLBACK_RADIUS_METERS)
     );
+  }
+
+  /**
+   * Tìm theo phần tên chính trước (truy vấn nhỏ, lọc tên ngay trên Overpass),
+   * rồi mới lấy cả danh sách cấp đó nếu tên trên OSM viết khác đi (dấu, gạch
+   * nối…) — `pickRelation` so khớp sau khi bỏ dấu nên vẫn nhận ra.
+   */
+  private async findRelationBounds(
+    name: string,
+    adminLevel: string,
+    date?: string,
+  ): Promise<Bbox | null> {
+    const core = name.replace(/^(Tỉnh|Thành phố|Thị xã|Huyện|Quận)\s+/i, '');
+    for (const nameContains of [core, undefined]) {
+      const candidates = await this.openData.listBoundaries(
+        adminLevel,
+        date,
+        nameContains,
+      );
+      const bounds = pickRelation(candidates, name)?.bounds;
+      if (bounds)
+        return [bounds.minlat, bounds.minlon, bounds.maxlat, bounds.maxlon];
+    }
+    return null;
   }
 
   private unavailable(what: string): ServiceUnavailableException {
