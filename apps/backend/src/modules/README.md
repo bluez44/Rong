@@ -39,7 +39,8 @@ endpoint của Google. Các module khác đi qua service mà `google/` cung cấ
 GET /api/regions/search?q=da lat            gợi ý khi gõ — chỉ đọc database
 GET /api/regions/search?q=tam dao&online=1  khi bấm tìm — thiếu thì hỏi Nominatim rồi lưu lại
 GET /api/regions/:id                        chi tiết + ranh giới GeoJSON (tải từ OSM lần đầu)
-GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm trong polygon
+GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm trong polygon (kèm giờ mở cửa hôm nay)
+GET /api/places/:id                         chi tiết (F5) + nội dung Google Maps theo thời gian thực
 ```
 
 - **Tỉnh cũ/mới** được seed từ Nghị quyết 202/2025/QH15 (`regions/seed/vietnam-admin.ts`).
@@ -53,3 +54,15 @@ GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm tro
   `online` chỉ bật khi người dùng bấm tìm. Production nên tự host hoặc dùng nhà cung cấp
   trả phí (đổi `NOMINATIM_URL`, `OVERPASS_URL`).
 - Luôn hiển thị dòng `attribution` trả về (ODbL bắt buộc ghi công OpenStreetMap).
+
+## Chi tiết địa điểm và Google (F5)
+
+- Danh sách chỉ dùng dữ liệu riêng. Giờ mở cửa trong danh sách tính từ tag
+  `opening_hours` của OSM theo giờ Việt Nam (`places/opening-hours.ts`).
+- Rating, đánh giá, giờ mở cửa và ảnh của Google **chỉ** có ở `GET /places/:id`,
+  gọi Places API (New) mỗi lần mở, không lưu, không cache (PRD 7.4, FR-2.9).
+- `place_id` được ghép một lần bằng Text Search dạng IDs Only (miễn phí) trong khung
+  ~250 m quanh tọa độ OSM, rồi lưu lại — trường Google duy nhất được lưu. Không ghép
+  được thì 30 ngày sau mới thử lại.
+- Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
+  tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import type { OverpassElement } from '../open-data/open-data.types.js';
 import { pickBoundary } from './boundary.service.js';
 import { foldText, isWardName, searchKey } from './search-text.js';
 
@@ -31,15 +32,15 @@ describe('searchKey', () => {
 });
 
 describe('pickBoundary', () => {
-  const candidates = [
-    { type: 'relation' as const, id: 1, tags: { name: 'Tỉnh Bình Thuận' } },
+  const candidates: OverpassElement[] = [
+    { type: 'relation', id: 1, tags: { name: 'Tỉnh Bình Thuận' } },
     {
-      type: 'relation' as const,
+      type: 'relation',
       id: 2,
       tags: { name: 'Tỉnh Bà Rịa – Vũng Tàu' },
     },
     {
-      type: 'relation' as const,
+      type: 'relation',
       id: 3,
       tags: { name: 'Hue', 'name:vi': 'Thành phố Huế' },
     },
