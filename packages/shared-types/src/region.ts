@@ -42,3 +42,33 @@ export interface RegionAlias {
   /** Ghi chú hiển thị, ví dụ "nay thuộc TP. Hồ Chí Minh". */
   displayNote?: string | null;
 }
+
+/** Nhóm hiển thị kết quả tìm kiếm theo thứ tự FR-1.4. */
+export type RegionSearchGroup = 'province' | 'destination' | 'ward';
+
+export interface RegionRef {
+  id: string;
+  displayName: string;
+}
+
+/** Một dòng kết quả của ô tìm kiếm điểm đến — FR-1.1, FR-1.3, FR-1.4, FR-1.9. */
+export interface RegionSearchResult {
+  id: string;
+  name: string;
+  /** Tên kèm nhãn phiên bản, ví dụ "Lâm Đồng (mới)", "Bình Thuận (cũ)". */
+  displayName: string;
+  type: RegionType;
+  group: RegionSearchGroup;
+  boundaryVersion: BoundaryVersion;
+  /** Ghi chú theo ngữ cảnh tìm kiếm, ví dụ "nay thuộc Lâm Đồng (mới)". */
+  note: string | null;
+  parent: RegionRef | null;
+  center: { lat: number; lng: number } | null;
+}
+
+export interface RegionDetail extends RegionSearchResult {
+  /** GeoJSON đã được giản lược để vẽ trên bản đồ. null nếu chưa lấy được ranh giới. */
+  boundary: GeoPolygon | null;
+  /** [minLng, minLat, maxLng, maxLat] — để bản đồ zoom vừa khít (FR-1.5). */
+  bbox: [number, number, number, number] | null;
+}

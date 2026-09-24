@@ -51,3 +51,20 @@ export interface Place {
   isTrending: boolean;
   updatedAt: string;
 }
+
+/** Một mục trong danh sách địa điểm của vùng (bottom sheet — FR-2.9, FR-2.10). */
+export interface PlaceListItem {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  coordinates: Coordinates;
+  compositeScore: number;
+  /** Mô tả ngắn (Wikidata), null nếu không có. */
+  description: string | null;
+  /** Chuỗi opening_hours thô theo cú pháp OSM, ví dụ "Mo-Su 07:00-17:00". */
+  openingHours: string | null;
+  website: string | null;
+  wikidataId: string | null;
+  /** Link tới bản ghi gốc trên OpenStreetMap — bắt buộc ghi nguồn theo ODbL. */
+  sourceUrl: string;
+}

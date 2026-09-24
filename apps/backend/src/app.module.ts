@@ -6,6 +6,8 @@ import { DatabaseModule } from './database/database.module.js';
 import { LangchainModule } from './langchain/langchain.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { PlacesModule } from './modules/places/places.module.js';
+import { RegionsModule } from './modules/regions/regions.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -19,6 +21,8 @@ import { UsersModule } from './modules/users/users.module.js';
     // AuthModule gắn JwtAuthGuard toàn cục: mọi route khác đều cần access token.
     AuthModule,
     UsersModule,
+    RegionsModule,
+    PlacesModule,
     HealthModule,
     LangchainModule,
   ],
