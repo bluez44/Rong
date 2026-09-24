@@ -34,6 +34,17 @@ export interface MailConfig {
   from: string;
 }
 
+/** Nguồn dữ liệu mở (OSM, Wikidata) — mục 7.1 PRD. */
+export interface OpenDataConfig {
+  nominatimUrl: string;
+  overpassUrl: string;
+  wikidataUrl: string;
+  /** Nominatim và Overpass bắt buộc User-Agent có thông tin liên hệ. */
+  contactEmail: string;
+  /** Sau bao nhiêu ngày thì lấy lại địa điểm của một vùng từ OSM. */
+  placesRefreshDays: number;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -41,6 +52,7 @@ export interface AppConfig {
   redis: RedisConfig;
   auth: AuthConfig;
   mail: MailConfig;
+  openData: OpenDataConfig;
 }
 
 class MissingEnvError extends Error {
@@ -119,6 +131,16 @@ export function loadConfig(): AppConfig {
       smtpUser: process.env.SMTP_USER || null,
       smtpPassword: process.env.SMTP_PASSWORD || null,
       from: process.env.MAIL_FROM || 'Rong <no-reply@rong.local>',
+    },
+    openData: {
+      nominatimUrl:
+        process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org',
+      overpassUrl:
+        process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter',
+      wikidataUrl:
+        process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php',
+      contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
+      placesRefreshDays: toInt(process.env.PLACES_REFRESH_DAYS, 30),
     },
   };
 }
