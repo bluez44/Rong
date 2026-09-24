@@ -87,32 +87,30 @@ export class RegionSeeder implements OnApplicationBootstrap {
             : { name: p.name, adminLevel: '4' },
       })),
     ];
-    const destinationRows: SeedRow[] = [
-      ...DESTINATIONS.map((d) => {
-        // Khu vực điểm đến cố định trong seed: có ngay khung bao, không cần gọi OSM.
-        const [lat, lng] = d.center;
-        const [south, west, north, east] = bboxAround(
-          lat,
-          lng,
-          d.radiusKm * 1000,
-        );
-        return {
-          sourceKey: destinationKey(d.key),
-          name: d.name,
-          type: 'destination' as const,
-          boundaryVersion: 'current' as const,
-          level: null,
-          mergeNote: null,
-          searchName: searchKey(d.name),
-          areaSource: { radiusMeters: d.radiusKm * 1000 },
-          center: { type: 'Point' as const, coordinates: [lng, lat] },
-          bboxSouth: south,
-          bboxWest: west,
-          bboxNorth: north,
-          bboxEast: east,
-        };
-      }),
-    ];
+    const destinationRows: SeedRow[] = DESTINATIONS.map((d) => {
+      // Khu vực điểm đến cố định trong seed: có ngay khung bao, không cần gọi OSM.
+      const [lat, lng] = d.center;
+      const [south, west, north, east] = bboxAround(
+        lat,
+        lng,
+        d.radiusKm * 1000,
+      );
+      return {
+        sourceKey: destinationKey(d.key),
+        name: d.name,
+        type: 'destination' as const,
+        boundaryVersion: 'current' as const,
+        level: null,
+        mergeNote: null,
+        searchName: searchKey(d.name),
+        areaSource: { radiusMeters: d.radiusKm * 1000 },
+        center: { type: 'Point' as const, coordinates: [lng, lat] },
+        bboxSouth: south,
+        bboxWest: west,
+        bboxNorth: north,
+        bboxEast: east,
+      };
+    });
 
     // Hai lệnh riêng: một lệnh upsert gộp sẽ ghi NULL vào khung bao của tỉnh
     // (cột có trong lệnh nhưng dòng tỉnh không có giá trị), xóa khung bao đã

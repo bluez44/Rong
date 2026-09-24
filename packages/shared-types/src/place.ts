@@ -54,7 +54,11 @@ export interface Place {
 
 /** Một mục trong danh sách địa điểm của vùng (bottom sheet — FR-2.9, FR-2.10). */
 export interface PlaceListItem {
-  id: string;
+  /**
+   * null với kết quả dự phòng từ AI (`source: 'ai_google_maps'`): không nằm
+   * trong danh mục nên không có màn hình chi tiết `GET /places/:id`.
+   */
+  id: string | null;
   name: string;
   category: PlaceCategory;
   coordinates: Coordinates;
@@ -124,8 +128,25 @@ export interface GooglePlaceContent {
  */
 export type GoogleContentStatus = 'ok' | 'not_found' | 'unavailable';
 
+/**
+ * - `catalog`: danh mục riêng (OSM + Wikidata), phân trang được.
+ * - `ai_google_maps`: dự phòng khi nguồn dữ liệu mở lỗi — Gemini + Google Maps,
+ *   một trang duy nhất, không lưu. Phải hiển thị "Google Maps" và `groundingSources`.
+ */
+export type PlaceListSource = 'catalog' | 'ai_google_maps';
+
+export interface PlacesPage {
+  items: PlaceListItem[];
+  nextCursor: string | null;
+  attribution: string;
+  source: PlaceListSource;
+  /** Chỉ có với `ai_google_maps`: các nguồn Google Maps mà câu trả lời dựa vào. */
+  groundingSources?: Array<{ title: string; uri: string }>;
+}
+
 /** Màn hình chi tiết địa điểm — F5. */
-export interface PlaceDetail extends PlaceListItem {
+export interface PlaceDetail extends Omit<PlaceListItem, 'id'> {
+  id: string;
   attribution: string;
   googleStatus: GoogleContentStatus;
   google: GooglePlaceContent | null;

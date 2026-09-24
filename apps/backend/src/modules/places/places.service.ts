@@ -1,16 +1,24 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
-  AttributedPage,
   GoogleContentStatus,
   GooglePlaceContent,
   PlaceCategory,
   PlaceDetail,
   PlaceListItem,
+  PlacesPage,
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
 import type { OpenDataConfig } from '../../config/configuration.js';
+import { LangchainService } from '../../langchain/langchain.service.js';
 import {
   GooglePlacesService,
   GoogleUnavailableError,
@@ -19,6 +27,7 @@ import {
   OPEN_DATA_CONFIG,
   OpenDataService,
 } from '../open-data/open-data.service.js';
+import { OpenDataError } from '../open-data/http.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
 import {
@@ -27,6 +36,7 @@ import {
   toPlaceDraft,
   type PlaceDraft,
 } from './osm-place-mapping.js';
+import { aiPlaceToListItem } from './ai-fallback.js';
 import { PLACE_CATEGORIES } from './entities/place.entity.js';
 import { hoursToday } from './opening-hours.js';
 import { scorePlace } from './place-scoring.js';
@@ -77,6 +87,7 @@ export class PlacesService {
     private readonly areas: RegionAreaService,
     @Inject(OPEN_DATA_CONFIG) private readonly config: OpenDataConfig,
     private readonly google: GooglePlacesService,
+    private readonly langchain: LangchainService,
   ) {}
 
   /**
@@ -86,9 +97,25 @@ export class PlacesService {
   async listForRegion(
     regionId: string,
     options: { categories?: PlaceCategory[]; cursor?: string; limit?: number },
-  ): Promise<AttributedPage<PlaceListItem>> {
-    const bbox = await this.areas.ensure(regionId);
-    await this.ensureFresh(regionId, bbox);
+  ): Promise<PlacesPage> {
+    let bbox: Bbox | null = null;
+    try {
+      bbox = await this.areas.ensure(regionId);
+      await this.ensureFresh(regionId, bbox);
+    } catch (error) {
+      if (!isOpenDataOutage(error)) throw error;
+      // Làm mới lỗi nhưng đã có dữ liệu cũ thì dùng dữ liệu cũ; chưa có gì
+      // mới phải nhờ tới Gemini + Google Maps.
+      if (bbox === null || !(await this.hasPlaces(bbox))) {
+        this.logger.warn(
+          `Nguồn dữ liệu mở lỗi cho vùng ${regionId} (${(error as Error).message}); dùng Gemini + Google Maps.`,
+        );
+        return this.aiFallback(regionId, options.categories);
+      }
+      this.logger.warn(
+        `Không làm mới được địa điểm vùng ${regionId}; dùng dữ liệu đã lưu. ${(error as Error).message}`,
+      );
+    }
 
     const limit = Math.min(Math.max(options.limit ?? 10, 1), 50);
     const categories = options.categories?.length
@@ -128,6 +155,69 @@ export class PlacesService {
           ? encodeCursor({ s: last.composite_score, id: last.id })
           : null,
       attribution: ATTRIBUTION,
+      source: 'catalog',
+    };
+  }
+
+  private async hasPlaces(bbox: Bbox): Promise<boolean> {
+    const [row] = (await this.db.query(
+      `SELECT EXISTS (SELECT 1 FROM places WHERE location && ST_MakeEnvelope($1, $2, $3, $4, 4326)) AS found`,
+      [bbox[1], bbox[0], bbox[3], bbox[2]],
+    )) as Array<{ found: boolean }>;
+    return row?.found === true;
+  }
+
+  /**
+   * Dự phòng: Gemini có công cụ Google Maps. Kết quả không được lưu vào danh
+   * mục (điều khoản Google Maps), không có id, không phân trang.
+   */
+  private async aiFallback(
+    regionId: string,
+    categories: PlaceCategory[] | undefined,
+  ): Promise<PlacesPage> {
+    const [region] = (await this.db.query(
+      `SELECT r.name, p.name AS parent_name
+         FROM regions r LEFT JOIN regions p ON p.id = r.parent_id
+        WHERE r.id = $1`,
+      [regionId],
+    )) as Array<{ name: string; parent_name: string | null }>;
+    if (!region) {
+      throw new NotFoundException({
+        statusCode: 404,
+        code: 'REGION_NOT_FOUND',
+        message: 'Không tìm thấy vùng này.',
+      });
+    }
+
+    const regionName = region.parent_name
+      ? `${region.name}, ${region.parent_name}`
+      : region.name;
+    let result: Awaited<ReturnType<LangchainService['findPlaces']>>;
+    try {
+      result = await this.langchain.findPlaces(regionName);
+    } catch (error) {
+      this.logger.error(`Gemini cũng lỗi cho "${regionName}"`, error as Error);
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        code: 'PLACES_UNAVAILABLE',
+        message: 'Tạm thời không lấy được địa điểm. Hãy thử lại sau.',
+      });
+    }
+
+    const wanted = new Set(
+      categories?.length ? categories : DEFAULT_CATEGORIES,
+    );
+    return {
+      items: result.places
+        .map((place) => aiPlaceToListItem(place, regionName))
+        .filter(
+          (item): item is PlaceListItem =>
+            item !== null && wanted.has(item.category),
+        ),
+      nextCursor: null,
+      attribution: 'Google Maps (qua Gemini)',
+      source: 'ai_google_maps',
+      groundingSources: result.sources,
     };
   }
 
@@ -158,6 +248,7 @@ export class PlacesService {
     const { status, content } = await this.googleContent(row);
     return {
       ...toListItem(row),
+      id: row.id,
       attribution: ATTRIBUTION,
       googleStatus: status,
       google: content,
@@ -317,6 +408,13 @@ export class PlacesService {
 interface DetailRow extends PlaceRow {
   google_place_id: string | null;
   google_matched_at: Date | null;
+}
+
+/** Lỗi do nguồn dữ liệu mở (mạng, quá tải, không xác định được khu vực) — đáng chuyển sang dự phòng. */
+function isOpenDataOutage(error: unknown): boolean {
+  if (error instanceof OpenDataError) return true;
+  if (error instanceof HttpException && error.getStatus() === 503) return true;
+  return false;
 }
 
 /** Cùng một phần tử có thể khớp nhiều bộ lọc (ví dụ cả tourism lẫn historic). */

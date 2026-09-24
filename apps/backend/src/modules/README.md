@@ -71,3 +71,16 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
   được thì 30 ngày sau mới thử lại.
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
+
+## Dự phòng khi nguồn dữ liệu mở lỗi
+
+`GET /regions/:id/places` khi OSM (Overpass/Nominatim) không dùng được:
+
+1. Đã có địa điểm lưu cho khu vực đó → trả dữ liệu lưu (`source: "catalog"`), bỏ qua lần làm mới.
+2. Chưa có gì → hỏi Gemini có công cụ Google Maps (`LangchainService.findPlaces`) và trả
+   `source: "ai_google_maps"`: một trang, `id: null` (không có màn hình chi tiết), không
+   lưu vào danh mục, kèm `groundingSources`. Client phải hiển thị "Google Maps" và các nguồn.
+3. Gemini cũng lỗi → 503 `PLACES_UNAVAILABLE`.
+
+Lưu ý: bước 2 lệch với PRD 7.4 nguyên tắc 5 (dữ liệu Google chỉ đưa vào AI để sắp xếp
+lịch trình) — là quyết định có chủ ý, chỉ dùng khi dữ liệu mở không có.
