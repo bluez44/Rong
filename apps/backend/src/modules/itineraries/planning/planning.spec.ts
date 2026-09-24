@@ -6,7 +6,6 @@ import {
   orderNearestFirst,
   pickExtras,
 } from './clustering.js';
-import { estimateCost } from './cost.js';
 import { buildDays, type DayWindow } from './days.js';
 import type { Candidate, PlannedStop } from './planning.types.js';
 import { PARTY_RULES, targetStopsPerDay } from './rules.js';
@@ -288,50 +287,5 @@ describe('giờ mở cửa thông thường khi không có dữ liệu', () => {
     });
     expect(hhmm(result.items[0].startsAt)).toBe('08:00');
     expect(result.items[0].travelMinutesFromPrevious).toBeNull();
-  });
-});
-
-describe('estimateCost', () => {
-  it('tính theo người, bữa, phương tiện và lưu trú; khoảng thấp–cao', () => {
-    const result = scheduleDay([stop(place({ category: 'kids' }), 120)], {
-      day: day({ start: 10 * 60, end: 13 * 60 + 30 }),
-      rules: PARTY_RULES.family_with_kids,
-      transport: 'car',
-      accommodation: null,
-      foodPool: [place({ category: 'food' })],
-      usedFood: new Set(),
-    });
-
-    const cost = estimateCost({
-      items: result.items,
-      adults: 2,
-      children: 2,
-      budgetTier: 'moderate',
-      transport: 'car',
-      days: 1,
-      totalKm: 20,
-      nights: 1,
-      hasAccommodation: true,
-    });
-
-    // Vé khu vui chơi: (2 + 2×0.5) × 100–300k.
-    expect(cost.byCategory.tickets).toEqual({
-      minVnd: 300_000,
-      maxVnd: 900_000,
-    });
-    // Một bữa trưa: (2 + 2×0.6) × 80–200k.
-    expect(cost.byCategory.food).toEqual({ minVnd: 256_000, maxVnd: 640_000 });
-    // Một ô tô 1 ngày + 20 km.
-    expect(cost.byCategory.transport).toEqual({
-      minVnd: 850_000,
-      maxVnd: 1_370_000,
-    });
-    // 1 phòng × 1 đêm.
-    expect(cost.byCategory.accommodation).toEqual({
-      minVnd: 600_000,
-      maxVnd: 1_200_000,
-    });
-    expect(cost.total.minVnd).toBe(2_006_000);
-    expect(cost.perPerson).toEqual({ minVnd: 502_000, maxVnd: 1_028_000 });
   });
 });

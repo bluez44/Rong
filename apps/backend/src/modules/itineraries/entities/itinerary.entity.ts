@@ -1,6 +1,4 @@
 import type {
-  CostCategory,
-  CostRange,
   ItineraryDay,
   ItineraryInput,
   ItineraryWarning,
@@ -20,13 +18,6 @@ import {
 
 import { Region } from '../../regions/entities/region.entity.js';
 import { User } from '../../users/entities/user.entity.js';
-
-export interface StoredCost {
-  total: CostRange;
-  perPerson: CostRange;
-  byCategory: Record<CostCategory, CostRange>;
-  note: string;
-}
 
 @Entity('itineraries')
 @Index('idx_itinerary_owner_created', ['ownerId', 'createdAt'])
@@ -82,9 +73,6 @@ export class Itinerary {
 
   @Column({ name: 'tips', type: 'jsonb', default: [] })
   tips!: string[];
-
-  @Column({ name: 'cost', type: 'jsonb' })
-  cost!: StoredCost;
 
   /** FR-6.5: tối đa 3 lần chỉnh sửa bằng AI mỗi lịch trình (dùng ở F8). */
   @Column({ name: 'ai_edits_remaining', type: 'smallint', default: 3 })
