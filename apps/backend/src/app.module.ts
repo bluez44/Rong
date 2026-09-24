@@ -3,12 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 
 import { loadConfig } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
-import { HealthModule } from './modules/health/health.module.js';
-import { AuthModule } from './auth/auth.module.js';
-import { UsersModule } from './users/users.module.js';
-import { AppController } from './app.controller.js';
-import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { LangchainModule } from './langchain/langchain.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { HealthModule } from './modules/health/health.module.js';
+import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
   imports: [
@@ -18,12 +16,11 @@ import { LangchainModule } from './langchain/langchain.module.js';
       envFilePath: ['.env.local', '.env'],
     }),
     DatabaseModule,
-    HealthModule,
+    // AuthModule gắn JwtAuthGuard toàn cục: mọi route khác đều cần access token.
     AuthModule,
     UsersModule,
+    HealthModule,
     LangchainModule,
   ],
-  controllers: [AppController],
-  providers: [JwtAuthGuard],
 })
 export class AppModule {}
