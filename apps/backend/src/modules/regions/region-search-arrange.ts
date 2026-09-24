@@ -18,6 +18,7 @@ export interface RegionLite {
   successorRegionId: string | null;
   mergeNote: string | null;
   center: { lat: number; lng: number } | null;
+  bbox: [number, number, number, number] | null;
 }
 
 export interface RegionMatch {
@@ -173,6 +174,7 @@ export function arrangeRegionResults(
         ? { id: parent.id, displayName: displayName(parent) }
         : null,
       center: region.center,
+      bbox: region.bbox,
     };
   });
 }

@@ -64,11 +64,10 @@ export interface RegionSearchResult {
   note: string | null;
   parent: RegionRef | null;
   center: { lat: number; lng: number } | null;
-}
-
-export interface RegionDetail extends RegionSearchResult {
-  /** GeoJSON đã được giản lược để vẽ trên bản đồ. null nếu chưa lấy được ranh giới. */
-  boundary: GeoPolygon | null;
-  /** [minLng, minLat, maxLng, maxLat] — để bản đồ zoom vừa khít (FR-1.5). */
+  /**
+   * Khung bao [minLng, minLat, maxLng, maxLat] để bản đồ zoom vừa khít (FR-1.5).
+   * null cho tới khi vùng được chọn lần đầu (khung bao được tính lúc lấy địa điểm).
+   */
   bbox: [number, number, number, number] | null;
 }
+

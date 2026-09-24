@@ -19,8 +19,8 @@ import {
   OPEN_DATA_CONFIG,
   OpenDataService,
 } from '../open-data/open-data.service.js';
-import type { Bbox } from '../open-data/open-data.types.js';
-import { BoundaryService } from '../regions/boundary.service.js';
+import type { Bbox } from '../regions/bbox.js';
+import { RegionAreaService } from '../regions/region-area.service.js';
 import {
   SERVICE_FILTERS,
   SIGHT_FILTERS,
@@ -74,21 +74,21 @@ export class PlacesService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly openData: OpenDataService,
-    private readonly boundaries: BoundaryService,
+    private readonly areas: RegionAreaService,
     @Inject(OPEN_DATA_CONFIG) private readonly config: OpenDataConfig,
     private readonly google: GooglePlacesService,
   ) {}
 
   /**
    * Địa điểm trong vùng, xếp theo điểm tổng hợp giảm dần, 10 mục mỗi trang
-   * (FR-2.10). "Trong vùng" nghĩa là tọa độ nằm trong polygon — FR-1.10.
+   * (FR-2.10). "Trong vùng" nghĩa là tọa độ nằm trong khung bao của vùng.
    */
   async listForRegion(
     regionId: string,
     options: { categories?: PlaceCategory[]; cursor?: string; limit?: number },
   ): Promise<AttributedPage<PlaceListItem>> {
-    await this.boundaries.ensure(regionId);
-    await this.ensureFresh(regionId);
+    const bbox = await this.areas.ensure(regionId);
+    await this.ensureFresh(regionId, bbox);
 
     const limit = Math.min(Math.max(options.limit ?? 10, 1), 50);
     const categories = options.categories?.length
@@ -102,12 +102,21 @@ export class PlacesService {
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website
          FROM places p
-         JOIN regions r ON r.id = $1 AND ST_Covers(r.boundary, p.location)
-        WHERE p.category = ANY($2::place_category[])
-          AND ($3::int IS NULL OR p.composite_score < $3 OR (p.composite_score = $3 AND p.id > $4::uuid))
+        WHERE p.location && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          AND p.category = ANY($5::place_category[])
+          AND ($6::int IS NULL OR p.composite_score < $6 OR (p.composite_score = $6 AND p.id > $7::uuid))
         ORDER BY p.composite_score DESC, p.id
-        LIMIT $5`,
-      [regionId, categories, cursor?.s ?? null, cursor?.id ?? null, limit + 1],
+        LIMIT $8`,
+      [
+        bbox[1],
+        bbox[0],
+        bbox[3],
+        bbox[2],
+        categories,
+        cursor?.s ?? null,
+        cursor?.id ?? null,
+        limit + 1,
+      ],
     )) as PlaceRow[];
 
     const page = rows.slice(0, limit);
@@ -198,10 +207,10 @@ export class PlacesService {
   }
 
   /** Tải lại địa điểm của vùng từ OSM nếu chưa từng tải hoặc đã quá hạn. */
-  private ensureFresh(regionId: string): Promise<void> {
+  private ensureFresh(regionId: string, bbox: Bbox): Promise<void> {
     let pending = this.inFlight.get(regionId);
     if (!pending) {
-      pending = this.refreshIfStale(regionId).finally(() =>
+      pending = this.refreshIfStale(regionId, bbox).finally(() =>
         this.inFlight.delete(regionId),
       );
       this.inFlight.set(regionId, pending);
@@ -209,20 +218,11 @@ export class PlacesService {
     return pending;
   }
 
-  private async refreshIfStale(regionId: string): Promise<void> {
+  private async refreshIfStale(regionId: string, bbox: Bbox): Promise<void> {
     const [region] = (await this.db.query(
-      `SELECT name, places_fetched_at,
-              ST_YMin(boundary) AS s, ST_XMin(boundary) AS w, ST_YMax(boundary) AS n, ST_XMax(boundary) AS e
-         FROM regions WHERE id = $1`,
+      `SELECT name, places_fetched_at FROM regions WHERE id = $1`,
       [regionId],
-    )) as Array<{
-      name: string;
-      places_fetched_at: Date | null;
-      s: number;
-      w: number;
-      n: number;
-      e: number;
-    }>;
+    )) as Array<{ name: string; places_fetched_at: Date | null }>;
 
     const maxAgeMs = this.config.placesRefreshDays * 24 * 60 * 60 * 1000;
     if (
@@ -232,7 +232,6 @@ export class PlacesService {
       return;
     }
 
-    const bbox: Bbox = [region.s, region.w, region.n, region.e];
     const started = Date.now();
     const sights = await this.openData.placesInBbox(
       bbox,

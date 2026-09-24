@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { OverpassElement } from '../open-data/open-data.types.js';
-import { pickBoundary } from './boundary.service.js';
+import { pickRelation } from './bbox.js';
 import { foldText, isWardName, searchKey } from './search-text.js';
 
 describe('searchKey', () => {
@@ -31,7 +31,7 @@ describe('searchKey', () => {
   });
 });
 
-describe('pickBoundary', () => {
+describe('pickRelation', () => {
   const candidates: OverpassElement[] = [
     { type: 'relation', id: 1, tags: { name: 'Tỉnh Bình Thuận' } },
     {
@@ -47,9 +47,9 @@ describe('pickBoundary', () => {
   ];
 
   it('khớp theo tên đã bỏ dấu và tiền tố, kể cả khác kiểu gạch nối', () => {
-    expect(pickBoundary(candidates, 'Bình Thuận')?.id).toBe(1);
-    expect(pickBoundary(candidates, 'Bà Rịa - Vũng Tàu')?.id).toBe(2);
-    expect(pickBoundary(candidates, 'Huế')?.id).toBe(3);
-    expect(pickBoundary(candidates, 'Ninh Thuận')).toBeUndefined();
+    expect(pickRelation(candidates, 'Bình Thuận')?.id).toBe(1);
+    expect(pickRelation(candidates, 'Bà Rịa - Vũng Tàu')?.id).toBe(2);
+    expect(pickRelation(candidates, 'Huế')?.id).toBe(3);
+    expect(pickRelation(candidates, 'Ninh Thuận')).toBeUndefined();
   });
 });

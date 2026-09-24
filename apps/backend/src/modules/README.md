@@ -6,8 +6,8 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | --- | --- | --- |
 | `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, JWT guard toàn cục (`@Public()` để mở route). Sẵn chỗ cho Google / Apple qua `auth_identities` |
 | `users/` | F11 | Hồ sơ, hạn mức lượt AI hằng tháng (FR-6.5), xóa tài khoản |
-| `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, ranh giới PostGIS lấy từ OSM, seed sáp nhập 1/7/2025 |
-| `places/` | F2, F5 | Danh mục địa điểm riêng từ OSM + Wikidata, lọc theo polygon, điểm tổng hợp, phân trang con trỏ |
+| `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, khung bao (bbox) lấy từ OSM, seed sáp nhập 1/7/2025 |
+| `places/` | F2, F5 | Danh mục địa điểm riêng từ OSM + Wikidata, lọc theo khung bao của vùng, điểm tổng hợp, phân trang con trỏ |
 | `open-data/` | 7.1 | **Cổng duy nhất** gọi OSM Nominatim, Overpass, Wikidata (giãn cách request, User-Agent) |
 | `ranking/` | F3 | Điểm tổng hợp 0–100, nhãn "Đang hot" |
 | `google/` | 7.4 | **Cổng duy nhất** gọi Google Places + Routes |
@@ -38,18 +38,23 @@ endpoint của Google. Các module khác đi qua service mà `google/` cung cấ
 ```
 GET /api/regions/search?q=da lat            gợi ý khi gõ — chỉ đọc database
 GET /api/regions/search?q=tam dao&online=1  khi bấm tìm — thiếu thì hỏi Nominatim rồi lưu lại
-GET /api/regions/:id                        chi tiết + ranh giới GeoJSON (tải từ OSM lần đầu)
-GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm trong polygon (kèm giờ mở cửa hôm nay)
+GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm trong khung bao (kèm giờ mở cửa hôm nay)
 GET /api/places/:id                         chi tiết (F5) + nội dung Google Maps theo thời gian thực
 ```
 
 - **Tỉnh cũ/mới** được seed từ Nghị quyết 202/2025/QH15 (`regions/seed/vietnam-admin.ts`).
-  Ranh giới tỉnh cũ và thành phố cấp huyện đã bị bỏ (Đà Lạt, Vũng Tàu…) lấy từ OSM
-  *tại ngày 30/6/2025* (Overpass `[date:…]`); tỉnh mới là hợp các tỉnh cũ (`ST_Union`).
+- **Khu vực của một vùng là một khung bao (bbox)**, không phải polygon
+  (`regions/region-area.service.ts`), tính lần đầu khi lấy địa điểm của vùng:
+  - tỉnh cũ, thành phố cấp huyện đã bị bỏ (Đà Lạt, Vũng Tàu…): khung bao của relation
+    OSM *tại ngày 30/6/2025* (Overpass `[date:…]`, `out tags bb`);
+  - tỉnh mới sau sáp nhập: khung bao trọn các tỉnh cũ;
+  - vùng nhập từ Nominatim: `boundingbox` Nominatim trả về, lưu ngay lúc nhập;
+  - chỉ có một điểm: khung vuông quanh điểm theo bán kính (phương án dự phòng).
+  Khung bao lấn sang vùng lân cận một chút ở rìa — chấp nhận được cho danh sách gợi ý.
 - **Địa điểm** lấy từ Overpass theo khung bao của vùng, phân loại bằng tag OSM
   (`places/osm-place-mapping.ts`), chấm điểm tất định (`places/place-scoring.ts`), lưu
   lại và làm mới sau `PLACES_REFRESH_DAYS` ngày. Địa điểm thuộc vùng nào tính bằng
-  `ST_Covers` lúc truy vấn, nên dùng chung cho vùng cũ và mới.
+  khung bao lúc truy vấn, nên dùng chung cho vùng cũ và mới.
 - Nominatim công cộng **cấm dùng cho autocomplete** và giới hạn 1 request/giây, vì vậy
   `online` chỉ bật khi người dùng bấm tìm. Production nên tự host hoặc dùng nhà cung cấp
   trả phí (đổi `NOMINATIM_URL`, `OVERPASS_URL`).
