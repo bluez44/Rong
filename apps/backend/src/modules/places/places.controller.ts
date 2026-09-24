@@ -1,9 +1,5 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import type {
-  AttributedPage,
-  PlaceDetail,
-  PlaceListItem,
-} from '@rong/shared-types';
+import type { PlaceDetail, PlacesPage } from '@rong/shared-types';
 
 import { ListPlacesDto } from './dto/list-places.dto.js';
 import { PlacesService } from './places.service.js';
@@ -14,13 +10,14 @@ export class PlacesController {
 
   /**
    * Địa điểm trong vùng người dùng đã chọn. Lần đầu mở một vùng (hoặc sau
-   * PLACES_REFRESH_DAYS ngày) sẽ chậm vài giây vì phải tải từ OSM.
+   * PLACES_REFRESH_DAYS ngày) sẽ chậm vài giây vì phải tải từ OSM. OSM lỗi mà
+   * chưa có dữ liệu thì trả kết quả Gemini + Google Maps (`source`).
    */
   @Get(':id/places')
   list(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query() dto: ListPlacesDto,
-  ): Promise<AttributedPage<PlaceListItem>> {
+  ): Promise<PlacesPage> {
     return this.places.listForRegion(id, dto);
   }
 }
