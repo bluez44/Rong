@@ -17,8 +17,8 @@ export const ONE_TIME_TOKEN_PURPOSES = [
 export type OneTimeTokenPurpose = (typeof ONE_TIME_TOKEN_PURPOSES)[number];
 
 /**
- * Token dùng một lần gửi qua email: xác minh email, và sau này là đặt lại mật
- * khẩu. Chỉ lưu SHA-256 của token — lộ database cũng không có link dùng được.
+ * Mã 6 chữ số dùng một lần gửi qua email: xác minh email, và sau này là đặt
+ * lại mật khẩu. Chỉ lưu HMAC của mã — lộ database cũng không dò ra được mã.
  */
 @Entity('one_time_tokens')
 @Index('idx_one_time_token_identity', ['identityId', 'purpose'])
@@ -49,6 +49,10 @@ export class OneTimeToken {
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
   expiresAt!: Date;
+
+  /** Số lần đã nhập mã này. Đạt MAX_CODE_ATTEMPTS thì mã coi như hết hiệu lực. */
+  @Column({ name: 'attempts', type: 'int', default: 0 })
+  attempts!: number;
 
   @Column({ name: 'used_at', type: 'timestamptz', nullable: true })
   usedAt!: Date | null;

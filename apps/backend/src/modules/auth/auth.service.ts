@@ -17,7 +17,7 @@ import { MailService } from '../mail/mail.service.js';
 import { User } from '../users/entities/user.entity.js';
 import { toProfile } from '../users/users.service.js';
 import { AUTH_CONFIG, type AccessTokenPayload } from './auth.constants.js';
-import type { LoginDto, RegisterDto } from './dto/auth.dto.js';
+import type { LoginDto, RegisterDto, VerifyEmailDto } from './dto/auth.dto.js';
 import { normalizeEmail } from './email.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
 import { OneTimeTokenService } from './one-time-token.service.js';
@@ -45,7 +45,7 @@ export class AuthService {
   ) {}
 
   /**
-   * Tạo tài khoản ở trạng thái chưa xác minh và gửi link xác minh. Không cấp
+   * Tạo tài khoản ở trạng thái chưa xác minh và gửi mã xác minh. Không cấp
    * token: tài khoản chỉ đăng nhập được sau khi chứng minh sở hữu email.
    */
   async register(dto: RegisterDto): Promise<RegisterResult> {
@@ -118,7 +118,7 @@ export class AuthService {
         statusCode: 403,
         code: 'EMAIL_NOT_VERIFIED',
         message:
-          'Tài khoản chưa được kích hoạt. Hãy bấm link xác minh trong email.',
+          'Tài khoản chưa được kích hoạt. Hãy nhập mã xác minh đã gửi tới email.',
       });
     }
 
@@ -128,28 +128,47 @@ export class AuthService {
     return this.issueAccessToken(user, [identity]);
   }
 
-  /** Kích hoạt tài khoản bằng token trong link email. Token chỉ dùng được một lần. */
-  async verifyEmail(token: string): Promise<void> {
-    const identityId = await this.oneTimeTokens.consume(
-      token,
-      'email_verification',
-    );
-    if (identityId === null) {
+  /**
+   * Kích hoạt tài khoản bằng mã 6 chữ số rồi đăng nhập luôn: người dùng vừa
+   * chứng minh sở hữu email, bắt nhập lại mật khẩu chỉ thêm một bước thừa.
+   *
+   * Email không tồn tại, đã xác minh, mã sai, hết hạn hay nhập sai quá số lần
+   * đều trả cùng một lỗi, để endpoint này không dùng được để dò tài khoản.
+   */
+  async verifyEmail(dto: VerifyEmailDto): Promise<AuthTokens> {
+    const identity = await this.findPasswordIdentity(normalizeEmail(dto.email));
+
+    const valid =
+      identity !== null &&
+      identity.emailVerifiedAt === null &&
+      (await this.oneTimeTokens.verifyCode(
+        identity.id,
+        'email_verification',
+        dto.code,
+      ));
+    if (!valid) {
       throw new BadRequestException({
         statusCode: 400,
-        code: 'INVALID_VERIFICATION_TOKEN',
-        message: 'Link xác minh không hợp lệ, đã hết hạn hoặc đã được dùng.',
+        code: 'INVALID_VERIFICATION_CODE',
+        message:
+          'Mã xác minh không đúng hoặc đã hết hạn. Hãy thử lại hoặc yêu cầu gửi mã mới.',
       });
     }
 
+    identity.emailVerifiedAt = new Date();
     await this.identities.update(
-      { id: identityId, emailVerifiedAt: IsNull() },
-      { emailVerifiedAt: new Date() },
+      { id: identity.id, emailVerifiedAt: IsNull() },
+      { emailVerifiedAt: identity.emailVerifiedAt },
     );
+
+    const user = await this.users.findOneByOrFail({ id: identity.userId });
+    await this.users.update(user.id, { lastSeenAt: new Date() });
+
+    return this.issueAccessToken(user, [identity]);
   }
 
   /**
-   * Gửi lại link xác minh. Luôn im lặng thành công dù email không tồn tại hay
+   * Gửi lại mã xác minh (mã cũ mất hiệu lực). Luôn im lặng thành công dù email không tồn tại hay
    * đã xác minh, để endpoint này không bị dùng để dò tài khoản.
    */
   async resendVerification(rawEmail: string): Promise<void> {
@@ -181,24 +200,25 @@ export class AuthService {
 
   private async sendVerificationEmail(identity: AuthIdentity): Promise<void> {
     const email = identity.email as string;
-    const token = await this.oneTimeTokens.issue(
+    const ttlMinutes = this.config.emailVerificationTtlMinutes;
+    const code = await this.oneTimeTokens.issueCode(
       identity.id,
       'email_verification',
-      this.config.emailVerificationTtlHours * 60 * 60 * 1000,
+      ttlMinutes * 60 * 1000,
     );
-
-    const link = new URL(this.config.emailVerificationUrl);
-    link.searchParams.set('token', token);
 
     try {
       await this.mail.send({
         to: email,
-        subject: 'Xác minh email tài khoản Rong',
+        // Mã nằm ngay trong tiêu đề để người dùng đọc được từ thông báo, khỏi mở mail.
+        subject: `Mã xác minh Rong: ${code}`,
         text:
           `Chào bạn,\n\n` +
-          `Bấm vào link dưới đây để kích hoạt tài khoản Rong:\n${link.toString()}\n\n` +
-          `Link có hiệu lực trong ${this.config.emailVerificationTtlHours} giờ. ` +
+          `Mã xác minh tài khoản Rong của bạn là: ${code}\n\n` +
+          `Nhập mã này trong app để kích hoạt tài khoản. ` +
+          `Mã có hiệu lực trong ${ttlMinutes} phút. ` +
           `Nếu bạn không đăng ký tài khoản này, hãy bỏ qua email.`,
+        html: verificationEmailHtml(code, ttlMinutes),
       });
     } catch (error) {
       // Tài khoản đã tạo xong; gửi mail lỗi thì người dùng vẫn có thể bấm "gửi lại".
@@ -223,4 +243,18 @@ export class AuthService {
       message: 'Email này đã được đăng ký.',
     });
   }
+}
+
+function verificationEmailHtml(code: string, ttlMinutes: number): string {
+  return `<!doctype html>
+<html lang="vi">
+  <body style="margin:0;padding:24px;background:#f5f5f4;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1c1917">
+    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px">
+      <h1 style="margin:0 0 16px;font-size:20px">Xác minh email tài khoản Rong</h1>
+      <p style="margin:0 0 24px;line-height:1.5">Nhập mã dưới đây trong app để kích hoạt tài khoản:</p>
+      <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:8px;text-align:center;font-family:ui-monospace,Menlo,monospace">${code}</p>
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#57534e">Mã có hiệu lực trong ${ttlMinutes} phút. Nếu bạn không đăng ký tài khoản này, hãy bỏ qua email.</p>
+    </div>
+  </body>
+</html>`;
 }

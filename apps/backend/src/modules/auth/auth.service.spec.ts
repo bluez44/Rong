@@ -12,15 +12,14 @@ import { PasswordService } from './password.service.js';
 const CONFIG: AuthConfig = {
   jwtSecret: 'khoa-bi-mat-du-dai-cho-test-32-ky-tu',
   accessTokenTtlSeconds: 900,
-  emailVerificationTtlHours: 24,
-  emailVerificationUrl: 'https://rong.test/verify-email',
+  emailVerificationTtlMinutes: 15,
 };
 
 /** Database giả trong bộ nhớ, đủ cho các nhánh logic của AuthService. */
 function buildHarness() {
   const users: User[] = [];
   const identities: AuthIdentity[] = [];
-  const tokens = new Map<string, string>(); // token gốc → identityId
+  const codes = new Map<string, string>(); // identityId → mã còn hiệu lực
 
   const manager = {
     create: (_entity: unknown, data: object) => ({ ...data }),
@@ -72,16 +71,18 @@ function buildHarness() {
     ),
   };
   const oneTimeTokens = {
-    issue: vi.fn(async (identityId: string) => {
-      const raw = `token-${tokens.size + 1}`;
-      tokens.set(raw, identityId);
-      return raw;
+    issueCode: vi.fn(async (identityId: string) => {
+      const code = String(100000 + codes.size);
+      codes.set(identityId, code);
+      return code;
     }),
-    consume: vi.fn(async (raw: string) => {
-      const identityId = tokens.get(raw) ?? null;
-      tokens.delete(raw);
-      return identityId;
-    }),
+    verifyCode: vi.fn(
+      async (identityId: string, _purpose: string, code: string) => {
+        if (codes.get(identityId) !== code) return false;
+        codes.delete(identityId);
+        return true;
+      },
+    ),
     issuedRecently: vi.fn(async () => false),
   };
   const mail = { send: vi.fn(async () => undefined) };
@@ -98,11 +99,12 @@ function buildHarness() {
     CONFIG,
   );
 
-  /** Lấy token từ link trong email gần nhất, như người dùng bấm link. */
-  const lastEmailedToken = (): string => {
-    const calls = mail.send.mock.calls as unknown as Array<[{ text: string }]>;
-    const text = calls.at(-1)![0].text;
-    return new URL(text.match(/https:\/\/\S+/)![0]).searchParams.get('token')!;
+  /** Đọc mã từ tiêu đề email gần nhất, như người dùng nhìn thông báo trên điện thoại. */
+  const lastEmailedCode = (): string => {
+    const calls = mail.send.mock.calls as unknown as Array<
+      [{ subject: string }]
+    >;
+    return calls.at(-1)![0].subject.match(/\d{6}/)![0];
   };
 
   return {
@@ -112,7 +114,7 @@ function buildHarness() {
     mail,
     oneTimeTokens,
     jwt,
-    lastEmailedToken,
+    lastEmailedCode,
   };
 }
 
@@ -151,7 +153,7 @@ describe('AuthService', () => {
     expect(h.mail.send).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'linh@example.com' }),
     );
-    expect(h.lastEmailedToken()).toBe('token-1');
+    expect(h.lastEmailedCode()).toBe('100000');
   });
 
   it('từ chối email đã đăng ký (không phân biệt hoa thường)', async () => {
@@ -183,12 +185,18 @@ describe('AuthService', () => {
     ).resolves.toBe('EMAIL_NOT_VERIFIED');
   });
 
-  it('xác minh xong thì đăng nhập được và nhận JWT chứa user id', async () => {
+  it('nhập đúng mã thì được đăng nhập luôn, và sau đó đăng nhập bằng mật khẩu được', async () => {
     await h.service.register({
       email: 'ha@rong.vn',
       password: 'mat-khau-du-dai',
     });
-    await h.service.verifyEmail(h.lastEmailedToken());
+
+    const verified = await h.service.verifyEmail({
+      email: ' HA@rong.vn',
+      code: h.lastEmailedCode(),
+    });
+    expect(verified.user.emailVerified).toBe(true);
+    expect(h.jwt.verify(verified.accessToken)).toMatchObject({ sub: 'user-1' });
 
     const result = await h.service.login({
       email: 'HA@rong.vn',
@@ -200,20 +208,43 @@ describe('AuthService', () => {
     expect(h.jwt.verify(result.accessToken)).toMatchObject({ sub: 'user-1' });
   });
 
-  it('token xác minh sai hoặc dùng lại bị từ chối', async () => {
+  it('mã sai, mã dùng lại và email lạ đều trả cùng một mã lỗi', async () => {
     await h.service.register({
       email: 'ha@rong.vn',
       password: 'mat-khau-du-dai',
     });
-    const token = h.lastEmailedToken();
-    await h.service.verifyEmail(token);
+    const code = h.lastEmailedCode();
 
-    await expect(errorCode(h.service.verifyEmail(token))).resolves.toBe(
-      'INVALID_VERIFICATION_TOKEN',
+    await expect(
+      errorCode(h.service.verifyEmail({ email: 'ha@rong.vn', code: '999999' })),
+    ).resolves.toBe('INVALID_VERIFICATION_CODE');
+
+    await h.service.verifyEmail({ email: 'ha@rong.vn', code });
+    await expect(
+      errorCode(h.service.verifyEmail({ email: 'ha@rong.vn', code })),
+    ).resolves.toBe('INVALID_VERIFICATION_CODE');
+
+    await expect(
+      errorCode(h.service.verifyEmail({ email: 'khong-co@rong.vn', code })),
+    ).resolves.toBe('INVALID_VERIFICATION_CODE');
+  });
+
+  it('không so mã với tài khoản đã xác minh', async () => {
+    await h.service.register({
+      email: 'ha@rong.vn',
+      password: 'mat-khau-du-dai',
+    });
+    await h.service.verifyEmail({
+      email: 'ha@rong.vn',
+      code: h.lastEmailedCode(),
+    });
+    h.oneTimeTokens.verifyCode.mockClear();
+
+    await errorCode(
+      h.service.verifyEmail({ email: 'ha@rong.vn', code: '123456' }),
     );
-    await expect(errorCode(h.service.verifyEmail('bia-dat'))).resolves.toBe(
-      'INVALID_VERIFICATION_TOKEN',
-    );
+
+    expect(h.oneTimeTokens.verifyCode).not.toHaveBeenCalled();
   });
 
   it('sai mật khẩu và email không tồn tại trả về cùng một mã lỗi', async () => {
@@ -245,7 +276,10 @@ describe('AuthService', () => {
     await h.service.resendVerification('ha@rong.vn');
     expect(h.mail.send).toHaveBeenCalledTimes(1);
 
-    await h.service.verifyEmail(h.lastEmailedToken());
+    await h.service.verifyEmail({
+      email: 'ha@rong.vn',
+      code: h.lastEmailedCode(),
+    });
     h.mail.send.mockClear();
     await h.service.resendVerification('ha@rong.vn');
     expect(h.mail.send).not.toHaveBeenCalled();

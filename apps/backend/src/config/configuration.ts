@@ -21,9 +21,7 @@ export interface RedisConfig {
 export interface AuthConfig {
   jwtSecret: string;
   accessTokenTtlSeconds: number;
-  emailVerificationTtlHours: number;
-  /** Trang (web/app) nhận token xác minh; token được gắn vào query `?token=`. */
-  emailVerificationUrl: string;
+  emailVerificationTtlMinutes: number;
 }
 
 export interface MailConfig {
@@ -109,13 +107,10 @@ export function loadConfig(): AppConfig {
     auth: {
       jwtSecret: requireStrongSecret(process.env.JWT_SECRET as string),
       accessTokenTtlSeconds: toInt(process.env.ACCESS_TOKEN_TTL_SECONDS, 900),
-      emailVerificationTtlHours: toInt(
-        process.env.EMAIL_VERIFICATION_TTL_HOURS,
-        24,
+      emailVerificationTtlMinutes: toInt(
+        process.env.EMAIL_VERIFICATION_TTL_MINUTES,
+        15,
       ),
-      emailVerificationUrl:
-        process.env.EMAIL_VERIFICATION_URL ||
-        'http://localhost:3000/verify-email',
     },
     mail: {
       smtpHost: process.env.SMTP_HOST || null,

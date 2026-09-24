@@ -1,76 +1,95 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 
+import type { AuthConfig } from '../../config/configuration.js';
+import { AUTH_CONFIG } from './auth.constants.js';
 import {
   OneTimeToken,
   type OneTimeTokenPurpose,
 } from './entities/one-time-token.entity.js';
 
 /**
- * SHA-256 chứ không phải argon2: token là 256 bit ngẫu nhiên do máy sinh,
- * không có không gian nhỏ để dò, nên băm chậm chỉ tốn thời gian vô ích.
+ * Số lần nhập sai tối đa cho một mã. Mã 6 chữ số chỉ có 1.000.000 khả năng,
+ * nên giới hạn này mới là thứ khiến việc dò mã vô vọng (5 / 1.000.000).
  */
-export function hashToken(raw: string): string {
-  return createHash('sha256').update(raw).digest('hex');
-}
+export const MAX_CODE_ATTEMPTS = 5;
 
 @Injectable()
 export class OneTimeTokenService {
   constructor(
     @InjectRepository(OneTimeToken)
     private readonly tokens: Repository<OneTimeToken>,
+    @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
   ) {}
 
   /**
-   * Sinh token mới và vô hiệu hóa mọi token cũ chưa dùng cùng mục đích, để chỉ
-   * link trong email mới nhất còn hiệu lực. Trả về token gốc — thứ duy nhất
-   * không bao giờ được ghi xuống database.
+   * Sinh mã 6 chữ số mới và xóa mọi mã cũ chưa dùng cùng mục đích, để mỗi
+   * identity chỉ có tối đa một mã còn hiệu lực. Trả về mã gốc — thứ không bao
+   * giờ được ghi xuống database.
    */
-  async issue(
+  async issueCode(
     identityId: string,
     purpose: OneTimeTokenPurpose,
     ttlMs: number,
   ): Promise<string> {
     await this.tokens.delete({ identityId, purpose, usedAt: IsNull() });
 
-    const raw = randomBytes(32).toString('base64url');
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     await this.tokens.insert({
       identityId,
       purpose,
-      tokenHash: hashToken(raw),
+      tokenHash: this.hashCode(identityId, purpose, code),
       expiresAt: new Date(Date.now() + ttlMs),
     });
-    return raw;
+    return code;
   }
 
   /**
-   * Đánh dấu token đã dùng và trả về identity mà nó thuộc về, hoặc null nếu
-   * token sai, hết hạn hay đã dùng. Một câu UPDATE duy nhất nên hai request
-   * đồng thời với cùng token không thể cùng thành công.
+   * Kiểm tra mã và đánh dấu đã dùng nếu đúng.
+   *
+   * Mỗi lần thử (kể cả lần đúng) tăng `attempts` bằng một câu UPDATE có điều
+   * kiện `attempts < MAX` trước khi so mã. Dòng bị khóa trong lúc UPDATE, nên
+   * dù bắn hàng trăm request song song cũng chỉ tối đa MAX lần được so.
    */
-  async consume(
-    raw: string,
+  async verifyCode(
+    identityId: string,
     purpose: OneTimeTokenPurpose,
-  ): Promise<string | null> {
-    const result = await this.tokens
+    code: string,
+  ): Promise<boolean> {
+    const attempt = await this.tokens
       .createQueryBuilder()
       .update(OneTimeToken)
-      .set({ usedAt: () => 'now()' })
-      .where('token_hash = :hash', { hash: hashToken(raw) })
+      .set({ attempts: () => 'attempts + 1' })
+      .where('identity_id = :identityId', { identityId })
       .andWhere('purpose = :purpose', { purpose })
       .andWhere('used_at IS NULL')
       .andWhere('expires_at > now()')
-      .returning('identity_id')
+      .andWhere('attempts < :max', { max: MAX_CODE_ATTEMPTS })
+      .returning('"id", "token_hash"')
       .execute();
 
-    const row = (result.raw as Array<{ identity_id: string }>)[0];
-    return row?.identity_id ?? null;
+    const row = (attempt.raw as Array<{ id: string; token_hash: string }>)[0];
+    if (row === undefined) {
+      return false;
+    }
+
+    const expected = Buffer.from(row.token_hash, 'hex');
+    const actual = Buffer.from(this.hashCode(identityId, purpose, code), 'hex');
+    if (!timingSafeEqual(expected, actual)) {
+      return false;
+    }
+
+    const used = await this.tokens.update(
+      { id: row.id, usedAt: IsNull() },
+      { usedAt: () => 'now()' },
+    );
+    return used.affected === 1;
   }
 
-  /** Có token nào cùng mục đích được sinh trong khoảng `withinMs` vừa qua không. */
+  /** Có mã nào cùng mục đích được sinh trong khoảng `withinMs` vừa qua không. */
   async issuedRecently(
     identityId: string,
     purpose: OneTimeTokenPurpose,
@@ -83,5 +102,20 @@ export class OneTimeTokenService {
         createdAt: MoreThan(new Date(Date.now() - withinMs)),
       },
     });
+  }
+
+  /**
+   * HMAC với khóa bí mật chứ không phải SHA-256 trơn: 6 chữ số chỉ có một
+   * triệu khả năng, lộ database thì SHA-256 dò ngược ra ngay. Gắn identity và
+   * mục đích vào đầu vào để hai người trùng mã vẫn ra hai hash khác nhau.
+   */
+  private hashCode(
+    identityId: string,
+    purpose: OneTimeTokenPurpose,
+    code: string,
+  ): string {
+    return createHmac('sha256', this.config.jwtSecret)
+      .update(`${identityId}:${purpose}:${code}`)
+      .digest('hex');
   }
 }
