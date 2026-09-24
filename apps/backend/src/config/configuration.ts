@@ -45,6 +45,13 @@ export interface OpenDataConfig {
   placesRefreshDays: number;
 }
 
+/** Google Maps Platform — chỉ module `google/` được dùng (PRD 7.4). */
+export interface GoogleConfig {
+  /** Để trống thì màn hình chi tiết chỉ có dữ liệu riêng, không có phần Google. */
+  mapsApiKey: string | null;
+  placesUrl: string;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -53,6 +60,7 @@ export interface AppConfig {
   auth: AuthConfig;
   mail: MailConfig;
   openData: OpenDataConfig;
+  google: GoogleConfig;
 }
 
 class MissingEnvError extends Error {
@@ -141,6 +149,11 @@ export function loadConfig(): AppConfig {
         process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php',
       contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
       placesRefreshDays: toInt(process.env.PLACES_REFRESH_DAYS, 30),
+    },
+    google: {
+      mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
+      placesUrl:
+        process.env.GOOGLE_PLACES_URL || 'https://places.googleapis.com/v1',
     },
   };
 }

@@ -1,13 +1,20 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   AttributedPage,
+  GoogleContentStatus,
+  GooglePlaceContent,
   PlaceCategory,
+  PlaceDetail,
   PlaceListItem,
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
 import type { OpenDataConfig } from '../../config/configuration.js';
+import {
+  GooglePlacesService,
+  GoogleUnavailableError,
+} from '../google/google-places.service.js';
 import {
   OPEN_DATA_CONFIG,
   OpenDataService,
@@ -21,6 +28,7 @@ import {
   type PlaceDraft,
 } from './osm-place-mapping.js';
 import { PLACE_CATEGORIES } from './entities/place.entity.js';
+import { hoursToday } from './opening-hours.js';
 import { scorePlace } from './place-scoring.js';
 
 export const ATTRIBUTION =
@@ -31,6 +39,9 @@ const SIGHTS_CAP = 3000;
 const SERVICES_CAP = 3000;
 /** Chỉ tra Wikidata cho tối đa chừng này địa điểm mỗi lần làm mới. */
 const WIKIDATA_CAP = 1000;
+
+/** Địa điểm chưa ghép được với Google thì sau chừng này mới thử lại (quán mới mở có thể đã lên Google). */
+const GOOGLE_REMATCH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Mặc định không gồm lưu trú, để khách sạn không lấn át điểm vui chơi (FR-2.12). */
 const DEFAULT_CATEGORIES = PLACE_CATEGORIES.filter((c) => c !== 'stay');
@@ -65,6 +76,7 @@ export class PlacesService {
     private readonly openData: OpenDataService,
     private readonly boundaries: BoundaryService,
     @Inject(OPEN_DATA_CONFIG) private readonly config: OpenDataConfig,
+    private readonly google: GooglePlacesService,
   ) {}
 
   /**
@@ -108,6 +120,81 @@ export class PlacesService {
           : null,
       attribution: ATTRIBUTION,
     };
+  }
+
+  /**
+   * Màn hình chi tiết (F5): dữ liệu riêng của app cộng nội dung Google gọi
+   * theo thời gian thực. Google lỗi hay chưa cấu hình thì vẫn trả phần dữ liệu
+   * riêng, kèm `googleStatus` để client hiển thị phù hợp.
+   */
+  async getDetail(id: string): Promise<PlaceDetail> {
+    const [row] = (await this.db.query(
+      `SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
+              p.composite_score, p.description, p.wikidata_id, p.osm_type, p.osm_id,
+              p.tags->>'opening_hours' AS opening_hours,
+              COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
+              p.google_place_id, p.google_matched_at
+         FROM places p WHERE p.id = $1`,
+      [id],
+    )) as DetailRow[];
+
+    if (!row) {
+      throw new NotFoundException({
+        statusCode: 404,
+        code: 'PLACE_NOT_FOUND',
+        message: 'Không tìm thấy địa điểm này.',
+      });
+    }
+
+    const { status, content } = await this.googleContent(row);
+    return {
+      ...toListItem(row),
+      attribution: ATTRIBUTION,
+      googleStatus: status,
+      google: content,
+    };
+  }
+
+  private async googleContent(row: DetailRow): Promise<{
+    status: GoogleContentStatus;
+    content: GooglePlaceContent | null;
+  }> {
+    if (!this.google.enabled) return { status: 'unavailable', content: null };
+
+    try {
+      let placeId = row.google_place_id;
+      const retryDue =
+        row.google_matched_at === null ||
+        Date.now() - row.google_matched_at.getTime() > GOOGLE_REMATCH_AFTER_MS;
+
+      if (placeId === null && retryDue) {
+        placeId = await this.google.matchPlaceId(row.name, row.lat, row.lng);
+        await this.db.query(
+          `UPDATE places SET google_place_id = $2, google_matched_at = now() WHERE id = $1`,
+          [row.id, placeId],
+        );
+      }
+      if (placeId === null) return { status: 'not_found', content: null };
+
+      const content = await this.google.details(placeId);
+      if (content === null) {
+        // place_id có thể hết hiệu lực (Google gộp/xóa địa điểm): bỏ đi để lần sau ghép lại.
+        await this.db.query(
+          `UPDATE places SET google_place_id = NULL, google_matched_at = now() WHERE id = $1`,
+          [row.id],
+        );
+        return { status: 'not_found', content: null };
+      }
+      return { status: 'ok', content };
+    } catch (error) {
+      if (error instanceof GoogleUnavailableError) {
+        this.logger.warn(
+          `Google không sẵn sàng cho "${row.name}": ${error.message}`,
+        );
+        return { status: 'unavailable', content: null };
+      }
+      throw error;
+    }
   }
 
   /** Tải lại địa điểm của vùng từ OSM nếu chưa từng tải hoặc đã quá hạn. */
@@ -228,6 +315,11 @@ export class PlacesService {
   }
 }
 
+interface DetailRow extends PlaceRow {
+  google_place_id: string | null;
+  google_matched_at: Date | null;
+}
+
 /** Cùng một phần tử có thể khớp nhiều bộ lọc (ví dụ cả tourism lẫn historic). */
 function dedupe(drafts: PlaceDraft[]): PlaceDraft[] {
   const seen = new Map<string, PlaceDraft>();
@@ -247,6 +339,7 @@ function toListItem(row: PlaceRow): PlaceListItem {
     openingHours: row.opening_hours,
     website: row.website,
     wikidataId: row.wikidata_id,
+    hours: hoursToday(row.opening_hours),
     sourceUrl: `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}`,
   };
 }

@@ -1,5 +1,9 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import type { AttributedPage, PlaceListItem } from '@rong/shared-types';
+import type {
+  AttributedPage,
+  PlaceDetail,
+  PlaceListItem,
+} from '@rong/shared-types';
 
 import { ListPlacesDto } from './dto/list-places.dto.js';
 import { PlacesService } from './places.service.js';
@@ -18,5 +22,19 @@ export class PlacesController {
     @Query() dto: ListPlacesDto,
   ): Promise<AttributedPage<PlaceListItem>> {
     return this.places.listForRegion(id, dto);
+  }
+}
+
+@Controller('places')
+export class PlaceDetailController {
+  constructor(private readonly places: PlacesService) {}
+
+  /**
+   * Chi tiết địa điểm (F5). Phần `google` được gọi theo thời gian thực mỗi lần
+   * mở; client không được lưu hay cache nó quá phiên xem (PRD 7.4).
+   */
+  @Get(':id')
+  detail(@Param('id', new ParseUUIDPipe()) id: string): Promise<PlaceDetail> {
+    return this.places.getDetail(id);
   }
 }

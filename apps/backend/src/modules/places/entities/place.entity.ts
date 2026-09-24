@@ -73,6 +73,14 @@ export class Place {
   @Column({ name: 'description', type: 'text', nullable: true })
   description!: string | null;
 
+  /** Khóa ghép sang Google Places — trường Google duy nhất được lưu (PRD 7.4). */
+  @Column({ name: 'google_place_id', type: 'text', nullable: true })
+  googlePlaceId!: string | null;
+
+  /** Lần thử ghép place_id gần nhất, kể cả khi không tìm thấy. */
+  @Column({ name: 'google_matched_at', type: 'timestamptz', nullable: true })
+  googleMatchedAt!: Date | null;
+
   /** Điểm tổng hợp 0–100 — xem place-scoring.ts. */
   @Column({ name: 'composite_score', type: 'smallint' })
   compositeScore!: number;
