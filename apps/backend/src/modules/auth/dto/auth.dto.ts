@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  Matches,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -39,10 +40,12 @@ export class LoginDto {
 }
 
 export class VerifyEmailDto {
+  @IsEmail({}, { message: 'Email không hợp lệ.' })
+  email!: string;
+
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(128)
-  token!: string;
+  @Matches(/^\d{6}$/, { message: 'Mã xác minh gồm đúng 6 chữ số.' })
+  code!: string;
 }
 
 export class ResendVerificationDto {

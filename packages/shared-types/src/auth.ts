@@ -18,6 +18,6 @@ export interface AuthTokens {
 
 export interface RegisterResult {
   user: UserProfile;
-  /** Tài khoản chỉ đăng nhập được sau khi bấm link xác minh gửi tới email này. */
+  /** Mã xác minh 6 chữ số đã được gửi tới email này; nhập mã để kích hoạt tài khoản. */
   verificationEmailSentTo: string;
 }
