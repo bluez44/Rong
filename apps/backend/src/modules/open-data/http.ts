@@ -44,11 +44,22 @@ export class ThrottledHttp {
     const headers = new Headers(init.headers);
     headers.set('User-Agent', this.userAgent);
     headers.set('Accept', 'application/json');
-    const response = await fetch(url, {
-      ...init,
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      // fetch chỉ báo "fetch failed"; lý do thật (DNS, từ chối kết nối, hết giờ) nằm trong cause.
+      const cause = (error as { cause?: { code?: string; message?: string } })
+        .cause;
+      const reason = cause?.code ?? cause?.message ?? (error as Error).message;
+      throw new OpenDataError(
+        `Không kết nối được ${new URL(url).host} (${reason})`,
+      );
+    }
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       this.logger.warn(
