@@ -67,6 +67,7 @@ export class ThrottledHttp {
       );
       throw new OpenDataError(
         `${new URL(url).host} trả về HTTP ${response.status}`,
+        response.status,
       );
     }
     return (await response.json()) as T;
@@ -74,8 +75,19 @@ export class ThrottledHttp {
 }
 
 export class OpenDataError extends Error {
-  constructor(message: string) {
+  /** HTTP status nếu máy chủ có trả lời; undefined nếu lỗi mạng. */
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message);
     this.name = 'OpenDataError';
+  }
+
+  /** Lỗi do máy chủ quá tải/không tới được — đáng thử máy chủ khác. */
+  get retryable(): boolean {
+    return (
+      this.status === undefined || this.status === 429 || this.status >= 500
+    );
   }
 }

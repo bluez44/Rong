@@ -3,8 +3,8 @@
  *
  * Nguồn: Nghị quyết 202/2025/QH15 sắp xếp đơn vị hành chính cấp tỉnh, có hiệu
  * lực từ 1/7/2025 (63 → 34 tỉnh/thành). Danh sách này là dữ kiện cố định nên
- * được seed thẳng vào database; khung bao của từng vùng thì lấy từ
- * OpenStreetMap khi cần (xem RegionAreaService).
+ * được seed thẳng vào database. Khung bao của tỉnh lấy từ OpenStreetMap khi
+ * cần (xem RegionAreaService); khu vực điểm đến cố định ngay trong file này.
  *
  * Tên tỉnh trong OSM *trước* 1/7/2025 (với tỉnh cũ) hoặc hiện
  * hành (với tỉnh mới) được dùng để tìm đúng relation và khung bao của nó.
@@ -35,10 +35,12 @@ export interface SeedDestination {
   /** Tỉnh cũ chứa điểm đến trước 1/7/2025. */
   formerProvince: string | null;
   /**
-   * Tên đơn vị hành chính cấp huyện trong OSM trước 1/7/2025 mà khung bao của
-   * nó được dùng làm khu vực của điểm đến. Đội curate có thể chỉnh lại sau.
+   * Khu vực điểm đến do đội ngũ định nghĩa (PRD FR-1.2b): tâm [vĩ độ, kinh độ]
+   * và bán kính. Cố định trong code nên không phụ thuộc dịch vụ ngoài; đội
+   * curate chỉnh lại ở đây khi cần.
    */
-  osmFormerDistrict: string;
+  center: [number, number];
+  radiusKm: number;
   aliases?: string[];
 }
 
@@ -288,7 +290,8 @@ export const DESTINATIONS: SeedDestination[] = [
     name: 'Đà Lạt',
     province: 'lam-dong',
     formerProvince: 'lam-dong',
-    osmFormerDistrict: 'Thành phố Đà Lạt',
+    center: [11.9404, 108.4583],
+    radiusKm: 8,
     aliases: ['Dalat'],
   },
   {
@@ -296,14 +299,16 @@ export const DESTINATIONS: SeedDestination[] = [
     name: 'Bảo Lộc',
     province: 'lam-dong',
     formerProvince: 'lam-dong',
-    osmFormerDistrict: 'Thành phố Bảo Lộc',
+    center: [11.548, 107.8076],
+    radiusKm: 8,
   },
   {
     key: 'mui-ne-phan-thiet',
     name: 'Mũi Né – Phan Thiết',
     province: 'lam-dong',
     formerProvince: 'binh-thuan',
-    osmFormerDistrict: 'Thành phố Phan Thiết',
+    center: [10.94, 108.19],
+    radiusKm: 14,
     aliases: ['Mũi Né', 'Phan Thiết'],
   },
   {
@@ -311,49 +316,56 @@ export const DESTINATIONS: SeedDestination[] = [
     name: 'Vũng Tàu',
     province: 'ho-chi-minh',
     formerProvince: 'ba-ria-vung-tau',
-    osmFormerDistrict: 'Thành phố Vũng Tàu',
+    center: [10.346, 107.0843],
+    radiusKm: 8,
   },
   {
     key: 'con-dao',
     name: 'Côn Đảo',
     province: 'ho-chi-minh',
     formerProvince: 'ba-ria-vung-tau',
-    osmFormerDistrict: 'Huyện Côn Đảo',
+    center: [8.69, 106.61],
+    radiusKm: 12,
   },
   {
     key: 'hoi-an',
     name: 'Hội An',
     province: 'da-nang',
     formerProvince: 'quang-nam',
-    osmFormerDistrict: 'Thành phố Hội An',
+    center: [15.8801, 108.338],
+    radiusKm: 7,
   },
   {
     key: 'phu-quoc',
     name: 'Phú Quốc',
     province: 'an-giang',
     formerProvince: 'kien-giang',
-    osmFormerDistrict: 'Thành phố Phú Quốc',
+    center: [10.22, 103.96],
+    radiusKm: 25,
   },
   {
     key: 'nha-trang',
     name: 'Nha Trang',
     province: 'khanh-hoa',
     formerProvince: 'khanh-hoa',
-    osmFormerDistrict: 'Thành phố Nha Trang',
+    center: [12.2388, 109.1967],
+    radiusKm: 10,
   },
   {
     key: 'quy-nhon',
     name: 'Quy Nhơn',
     province: 'gia-lai',
     formerProvince: 'binh-dinh',
-    osmFormerDistrict: 'Thành phố Quy Nhơn',
+    center: [13.7765, 109.2237],
+    radiusKm: 12,
   },
   {
     key: 'sa-pa',
     name: 'Sa Pa',
     province: 'lao-cai',
     formerProvince: 'lao-cai',
-    osmFormerDistrict: 'Thị xã Sa Pa',
+    center: [22.3364, 103.8438],
+    radiusKm: 12,
     aliases: ['Sapa'],
   },
   {
@@ -361,7 +373,8 @@ export const DESTINATIONS: SeedDestination[] = [
     name: 'Hạ Long',
     province: 'quang-ninh',
     formerProvince: null,
-    osmFormerDistrict: 'Thành phố Hạ Long',
+    center: [20.951, 107.06],
+    radiusKm: 15,
     aliases: ['Halong'],
   },
 ];
