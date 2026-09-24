@@ -18,11 +18,31 @@ export interface RedisConfig {
   port: number;
 }
 
+export interface AuthConfig {
+  jwtSecret: string;
+  accessTokenTtlSeconds: number;
+  emailVerificationTtlHours: number;
+  /** Trang (web/app) nhận token xác minh; token được gắn vào query `?token=`. */
+  emailVerificationUrl: string;
+}
+
+export interface MailConfig {
+  /** Để trống thì không gửi thật mà chỉ ghi nội dung email ra log (dùng khi dev). */
+  smtpHost: string | null;
+  smtpPort: number;
+  smtpSecure: boolean;
+  smtpUser: string | null;
+  smtpPassword: string | null;
+  from: string;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
   database: DatabaseConfig;
   redis: RedisConfig;
+  auth: AuthConfig;
+  mail: MailConfig;
 }
 
 class MissingEnvError extends Error {
@@ -42,15 +62,35 @@ function requireEnv(keys: string[]): void {
   }
 }
 
+const MIN_JWT_SECRET_LENGTH = 32;
+
+function requireStrongSecret(value: string): string {
+  if (value.length < MIN_JWT_SECRET_LENGTH) {
+    throw new Error(
+      `JWT_SECRET phải dài ít nhất ${MIN_JWT_SECRET_LENGTH} ký tự. ` +
+        `Sinh nhanh bằng: openssl rand -base64 48`,
+    );
+  }
+  return value;
+}
+
 function toInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 export function loadConfig(): AppConfig {
-  requireEnv(['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE']);
+  requireEnv([
+    'DB_HOST',
+    'DB_PORT',
+    'DB_USERNAME',
+    'DB_PASSWORD',
+    'DB_DATABASE',
+    'JWT_SECRET',
+  ]);
 
-  const nodeEnv = (process.env.NODE_ENV ?? 'development') as AppConfig['nodeEnv'];
+  const nodeEnv = (process.env.NODE_ENV ??
+    'development') as AppConfig['nodeEnv'];
 
   return {
     nodeEnv,
@@ -65,6 +105,25 @@ export function loadConfig(): AppConfig {
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
       port: toInt(process.env.REDIS_PORT, 6379),
+    },
+    auth: {
+      jwtSecret: requireStrongSecret(process.env.JWT_SECRET as string),
+      accessTokenTtlSeconds: toInt(process.env.ACCESS_TOKEN_TTL_SECONDS, 900),
+      emailVerificationTtlHours: toInt(
+        process.env.EMAIL_VERIFICATION_TTL_HOURS,
+        24,
+      ),
+      emailVerificationUrl:
+        process.env.EMAIL_VERIFICATION_URL ||
+        'http://localhost:3000/verify-email',
+    },
+    mail: {
+      smtpHost: process.env.SMTP_HOST || null,
+      smtpPort: toInt(process.env.SMTP_PORT, 587),
+      smtpSecure: process.env.SMTP_SECURE === 'true',
+      smtpUser: process.env.SMTP_USER || null,
+      smtpPassword: process.env.SMTP_PASSWORD || null,
+      from: process.env.MAIL_FROM || 'Rong <no-reply@rong.local>',
     },
   };
 }

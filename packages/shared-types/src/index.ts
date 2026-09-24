@@ -1,3 +1,4 @@
+export * from './auth';
 export * from './region';
 export * from './place';
 export * from './itinerary';

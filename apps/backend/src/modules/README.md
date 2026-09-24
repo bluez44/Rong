@@ -4,7 +4,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 
 | Thư mục | PRD | Trách nhiệm |
 | --- | --- | --- |
-| `auth/` | F11 | Đăng nhập Google / Apple / OTP, access + refresh token |
+| `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, JWT guard toàn cục (`@Public()` để mở route). Sẵn chỗ cho Google / Apple qua `auth_identities` |
 | `users/` | F11 | Hồ sơ, hạn mức lượt AI hằng tháng (FR-6.5), xóa tài khoản |
 | `regions/` | F1 | Polygon PostGIS, bí danh, địa giới cũ/mới (FR-1.9), tìm kiếm không dấu |
 | `places/` | F2, F5 | Danh mục địa điểm riêng, lọc theo polygon, bộ lọc và sắp xếp |
@@ -14,6 +14,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình, ước tính chi phí, chỉnh sửa |
 | `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động |
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
+| `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
 | `health/` | — | Kiểm tra sức khỏe service và kết nối PostGIS |
 
 ## Vì sao `google/` đứng riêng
