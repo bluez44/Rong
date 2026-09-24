@@ -17,6 +17,7 @@ function region(id: string, patch: Partial<RegionLite>): RegionLite {
     successorRegionId: null,
     mergeNote: null,
     center: null,
+    bbox: null,
     ...patch,
   };
 }

@@ -3,11 +3,11 @@
  *
  * Nguồn: Nghị quyết 202/2025/QH15 sắp xếp đơn vị hành chính cấp tỉnh, có hiệu
  * lực từ 1/7/2025 (63 → 34 tỉnh/thành). Danh sách này là dữ kiện cố định nên
- * được seed thẳng vào database; ranh giới (polygon) thì lấy từ OpenStreetMap
- * khi cần (xem BoundaryService).
+ * được seed thẳng vào database; khung bao của từng vùng thì lấy từ
+ * OpenStreetMap khi cần (xem RegionAreaService).
  *
- * `osmName` là tên tỉnh trong OSM *trước* 1/7/2025 (với tỉnh cũ) hoặc hiện
- * hành (với tỉnh mới), dùng để tìm đúng relation ranh giới.
+ * Tên tỉnh trong OSM *trước* 1/7/2025 (với tỉnh cũ) hoặc hiện
+ * hành (với tỉnh mới) được dùng để tìm đúng relation và khung bao của nó.
  */
 
 export interface OldProvince {
@@ -35,8 +35,8 @@ export interface SeedDestination {
   /** Tỉnh cũ chứa điểm đến trước 1/7/2025. */
   formerProvince: string | null;
   /**
-   * Tên đơn vị hành chính cấp huyện trong OSM trước 1/7/2025 mà ranh giới của
-   * nó được dùng làm polygon điểm đến ban đầu. Đội curate có thể vẽ lại sau.
+   * Tên đơn vị hành chính cấp huyện trong OSM trước 1/7/2025 mà khung bao của
+   * nó được dùng làm khu vực của điểm đến. Đội curate có thể chỉnh lại sau.
    */
   osmFormerDistrict: string;
   aliases?: string[];

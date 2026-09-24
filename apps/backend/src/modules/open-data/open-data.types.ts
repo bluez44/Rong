@@ -11,18 +11,14 @@ export interface NominatimResult {
   category: string;
   type: string;
   addresstype: string;
+  /** [nam, bắc, tây, đông] dạng chuỗi. */
+  boundingbox?: [string, string, string, string];
   address?: Record<string, string>;
 }
 
 export interface LatLon {
   lat: number;
   lon: number;
-}
-
-/** Way thành viên của một relation ranh giới (Overpass `out geom`). */
-export interface BoundaryWay {
-  role: string;
-  geometry: LatLon[];
 }
 
 /** Phần tử Overpass `out center tags`. */
@@ -32,6 +28,8 @@ export interface OverpassElement {
   lat?: number;
   lon?: number;
   center?: LatLon;
+  /** Có khi truy vấn dùng `out bb`. */
+  bounds?: { minlat: number; minlon: number; maxlat: number; maxlon: number };
   tags?: Record<string, string>;
 }
 

@@ -31,7 +31,7 @@ type SeedRow = Pick<
   | 'level'
   | 'mergeNote'
   | 'searchName'
-  | 'boundarySource'
+  | 'areaSource'
 >;
 
 /**
@@ -59,7 +59,7 @@ export class RegionSeeder implements OnApplicationBootstrap {
         level: 'province' as const,
         mergeNote: null,
         searchName: searchKey(p.name),
-        boundarySource: {
+        areaSource: {
           name: p.name,
           adminLevel: '4',
           date: PRE_MERGER_DATE,
@@ -76,8 +76,8 @@ export class RegionSeeder implements OnApplicationBootstrap {
             ? `gồm ${p.mergedFrom.map((k) => `${OLD_PROVINCES.find((o) => o.key === k)!.name} cũ`).join(', ')}`
             : null,
         searchName: searchKey(p.name),
-        // Tỉnh mới = hợp các tỉnh cũ, đúng theo định nghĩa của nghị quyết sáp nhập.
-        boundarySource:
+        // Tỉnh mới bao trọn các tỉnh cũ, đúng theo định nghĩa của nghị quyết sáp nhập.
+        areaSource:
           p.mergedFrom.length > 0
             ? { unionOf: p.mergedFrom.map(oldKey) }
             : { name: p.name, adminLevel: '4' },
@@ -90,7 +90,7 @@ export class RegionSeeder implements OnApplicationBootstrap {
         level: null,
         mergeNote: null,
         searchName: searchKey(d.name),
-        boundarySource: {
+        areaSource: {
           name: d.osmFormerDistrict,
           adminLevel: '6',
           date: PRE_MERGER_DATE,

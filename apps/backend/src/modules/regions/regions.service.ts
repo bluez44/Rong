@@ -1,15 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { RegionDetail, RegionSearchResult } from '@rong/shared-types';
+import type { RegionSearchResult } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
 import { OpenDataService } from '../open-data/open-data.service.js';
 import type { NominatimResult } from '../open-data/open-data.types.js';
-import { BoundaryService } from './boundary.service.js';
-import type { BoundarySource } from './entities/region.entity.js';
+import { bboxAround, bboxFromNominatim } from './bbox.js';
 import {
   arrangeRegionResults,
-  displayName,
   type RegionLite,
   type RegionMatch,
 } from './region-search-arrange.js';
@@ -46,6 +44,7 @@ interface LiteRow {
   merge_note: string | null;
   lat: number | null;
   lng: number | null;
+  bbox: [number, number, number, number] | null;
 }
 
 @Injectable()
@@ -56,7 +55,6 @@ export class RegionsService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly openData: OpenDataService,
-    private readonly boundaries: BoundaryService,
   ) {}
 
   /**
@@ -89,50 +87,6 @@ export class RegionsService {
       matches.map((m) => m.regionId),
     );
     return arrangeRegionResults(matches, regions);
-  }
-
-  async getDetail(id: string): Promise<RegionDetail> {
-    const regions = await this.loadWithRelatives([id]);
-    const region = regions.get(id);
-    if (!region) throw this.notFound();
-
-    await this.boundaries.ensure(id);
-
-    const [geo] = (await this.db.query(
-      `SELECT ST_AsGeoJSON(ST_SimplifyPreserveTopology(boundary, 0.0005), 6)::json AS boundary,
-              ARRAY[ST_XMin(boundary), ST_YMin(boundary), ST_XMax(boundary), ST_YMax(boundary)] AS bbox,
-              ST_Y(center) AS lat, ST_X(center) AS lng
-         FROM regions WHERE id = $1`,
-      [id],
-    )) as Array<{
-      boundary: RegionDetail['boundary'];
-      bbox: RegionDetail['bbox'];
-      lat: number | null;
-      lng: number | null;
-    }>;
-
-    const parentId =
-      region.boundaryVersion === 'pre_merger'
-        ? region.successorRegionId
-        : region.parentId;
-    const parent = parentId ? regions.get(parentId) : undefined;
-    const asResult = arrangeRegionResults(
-      [{ regionId: id, score: 1 }],
-      regions,
-    ).find((result) => result.id === id)!;
-
-    return {
-      ...asResult,
-      parent: parent
-        ? { id: parent.id, displayName: displayName(parent) }
-        : null,
-      center:
-        geo.lat !== null && geo.lng !== null
-          ? { lat: geo.lat, lng: geo.lng }
-          : null,
-      boundary: geo.boundary,
-      bbox: geo.bbox,
-    };
   }
 
   /**
@@ -171,7 +125,9 @@ export class RegionsService {
     const rows = (await this.db.query(
       `WITH base AS (SELECT * FROM regions WHERE id = ANY($1::uuid[]))
        SELECT r.id, r.name, r.type, r.boundary_version, r.level, r.parent_id, r.former_parent_id,
-              r.successor_region_id, r.merge_note, ST_Y(r.center) AS lat, ST_X(r.center) AS lng
+              r.successor_region_id, r.merge_note, ST_Y(r.center) AS lat, ST_X(r.center) AS lng,
+              CASE WHEN r.bbox_south IS NULL THEN NULL
+                   ELSE ARRAY[r.bbox_west, r.bbox_south, r.bbox_east, r.bbox_north] END AS bbox
          FROM regions r
         WHERE r.id IN (SELECT id FROM base
                        UNION SELECT parent_id FROM base
@@ -199,6 +155,7 @@ export class RegionsService {
             row.lat !== null && row.lng !== null
               ? { lat: row.lat, lng: row.lng }
               : null,
+          bbox: row.bbox,
         },
       ]),
     );
@@ -228,15 +185,20 @@ export class RegionsService {
 
       const parent = await this.resolveProvince(result);
       const ward = isWardName(name);
-      const boundarySource: BoundarySource =
-        result.osm_type === 'relation'
-          ? { relationId: result.osm_id }
-          : { radiusMeters: ACCEPTED_ADDRESS_TYPES[result.addresstype] };
+      // Khung bao lấy luôn từ Nominatim; node chỉ có một điểm thì dựng khung
+      // quanh điểm theo cỡ của loại địa danh.
+      const lat = Number(result.lat);
+      const lng = Number(result.lon);
+      const [s, w, n, e] =
+        bboxFromNominatim(result) ??
+        bboxAround(lat, lng, ACCEPTED_ADDRESS_TYPES[result.addresstype]);
 
       await this.db.query(
         `INSERT INTO regions (source_key, name, type, boundary_version, level, parent_id, former_parent_id,
-                              search_name, boundary_source, center)
-         VALUES ($1, $2, $3, 'current', $4, $5, $6, $7, $8, ST_SetSRID(ST_MakePoint($9, $10), 4326))
+                              search_name, center, bbox_south, bbox_west, bbox_north, bbox_east,
+                              area_fetched_at)
+         VALUES ($1, $2, $3, 'current', $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($8, $9), 4326),
+                 $10, $11, $12, $13, now())
          ON CONFLICT (source_key) DO NOTHING`,
         [
           `osm:${result.osm_type[0].toUpperCase()}${result.osm_id}`,
@@ -246,9 +208,12 @@ export class RegionsService {
           parent.current,
           parent.former,
           searchKey(name),
-          JSON.stringify(boundarySource),
-          Number(result.lon),
-          Number(result.lat),
+          lng,
+          lat,
+          s,
+          w,
+          n,
+          e,
         ],
       );
     }
@@ -283,13 +248,5 @@ export class RegionsService {
       // Chỉ biết chắc tỉnh cũ khi OSM còn ghi tên cũ mà tên đó không trùng tỉnh mới.
       former: !current && former ? former.id : null,
     };
-  }
-
-  private notFound(): NotFoundException {
-    return new NotFoundException({
-      statusCode: 404,
-      code: 'REGION_NOT_FOUND',
-      message: 'Không tìm thấy vùng này.',
-    });
   }
 }

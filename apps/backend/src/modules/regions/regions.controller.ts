@@ -1,5 +1,5 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import type { RegionDetail, RegionSearchResult } from '@rong/shared-types';
+import { Controller, Get, Query } from '@nestjs/common';
+import type { RegionSearchResult } from '@rong/shared-types';
 
 import { SearchRegionsDto } from './dto/region.dto.js';
 import { RegionsService } from './regions.service.js';
@@ -12,11 +12,5 @@ export class RegionsController {
   @Get('search')
   search(@Query() dto: SearchRegionsDto): Promise<RegionSearchResult[]> {
     return this.regions.search(dto.q, dto.online ?? false);
-  }
-
-  /** Chi tiết vùng kèm ranh giới GeoJSON. Lần đầu có thể chậm vì phải tải ranh giới từ OSM. */
-  @Get(':id')
-  detail(@Param('id', new ParseUUIDPipe()) id: string): Promise<RegionDetail> {
-    return this.regions.getDetail(id);
   }
 }

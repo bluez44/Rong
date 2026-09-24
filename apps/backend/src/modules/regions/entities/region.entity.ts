@@ -14,25 +14,22 @@ import {
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
-  type MultiPolygon,
   type Point,
 } from 'typeorm';
 
 import type { RegionAlias } from './region-alias.entity.js';
 
 /**
- * Cách tìm relation ranh giới trên OpenStreetMap cho một vùng.
- * - `relationId`: đã biết id (vùng tạo từ Nominatim).
- * - `name` + `adminLevel` (+ `date`): tìm theo tên, `date` để lấy dữ liệu OSM
- *   tại một thời điểm trong quá khứ — dùng cho tỉnh cũ và thành phố cấp huyện
- *   đã bị bỏ từ 1/7/2025.
- * - `unionOf`: hợp các vùng khác (theo source_key) — tỉnh mới sau sáp nhập
- *   chính là hợp của các tỉnh cũ, nên không phụ thuộc OSM đã cập nhật hay chưa.
- * - `radiusMeters`: không có relation (chỉ có node), dựng vòng tròn quanh tâm.
+ * Cách lấy khung bao (bbox) cho một vùng — xem RegionAreaService.
+ * - `unionOf`: gộp khung bao các vùng khác (theo source_key) — tỉnh mới sau
+ *   sáp nhập bao trọn các tỉnh cũ, nên không phụ thuộc OSM đã cập nhật chưa.
+ * - `name` + `adminLevel` (+ `date`): khung bao của relation hành chính trùng
+ *   tên trên OSM; `date` lấy dữ liệu tại một thời điểm trong quá khứ — dùng cho
+ *   tỉnh cũ và thành phố cấp huyện đã bị bỏ từ 1/7/2025.
+ * - `radiusMeters`: chỉ có một điểm, lấy khung vuông quanh điểm đó.
  */
-export interface BoundarySource {
+export interface AreaSource {
   unionOf?: string[];
-  relationId?: number;
   name?: string;
   adminLevel?: string;
   date?: string;
@@ -120,8 +117,8 @@ export class Region {
   @Column({ name: 'search_name', type: 'text' })
   searchName!: string;
 
-  @Column({ name: 'boundary_source', type: 'jsonb', nullable: true })
-  boundarySource!: BoundarySource | null;
+  @Column({ name: 'area_source', type: 'jsonb', nullable: true })
+  areaSource!: AreaSource | null;
 
   @Column({
     name: 'center',
@@ -132,19 +129,21 @@ export class Region {
   })
   center!: Point | null;
 
-  @Index('idx_region_boundary', { spatial: true })
-  @Column({
-    name: 'boundary',
-    type: 'geometry',
-    spatialFeatureType: 'MultiPolygon',
-    srid: 4326,
-    nullable: true,
-    select: false,
-  })
-  boundary!: MultiPolygon | null;
+  /** Khung bao của vùng; địa điểm trong khung này là địa điểm của vùng. */
+  @Column({ name: 'bbox_south', type: 'double precision', nullable: true })
+  bboxSouth!: number | null;
 
-  @Column({ name: 'boundary_fetched_at', type: 'timestamptz', nullable: true })
-  boundaryFetchedAt!: Date | null;
+  @Column({ name: 'bbox_west', type: 'double precision', nullable: true })
+  bboxWest!: number | null;
+
+  @Column({ name: 'bbox_north', type: 'double precision', nullable: true })
+  bboxNorth!: number | null;
+
+  @Column({ name: 'bbox_east', type: 'double precision', nullable: true })
+  bboxEast!: number | null;
+
+  @Column({ name: 'area_fetched_at', type: 'timestamptz', nullable: true })
+  areaFetchedAt!: Date | null;
 
   @Column({ name: 'places_fetched_at', type: 'timestamptz', nullable: true })
   placesFetchedAt!: Date | null;

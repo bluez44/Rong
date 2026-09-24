@@ -4,7 +4,6 @@ import type { OpenDataConfig } from '../../config/configuration.js';
 import { ThrottledHttp } from './http.js';
 import type {
   Bbox,
-  BoundaryWay,
   NominatimResult,
   OverpassElement,
   WikidataInfo,
@@ -54,9 +53,9 @@ export class OpenDataService {
   }
 
   /**
-   * Danh sách relation ranh giới hành chính (chỉ tag, không có hình học) ở
-   * một cấp, tùy chọn tại một thời điểm trong quá khứ. Nhẹ (vài trăm KB), được
-   * cache trong bộ nhớ vì dùng lại cho mọi vùng cùng cấp.
+   * Danh sách relation ranh giới hành chính ở một cấp, kèm tag và khung bao
+   * (không kèm hình học), tùy chọn tại một thời điểm trong quá khứ. Nhẹ (vài
+   * trăm KB), được cache trong bộ nhớ vì dùng lại cho mọi vùng cùng cấp.
    */
   listBoundaries(
     adminLevel: string,
@@ -70,42 +69,11 @@ export class OpenDataService {
 
     const [s, w, n, e] = VIETNAM_BBOX;
     const value = this.overpass<{ elements: OverpassElement[] }>(
-      `${this.header(60, date)}rel["boundary"="administrative"]["admin_level"~"^(${adminLevel})$"](${s},${w},${n},${e});out tags;`,
+      `${this.header(60, date)}rel["boundary"="administrative"]["admin_level"~"^(${adminLevel})$"](${s},${w},${n},${e});out tags bb;`,
     ).then((body) => body.elements);
     value.catch(() => this.boundaryListCache.delete(key));
     this.boundaryListCache.set(key, { at: Date.now(), value });
     return value;
-  }
-
-  /** Các way tạo nên ranh giới của một relation. */
-  async relationWays(
-    relationId: number,
-    date?: string,
-  ): Promise<BoundaryWay[]> {
-    const body = await this.overpass<{
-      elements: Array<{
-        members?: Array<{
-          type: string;
-          role: string;
-          geometry?: BoundaryWay['geometry'];
-        }>;
-      }>;
-    }>(`${this.header(120, date)}rel(${relationId});out geom;`);
-
-    return (body.elements[0]?.members ?? [])
-      .filter(
-        (member) =>
-          member.type === 'way' &&
-          member.geometry &&
-          member.geometry.length > 1,
-      )
-      .filter(
-        (member) =>
-          member.role === 'outer' ||
-          member.role === 'inner' ||
-          member.role === '',
-      )
-      .map((member) => ({ role: member.role, geometry: member.geometry! }));
   }
 
   /** Các địa điểm có tên thuộc nhóm du lịch/dịch vụ trong một khung bao. */
