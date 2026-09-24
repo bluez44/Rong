@@ -6,7 +6,10 @@ import { OpenDataService } from './open-data.service.js';
 const service = () =>
   new OpenDataService({
     nominatimUrl: 'http://nominatim.test',
-    overpassUrl: 'http://overpass.test/api/interpreter',
+    overpassUrls: [
+      'http://overpass.test/api/interpreter',
+      'http://mirror.test/api/interpreter',
+    ],
     wikidataUrl: 'http://wikidata.test/w/api.php',
     contactEmail: 'dev@rong.vn',
     placesRefreshDays: 30,
@@ -81,6 +84,46 @@ describe('OpenDataService.listBoundaries', () => {
     overpassReturns({ elements: [] });
     await service().listBoundaries('6', undefined, 'A (B) "C"');
     expect(queries[0]).toContain('["name"~"A \\(B\\) \\"C\\"",i]');
+  });
+});
+
+describe('Overpass nhiều máy chủ', () => {
+  it('504 ở máy chủ đầu thì thử máy chủ kế tiếp', async () => {
+    const hosts: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        hosts.push(new URL(url).host);
+        return hosts.length === 1
+          ? new Response('<html>Gateway Timeout</html>', { status: 504 })
+          : new Response(JSON.stringify({ elements: [relation] }));
+      }),
+    );
+
+    await expect(
+      service().listBoundaries('6', undefined, 'Đà Lạt'),
+    ).resolves.toEqual([relation]);
+    expect(hosts).toEqual(['overpass.test', 'mirror.test']);
+  });
+
+  it('400 (truy vấn sai) thì dừng ngay, không thử máy chủ khác', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response('bad query', { status: 400 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(service().listBoundaries('6')).rejects.toThrow(/HTTP 400/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('mọi máy chủ đều lỗi thì báo lỗi của máy chủ cuối', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('', { status: 504 })),
+    );
+    await expect(service().listBoundaries('6')).rejects.toThrow(
+      /mirror\.test trả về HTTP 504/,
+    );
   });
 });
 

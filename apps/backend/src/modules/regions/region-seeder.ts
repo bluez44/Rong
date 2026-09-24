@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { bboxAround } from './bbox.js';
 import { RegionAlias } from './entities/region-alias.entity.js';
 import { Region } from './entities/region.entity.js';
 import { searchKey } from './search-text.js';
@@ -32,7 +33,10 @@ type SeedRow = Pick<
   | 'mergeNote'
   | 'searchName'
   | 'areaSource'
->;
+> &
+  Partial<
+    Pick<Region, 'center' | 'bboxSouth' | 'bboxWest' | 'bboxNorth' | 'bboxEast'>
+  >;
 
 /**
  * Đưa dữ liệu tham chiếu (tỉnh cũ/mới, điểm đến) vào database mỗi lần khởi
@@ -82,23 +86,39 @@ export class RegionSeeder implements OnApplicationBootstrap {
             ? { unionOf: p.mergedFrom.map(oldKey) }
             : { name: p.name, adminLevel: '4' },
       })),
-      ...DESTINATIONS.map((d) => ({
-        sourceKey: destinationKey(d.key),
-        name: d.name,
-        type: 'destination' as const,
-        boundaryVersion: 'current' as const,
-        level: null,
-        mergeNote: null,
-        searchName: searchKey(d.name),
-        areaSource: {
-          name: d.osmFormerDistrict,
-          adminLevel: '6',
-          date: PRE_MERGER_DATE,
-        },
-      })),
+    ];
+    const destinationRows: SeedRow[] = [
+      ...DESTINATIONS.map((d) => {
+        // Khu vực điểm đến cố định trong seed: có ngay khung bao, không cần gọi OSM.
+        const [lat, lng] = d.center;
+        const [south, west, north, east] = bboxAround(
+          lat,
+          lng,
+          d.radiusKm * 1000,
+        );
+        return {
+          sourceKey: destinationKey(d.key),
+          name: d.name,
+          type: 'destination' as const,
+          boundaryVersion: 'current' as const,
+          level: null,
+          mergeNote: null,
+          searchName: searchKey(d.name),
+          areaSource: { radiusMeters: d.radiusKm * 1000 },
+          center: { type: 'Point' as const, coordinates: [lng, lat] },
+          bboxSouth: south,
+          bboxWest: west,
+          bboxNorth: north,
+          bboxEast: east,
+        };
+      }),
     ];
 
+    // Hai lệnh riêng: một lệnh upsert gộp sẽ ghi NULL vào khung bao của tỉnh
+    // (cột có trong lệnh nhưng dòng tỉnh không có giá trị), xóa khung bao đã
+    // lấy từ OSM mỗi lần khởi động.
     await this.regions.upsert(rows, ['sourceKey']);
+    await this.regions.upsert(destinationRows, ['sourceKey']);
 
     const ids = new Map(
       (await this.regions.find({ select: { id: true, sourceKey: true } })).map(

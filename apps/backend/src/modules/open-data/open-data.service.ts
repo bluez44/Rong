@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { OpenDataConfig } from '../../config/configuration.js';
 import { OpenDataError, ThrottledHttp } from './http.js';
@@ -22,6 +22,7 @@ const VIETNAM_BBOX: Bbox = [8.0, 102.0, 23.6, 110.0];
  */
 @Injectable()
 export class OpenDataService {
+  private readonly logger = new Logger(OpenDataService.name);
   private readonly http: ThrottledHttp;
   private readonly boundaryListCache = new Map<
     string,
@@ -33,7 +34,9 @@ export class OpenDataService {
   ) {
     this.http = new ThrottledHttp(`Rong/0.1 (${config.contactEmail})`, {
       [new URL(config.nominatimUrl).host]: 1100,
-      [new URL(config.overpassUrl).host]: 1000,
+      ...Object.fromEntries(
+        config.overpassUrls.map((url) => [new URL(url).host, 1000]),
+      ),
       [new URL(config.wikidataUrl).host]: 200,
     });
   }
@@ -145,23 +148,39 @@ export class OpenDataService {
   }
 
   /**
-   * Overpass báo hết giờ hay hết bộ nhớ bằng HTTP 200 kèm `remark` và danh
-   * sách rỗng — phải coi đó là lỗi, không phải "không có kết quả".
+   * Gửi truy vấn tới lần lượt từng instance Overpass cho tới khi có một cái
+   * trả lời được. Overpass báo hết giờ hay hết bộ nhớ bằng HTTP 200 kèm
+   * `remark` và danh sách rỗng — coi đó là lỗi, không phải "không có kết quả".
    */
   private async overpass<T>(query: string): Promise<T> {
-    const body = await this.http.getJson<T & { remark?: string }>(
-      this.config.overpassUrl,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ data: query }).toString(),
-      },
-      200_000,
-    );
-    if (body.remark && /error|timed out|out of memory/i.test(body.remark)) {
-      throw new OpenDataError(`Overpass: ${body.remark}`);
+    let lastError: unknown;
+    for (const url of this.config.overpassUrls) {
+      try {
+        const body = await this.http.getJson<T & { remark?: string }>(
+          url,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ data: query }).toString(),
+          },
+          200_000,
+        );
+        if (body.remark && /error|timed out|out of memory/i.test(body.remark)) {
+          throw new OpenDataError(
+            `Overpass (${new URL(url).host}): ${body.remark}`,
+          );
+        }
+        return body;
+      } catch (error) {
+        lastError = error;
+        // Truy vấn sai cú pháp (HTTP 400) thì máy chủ nào cũng từ chối — không thử tiếp.
+        if (error instanceof OpenDataError && !error.retryable) throw error;
+        this.logger.warn(
+          `Overpass ${new URL(url).host} lỗi: ${(error as Error).message}; thử máy chủ kế tiếp.`,
+        );
+      }
     }
-    return body;
+    throw lastError;
   }
 }
 

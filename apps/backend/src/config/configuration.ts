@@ -37,7 +37,8 @@ export interface MailConfig {
 /** Nguồn dữ liệu mở (OSM, Wikidata) — mục 7.1 PRD. */
 export interface OpenDataConfig {
   nominatimUrl: string;
-  overpassUrl: string;
+  /** Thử lần lượt: instance công cộng hay quá tải (HTTP 429/504). */
+  overpassUrls: string[];
   wikidataUrl: string;
   /** Nominatim và Overpass bắt buộc User-Agent có thông tin liên hệ. */
   contactEmail: string;
@@ -143,8 +144,13 @@ export function loadConfig(): AppConfig {
     openData: {
       nominatimUrl:
         process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org',
-      overpassUrl:
-        process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter',
+      overpassUrls: (
+        process.env.OVERPASS_URL ||
+        'https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+      )
+        .split(',')
+        .map((url) => url.trim())
+        .filter(Boolean),
       wikidataUrl:
         process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php',
       contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
