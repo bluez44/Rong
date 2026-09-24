@@ -36,8 +36,6 @@ export interface ScheduledDay {
   items: ItineraryItem[];
   unscheduled: UnscheduledPlace[];
   warnings: ItineraryWarning[];
-  /** Tổng quãng đường trong ngày, km — dùng để ước tính chi phí di chuyển. */
-  km: number;
 }
 
 function dayPartOf(minute: number): DayPart {
@@ -83,7 +81,6 @@ export function scheduleDay(
   // Có nơi ở: các ngày sau ngày đầu bắt đầu từ nơi ở (PRD F6 "Mốc thời gian và lưu trú").
   let here: LatLng | null =
     accommodation && !day.isFirst ? accommodation : null;
-  let km = 0;
   let order = 0;
   let restDone = rules.middayRestMinutes === 0;
 
@@ -165,7 +162,6 @@ export function scheduleDay(
       },
       start,
     );
-    if (anchor === here) km += leg.km;
     cursor = end;
     here = place;
   };
@@ -193,7 +189,6 @@ export function scheduleDay(
       },
       start,
     );
-    km += leg.km;
     cursor = end;
     if (accommodation) here = accommodation;
   };
@@ -280,7 +275,6 @@ export function scheduleDay(
       },
       start,
     );
-    km += leg.km;
     cursor = end;
     here = c;
   }
@@ -301,11 +295,7 @@ export function scheduleDay(
     });
   }
 
-  // Về nơi ở cuối ngày (trừ ngày cuối): tính vào quãng đường.
-  if (accommodation && here && !day.isLast)
-    km += estimateLeg(here, accommodation, transport).km;
-
-  return { items, unscheduled, warnings, km: Math.round(km * 10) / 10 };
+  return { items, unscheduled, warnings };
 }
 
 function snapshot(c: Candidate): ItineraryItem['place'] {

@@ -12,7 +12,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `ranking/` | F3 | Điểm tổng hợp 0–100, nhãn "Đang hot" |
 | `google/` | 7.4 | **Cổng duy nhất** gọi Google Places + Routes |
 | `share-import/` | F4 | Nhận link mạng xã hội, trích xuất và khớp địa điểm |
-| `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình (AI hoặc tự sắp xếp), ước tính chi phí, lưu và xem lại. Chỉnh sửa (F8) để sau |
+| `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình (AI hoặc tự sắp xếp), lưu và xem lại. Chi phí (F7), chỉnh sửa (F8) để sau |
 | `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động |
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
 | `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
@@ -85,7 +85,7 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
 Lưu ý: bước 2 lệch với PRD 7.4 nguyên tắc 5 (dữ liệu Google chỉ đưa vào AI để sắp xếp
 lịch trình) — là quyết định có chủ ý, chỉ dùng khi dữ liệu mở không có.
 
-## Lịch trình (F6, F7)
+## Lịch trình (F6)
 
 ```
 POST   /api/itineraries          tạo (planningMode "ai" | "manual")
@@ -107,6 +107,5 @@ Quy trình AI (`itineraries/`):
    (`planning/travel.ts`, chưa dùng Google Routes), giờ mở cửa (OSM → AI → giờ thông
    thường theo danh mục), bữa ăn theo khung giờ từ quán "Ăn uống" gần lộ trình, nghỉ trưa
    theo đối tượng. Không vừa → "Chưa xếp được" kèm lý do.
-5. **Chi phí** (`planning/cost.ts`) — bảng giá tham khảo có ngày cập nhật, luôn là khoảng.
 
 Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, giờ thông thường: `planning/rules.ts`.

@@ -36,7 +36,6 @@ import {
   orderNearestFirst,
   pickExtras,
 } from './planning/clustering.js';
-import { estimateCost } from './planning/cost.js';
 import { buildDays, vietnamIso, type DayWindow } from './planning/days.js';
 import type { Candidate, PlannedStop } from './planning/planning.types.js';
 import {
@@ -238,12 +237,11 @@ export class ItinerariesService {
 
     const usedFood = new Set<string>();
     const warnings: ItineraryWarning[] = [];
-    let totalKm = 0;
     const outDays: ItineraryDay[] = days.map((day, i) => {
       // Tự sắp xếp: ngày để trống cho người dùng kéo điểm vào, không chèn bữa hay giờ nghỉ.
       const result =
         planner === 'manual'
-          ? { items: [], unscheduled: [], warnings: [], km: 0 }
+          ? { items: [], unscheduled: [], warnings: [] }
           : scheduleDay(plannedDays[i], {
               day,
               rules,
@@ -252,7 +250,6 @@ export class ItinerariesService {
               foodPool,
               usedFood,
             });
-      totalKm += result.km;
       warnings.push(
         ...(planner === 'manual' ? manualMealWarnings(day) : result.warnings),
       );
@@ -271,22 +268,6 @@ export class ItinerariesService {
       };
     });
 
-    const cost = estimateCost({
-      items: outDays.flatMap((d) => d.items),
-      adults: input.adults,
-      children: input.children,
-      budgetTier: input.budgetTier,
-      transport,
-      days: days.length,
-      totalKm,
-      nights: accommodation ? Math.max(0, days.length - 1) : 0,
-      hasAccommodation: accommodation !== null,
-    });
-    for (const day of outDays) {
-      for (const item of day.items)
-        item.estimatedCost = cost.perItem.get(item.id) ?? null;
-    }
-
     const saved = await this.itineraries.save(
       this.itineraries.create({
         ownerId,
@@ -299,12 +280,6 @@ export class ItinerariesService {
         unscheduled: dedupeUnscheduled(unscheduled),
         warnings,
         tips,
-        cost: {
-          total: cost.total,
-          perPerson: cost.perPerson,
-          byCategory: cost.byCategory,
-          note: cost.note,
-        },
       }),
     );
     return toResponse(saved);
@@ -508,10 +483,6 @@ function toResponse(it: Itinerary): ItineraryResponse {
     warnings: it.warnings,
     planner: it.planner,
     tips: it.tips,
-    totalCost: it.cost.total,
-    totalCostPerPerson: it.cost.perPerson,
-    costByCategory: it.cost.byCategory,
-    costNote: it.cost.note,
     aiEditsRemaining: it.aiEditsRemaining,
     createdAt: it.createdAt.toISOString(),
     updatedAt: it.updatedAt.toISOString(),

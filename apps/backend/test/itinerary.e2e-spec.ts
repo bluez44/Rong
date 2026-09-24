@@ -120,7 +120,7 @@ describe('Lịch trình (e2e)', () => {
     accommodationPlaceId: ids.hotel,
   });
 
-  it('AI xếp lịch: bỏ id AI bịa, giữ mọi điểm đã chọn, có bữa ăn, nghỉ trưa và chi phí', async () => {
+  it('AI xếp lịch: bỏ id AI bịa, giữ mọi điểm đã chọn, có bữa ăn và nghỉ trưa', async () => {
     // AI giả: bịa một id, chọn một điểm bổ sung có trong danh sách được gửi,
     // và một điểm có trong database nhưng không được gửi cho AI.
     let aiPick = '';
@@ -206,9 +206,6 @@ describe('Lịch trình (e2e)', () => {
       ids.vuon,
     );
     if (!offeredVuon) expect(placeIds).not.toContain(ids.vuon);
-    expect(it.totalCost.minVnd).toBeGreaterThan(0);
-    expect(it.costByCategory.accommodation.minVnd).toBeGreaterThan(0);
-    expect(it.costNote).toContain('Ước tính');
 
     // Mỗi mục đều có giờ hợp lệ, tăng dần trong ngày.
     for (const day of it.days) {

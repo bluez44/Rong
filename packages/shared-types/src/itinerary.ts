@@ -1,7 +1,7 @@
 import type { PlaceCategory } from './place';
 
 /**
- * Lịch trình — PRD mục 7.2, F6 (tạo), F7 (chi phí), F8 (chỉnh sửa).
+ * Lịch trình — PRD mục 7.2, F6 (tạo), F8 (chỉnh sửa). Ước tính chi phí (F7) chưa làm.
  */
 export type PlanningMode = 'ai' | 'manual';
 
@@ -16,8 +16,6 @@ export type Transport = 'motorbike' | 'car' | 'taxi';
 
 export type DayPart = 'morning' | 'noon' | 'afternoon' | 'evening';
 
-export type CostCategory = 'tickets' | 'food' | 'transport' | 'accommodation';
-
 /** Loại mục trong một ngày. */
 export type ItineraryItemKind = 'visit' | 'meal' | 'rest';
 
@@ -29,12 +27,6 @@ export type MealType = 'breakfast' | 'lunch' | 'dinner';
  * - `manual`: người dùng tự sắp xếp.
  */
 export type PlannerKind = 'ai' | 'heuristic' | 'manual';
-
-/** Mọi con số chi phí đều là một khoảng, đơn vị VNĐ — FR-7.1. */
-export interface CostRange {
-  minVnd: number;
-  maxVnd: number;
-}
 
 export interface ItineraryInput {
   regionId: string;
@@ -77,7 +69,6 @@ export interface ItineraryItem {
   /** Thời gian di chuyển từ điểm trước đó, phút — ước tính theo quãng đường và phương tiện. */
   travelMinutesFromPrevious?: number | null;
   distanceKmFromPrevious?: number | null;
-  estimatedCost?: CostRange | null;
   /** Lý do ngắn do AI viết cho lựa chọn này. */
   reason?: string | null;
   /** Điểm do AI thêm vào chứ không phải người dùng chọn — hiện nhãn "AI gợi ý". */
@@ -125,12 +116,6 @@ export interface Itinerary {
   planner: PlannerKind;
   /** Mẹo chung cho chuyến đi do AI viết. */
   tips: string[];
-  /** Tổng cả nhóm. */
-  totalCost: CostRange;
-  totalCostPerPerson: CostRange;
-  costByCategory: Record<CostCategory, CostRange>;
-  /** "Ước tính" kèm ngày cập nhật bảng giá — FR-7.4. */
-  costNote: string;
   /** Số lần chỉnh sửa bằng AI còn lại — FR-6.5, tối đa 3 lần mỗi lịch trình. */
   aiEditsRemaining: number;
   createdAt: string;
