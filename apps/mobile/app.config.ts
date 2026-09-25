@@ -14,7 +14,7 @@ const config: ExpoConfig = {
   icon: './assets/images/icon.png',
   // Scheme dung cho deep link moi nhom (FR-10.2).
   scheme: 'rong',
-  userInterfaceStyle: 'automatic',
+  userInterfaceStyle: 'light',
   ios: {
     bundleIdentifier: 'vn.rong.app',
     supportsTablet: false,
