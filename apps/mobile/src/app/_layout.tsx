@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { Colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -28,6 +29,15 @@ const navigationTheme: Theme = {
 };
 
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+
+function RootNavigator() {
+  const { status } = useAuth();
   const [fontsLoaded, fontError] = useFonts({
     BeVietnamPro_400Regular,
     BeVietnamPro_500Medium,
@@ -35,18 +45,26 @@ export default function RootLayout() {
     BeVietnamPro_700Bold,
     BeVietnamPro_800ExtraBold,
   });
+  // Lỗi nạp font thì vẫn mở app với font hệ thống thay vì kẹt ở splash.
+  const ready = (fontsLoaded || !!fontError) && status !== 'loading';
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
 
-  // Lỗi nạp font thì vẫn mở app với font hệ thống thay vì kẹt ở splash.
-  if (!fontsLoaded && !fontError) return null;
+  if (!ready) return null;
+
+  const signedIn = status === 'signedIn';
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>
