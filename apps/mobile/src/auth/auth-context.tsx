@@ -1,7 +1,7 @@
 import type { AuthTokens, RegisterResult } from '@rong/shared-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { apiFetch } from '@/lib/api';
+import { ApiError, apiFetch, type RequestOptions } from '@/lib/api';
 import { clearSession, loadSession, saveSession, type Session } from '@/lib/session-storage';
 
 type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -16,6 +16,8 @@ type AuthContextValue = {
   resendVerification: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Gọi API cần đăng nhập. Token bị từ chối (401) thì đăng xuất và báo phiên hết hạn. */
+  authFetch: <T>(path: string, options?: Omit<RequestOptions, 'token'>) => Promise<T>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -32,20 +34,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const expireSession = useCallback(async () => {
+    await clearSession();
+    setSession(null);
+    setSessionExpired(true);
+    setStatus('signedOut');
+  }, []);
+
   // Backend chưa có refresh token: hết hạn access token thì phải đăng nhập lại.
   useEffect(() => {
     if (!session) return;
     const delay = session.expiresAt - Date.now();
     // setTimeout tràn số với độ trễ quá ~24,8 ngày và sẽ chạy ngay lập tức.
     if (delay > 2 ** 31 - 1) return;
-    const timer = setTimeout(() => {
-      clearSession();
-      setSession(null);
-      setSessionExpired(true);
-      setStatus('signedOut');
-    }, Math.max(delay, 0));
+    const timer = setTimeout(expireSession, Math.max(delay, 0));
     return () => clearTimeout(timer);
-  }, [session]);
+  }, [session, expireSession]);
 
   const startSession = useCallback(async (tokens: AuthTokens) => {
     const next: Session = {
@@ -77,8 +81,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         setStatus('signedOut');
       },
+      authFetch: async <T,>(path: string, options?: Omit<RequestOptions, 'token'>) => {
+        try {
+          return await apiFetch<T>(path, { ...options, token: session?.accessToken });
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) await expireSession();
+          throw error;
+        }
+      },
     }),
-    [status, session, sessionExpired, startSession],
+    [status, session, sessionExpired, startSession, expireSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
