@@ -27,8 +27,17 @@ export default function SearchScreen() {
     data: search.results.filter((r) => r.group === g.key),
   })).filter((s) => s.data.length > 0);
 
+  // Chưa có GET /regions/:id nên truyền luôn khung bao và tâm sang màn bản đồ.
   const open = (region: RegionSearchResult) =>
-    router.push({ pathname: '/region/[id]', params: { id: region.id, name: region.displayName } });
+    router.push({
+      pathname: '/region/[id]',
+      params: {
+        id: region.id,
+        name: region.displayName,
+        ...(region.bbox && { bbox: region.bbox.join(',') }),
+        ...(region.center && { lat: String(region.center.lat), lng: String(region.center.lng) }),
+      },
+    });
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
