@@ -52,6 +52,8 @@ const config: ExpoConfig = {
         imageWidth: 76,
       },
     ],
+    // Lưu access token trong Keychain / Keystore.
+    'expo-secure-store',
   ],
   experiments: {
     typedRoutes: true,
