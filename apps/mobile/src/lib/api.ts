@@ -17,7 +17,7 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = {
+export type RequestOptions = {
   method?: 'GET' | 'POST' | 'DELETE';
   body?: unknown;
   token?: string | null;
