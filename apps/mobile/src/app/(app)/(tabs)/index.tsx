@@ -5,12 +5,11 @@ import { useAuth } from '@/auth/auth-context';
 import { Glass } from '@/components/glass';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { MinTouch, Spacing } from '@/constants/theme';
 
 export default function HomeScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const name = session?.user.displayName ?? session?.user.email;
 
   return (
@@ -31,8 +30,6 @@ export default function HomeScreen() {
           </ThemedText>
         </Glass>
       </Pressable>
-      {/* Tạm đặt ở đây cho tới khi có màn Tài khoản. */}
-      <Button label="Đăng xuất" variant="plain" style={styles.signOut} onPress={signOut} />
     </Screen>
   );
 }
@@ -41,5 +38,4 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.twelve, gap: Spacing.six },
   header: { gap: Spacing.one },
   search: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: MinTouch + 8, paddingHorizontal: Spacing.four },
-  signOut: { marginTop: 'auto', alignSelf: 'center' },
 });
