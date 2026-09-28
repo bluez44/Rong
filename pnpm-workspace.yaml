@@ -2,6 +2,12 @@ packages:
   - "apps/*"
   - "packages/*"
 
+# Metro (React Native) không theo được symlink store mặc định của pnpm, và đường dẫn
+# node_modules/.pnpm/... quá dài cho CMake/Ninja trên Windows khi build native Android.
+# hoisted node_modules là cách Expo khuyến nghị cho monorepo. pnpm 11 chỉ đọc thiết lập
+# này ở đây, không còn đọc node-linker trong .npmrc.
+nodeLinker: hoisted
+
 # pnpm chặn post-install script theo mặc định. Chỉ những package thực sự cần
 # biên dịch native binary mới được bật ở đây.
 allowBuilds:
