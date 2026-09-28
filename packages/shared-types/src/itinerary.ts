@@ -87,6 +87,8 @@ export interface ItineraryDay {
 /** Địa điểm đã chọn nhưng không xếp vừa — FR-6.7. */
 export interface UnscheduledPlace {
   placeId: string;
+  /** Tên địa điểm để hiển thị. Lịch trình tạo trước khi có trường này thì không có. */
+  name?: string;
   reason: string;
 }
 
