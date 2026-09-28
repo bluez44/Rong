@@ -2,8 +2,8 @@ import type { RegionSearchGroup, RegionSearchResult } from '@rong/shared-types';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, SectionList, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
 import { RegionResult, RegionResultGroup } from '@/components/ui/region-result';
@@ -40,7 +40,8 @@ export default function SearchScreen() {
     });
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    // Chỉ chừa cạnh trên: danh sách cuộn xuống dưới thanh home, còn khi gõ thì bàn phím đẩy đáy danh sách lên.
+    <Screen edges={['top']}>
       <View style={styles.header}>
         <SearchField
           value={text}
@@ -61,7 +62,7 @@ export default function SearchScreen() {
         contentContainerStyle={styles.list}
         ListFooterComponent={<SearchStatus search={search} />}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -113,7 +114,6 @@ function SearchStatus({ search }: { search: ReturnType<typeof useRegionSearch> }
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.light.background },
   header: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.three },
   list: { paddingHorizontal: Spacing.one, paddingBottom: Spacing.twelve },
   status: { paddingHorizontal: Spacing.three, paddingTop: Spacing.six, gap: Spacing.one },

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAvoider } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Colors, Palette, Radius, Spacing } from '@/constants/theme';
 
@@ -21,7 +22,8 @@ export function AuthScreen({ title, subtitle, children, footer }: AuthScreenProp
   const insets = useSafeAreaInsets();
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Không dùng <Screen>: dải sương tràn lên dưới tai thỏ nên vùng an toàn được tự chừa bằng insets.
+    <KeyboardAvoider style={styles.flex}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.six }]}
@@ -41,7 +43,7 @@ export function AuthScreen({ title, subtitle, children, footer }: AuthScreenProp
         <View style={styles.form}>{children}</View>
         {footer ? <View style={styles.footer}>{footer}</View> : null}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAvoider>
   );
 }
 
