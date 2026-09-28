@@ -13,6 +13,11 @@ const ICONS = {
   layers: { ios: 'square.3.layers.3d', android: 'layers', web: 'layers' },
   pin: { ios: 'mappin', android: 'location_on', web: 'location_on' },
   back: { ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' },
+  forward: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
+  directions: { ios: 'arrow.triangle.turn.up.right.diamond', android: 'directions', web: 'directions' },
+  clock: { ios: 'clock', android: 'schedule', web: 'schedule' },
+  star: { ios: 'star.fill', android: 'star', web: 'star' },
+  external: { ios: 'arrow.up.right', android: 'open_in_new', web: 'open_in_new' },
   // Danh mục địa điểm, khớp PlaceCategory.
   check_in: { ios: 'camera', android: 'photo_camera', web: 'photo_camera' },
   food: { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' },

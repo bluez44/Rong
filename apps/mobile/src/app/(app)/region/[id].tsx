@@ -51,6 +51,9 @@ export default function RegionScreen() {
     if (detent === 'full') setDetent('half');
   };
 
+  const openDetail = (place: PlaceListItem) =>
+    router.push({ pathname: '/place/[id]', params: { id: place.id!, name: place.name, category: place.category } });
+
   const count = places.status === 'loading' ? 'Đang tải địa điểm…' : `${places.items.length}${places.nextCursor ? '+' : ''} địa điểm`;
 
   return (
@@ -99,7 +102,15 @@ export default function RegionScreen() {
           ref={list}
           data={places.items}
           keyExtractor={placeKey}
-          renderItem={({ item }) => <PlaceRow place={item} selected={placeKey(item) === selectedKey} onPress={() => selectFromList(item)} />}
+          renderItem={({ item }) => (
+            <PlaceRow
+              place={item}
+              selected={placeKey(item) === selectedKey}
+              onPress={() => selectFromList(item)}
+              // Kết quả dự phòng từ AI không có trong danh mục nên không có màn chi tiết.
+              onOpenDetail={item.id ? () => openDetail(item) : undefined}
+            />
+          )}
           onEndReached={places.loadMore}
           onEndReachedThreshold={0.5}
           onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
