@@ -212,7 +212,7 @@ describe('scheduleDay', () => {
     });
 
     expect(result.unscheduled).toEqual([
-      { placeId: closedMonday.id, reason: 'Đóng cửa vào ngày 1 (2026-10-05)' },
+      { placeId: closedMonday.id, name: closedMonday.name, reason: 'Đóng cửa vào ngày 1 (2026-10-05)' },
     ]);
     expect(hhmm(result.items[0].startsAt)).toBe('10:00');
   });
@@ -271,7 +271,7 @@ describe('giờ mở cửa thông thường khi không có dữ liệu', () => {
     });
 
     expect(result.unscheduled).toEqual([
-      { placeId: museum.id, reason: 'Không kịp trong giờ mở cửa thông thường' },
+      { placeId: museum.id, name: museum.name, reason: 'Không kịp trong giờ mở cửa thông thường' },
     ]);
     expect(result.items.map((i) => i.placeId)).toEqual([viewpoint.id]);
   });

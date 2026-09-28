@@ -129,6 +129,7 @@ export class ItinerariesService {
       .filter((c) => c.category === 'stay')
       .map((c) => ({
         placeId: c.id,
+        name: c.name,
         reason: 'Điểm lưu trú — chọn làm nơi ở thay vì xếp như điểm tham quan',
       }));
 
@@ -155,6 +156,7 @@ export class ItinerariesService {
       unscheduled.push(
         ...selectedVisits.map((c) => ({
           placeId: c.id,
+          name: c.name,
           reason: 'Chờ bạn xếp vào lịch',
         })),
       );

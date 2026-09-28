@@ -221,6 +221,7 @@ export function scheduleDay(
       if (ranges.length === 0) {
         unscheduled.push({
           placeId: c.id,
+          name: c.name,
           reason: `Đóng cửa vào ngày ${day.index + 1} (${day.date})`,
         });
         continue;
@@ -235,6 +236,7 @@ export function scheduleDay(
       if (!slot) {
         unscheduled.push({
           placeId: c.id,
+          name: c.name,
           reason: assumed
             ? 'Không kịp trong giờ mở cửa thông thường'
             : 'Không kịp trong giờ mở cửa',
@@ -248,6 +250,7 @@ export function scheduleDay(
     if (end > day.end) {
       unscheduled.push({
         placeId: c.id,
+        name: c.name,
         reason: `Không đủ thời gian trong ngày ${day.index + 1}`,
       });
       continue;
