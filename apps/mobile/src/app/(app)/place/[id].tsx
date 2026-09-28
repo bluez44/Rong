@@ -12,9 +12,13 @@ import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { usePlaceDetail } from '@/hooks/use-place-detail';
+import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 
-/** `name` và `category` truyền từ danh sách để phần đầu hiện ngay trong lúc tải. */
-type Params = { id: string; name?: string; category?: PlaceCategory };
+/**
+ * `name` và `category` truyền từ danh sách để phần đầu hiện ngay trong lúc tải.
+ * `regionId` có khi mở từ bản đồ vùng: bật nút thêm vào lịch trình của vùng đó.
+ */
+type Params = { id: string; name?: string; category?: PlaceCategory; regionId?: string };
 
 export default function PlaceDetailScreen() {
   const params = useLocalSearchParams<Params>();
@@ -69,7 +73,7 @@ export default function PlaceDetailScreen() {
           </Notice>
         ) : null}
 
-        {place ? <PlaceBody place={place} /> : null}
+        {place ? <PlaceBody place={place} regionId={params.regionId} /> : null}
       </ScrollView>
     </Screen>
   );
@@ -100,12 +104,15 @@ function Summary({ place }: { place: PlaceDetail }) {
   );
 }
 
-function PlaceBody({ place }: { place: PlaceDetail }) {
+function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string }) {
   return (
     <>
-      <View style={styles.actions}>
-        <Button label="Chỉ đường" onPress={() => Linking.openURL(directionsUrl(place))} style={styles.action} />
-        {place.website ? <Button label="Trang web" variant="glass" onPress={() => Linking.openURL(place.website!)} style={styles.action} /> : null}
+      <View style={styles.actionGroup}>
+        {regionId ? <TripButton place={place} regionId={regionId} /> : null}
+        <View style={styles.actions}>
+          <Button label="Chỉ đường" variant={regionId ? 'glass' : 'primary'} onPress={() => Linking.openURL(directionsUrl(place))} style={styles.action} />
+          {place.website ? <Button label="Trang web" variant="glass" onPress={() => Linking.openURL(place.website!)} style={styles.action} /> : null}
+        </View>
       </View>
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}
@@ -127,6 +134,31 @@ function PlaceBody({ place }: { place: PlaceDetail }) {
         </Text>
       </View>
     </>
+  );
+}
+
+/** Thêm vào lịch trình, hoặc chọn làm nơi lưu trú với điểm lưu trú (FR-2.12). */
+function TripButton({ place, regionId }: { place: PlaceDetail; regionId: string }) {
+  const draft = useTripDraft(regionId);
+  const item = { id: place.id, name: place.name, category: place.category };
+
+  if (place.category === 'stay') {
+    const active = draft.accommodation?.id === place.id;
+    return (
+      <Button
+        label={active ? 'Nơi lưu trú của chuyến đi ✓' : 'Chọn làm nơi lưu trú'}
+        variant={active ? 'glass' : 'primary'}
+        onPress={() => tripDraft.toggleAccommodation(regionId, item)}
+      />
+    );
+  }
+  const active = draft.places.some((p) => p.id === place.id);
+  return (
+    <Button
+      label={active ? 'Đã thêm vào lịch trình ✓' : 'Thêm vào lịch trình'}
+      variant={active ? 'glass' : 'primary'}
+      onPress={() => tripDraft.togglePlace(regionId, item)}
+    />
   );
 }
 
@@ -174,6 +206,7 @@ const styles = StyleSheet.create({
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
   status: { paddingVertical: Spacing.six, alignItems: 'center' },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
+  actionGroup: { gap: Spacing.three },
   actions: { flexDirection: 'row', gap: Spacing.three },
   action: { flex: 1 },
   description: { ...Type.body, color: Colors.light.text },
