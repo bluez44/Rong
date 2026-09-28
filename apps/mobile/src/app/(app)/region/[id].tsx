@@ -16,6 +16,7 @@ import { PlaceRow } from '@/components/ui/place-row';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { useRegionPlaces } from '@/hooks/use-region-places';
+import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 
 type Params = { id: string; name?: string; bbox?: string; lat?: string; lng?: string };
 
@@ -31,6 +32,8 @@ export default function RegionScreen() {
   const [detent, setDetent] = useState<SheetDetent>('half');
   const [halfHeight, setHalfHeight] = useState(0);
   const list = useRef<FlatList<PlaceListItem>>(null);
+  const draft = useTripDraft(params.id);
+  const regionName = params.name ?? 'Vùng đã chọn';
 
   const toggle = (category: PlaceCategory) =>
     setCategories((prev) =>
@@ -52,7 +55,21 @@ export default function RegionScreen() {
   };
 
   const openDetail = (place: PlaceListItem) =>
-    router.push({ pathname: '/place/[id]', params: { id: place.id!, name: place.name, category: place.category } });
+    router.push({
+      pathname: '/place/[id]',
+      params: { id: place.id!, name: place.name, category: place.category, regionId: params.id, regionName },
+    });
+
+  const tripAction = (place: PlaceListItem) => {
+    // Kết quả dự phòng từ AI không có id nên không đưa vào lịch trình được (FR-6.3).
+    if (!place.id) return undefined;
+    const item = { id: place.id, name: place.name, category: place.category };
+    return place.category === 'stay'
+      ? { active: draft.accommodation?.id === place.id, onPress: () => tripDraft.toggleAccommodation(params.id, item) }
+      : { active: draft.places.some((p) => p.id === place.id), onPress: () => tripDraft.togglePlace(params.id, item) };
+  };
+
+  const planTrip = () => router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
 
   const count = places.status === 'loading' ? 'Đang tải địa điểm…' : `${places.items.length}${places.nextCursor ? '+' : ''} địa điểm`;
 
@@ -78,6 +95,19 @@ export default function RegionScreen() {
         </Glass>
       </Pressable>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={draft.places.length ? `Lập lịch trình với ${draft.places.length} địa điểm đã chọn` : 'Lập lịch trình'}
+        onPress={planTrip}
+        style={[styles.plan, { top: insets.top + Spacing.two }]}>
+        <Glass shape="capsule" variant={draft.places.length ? 'tinted' : 'regular'} interactive style={styles.planGlass}>
+          <Icon name="calendar" size={18} color={draft.places.length ? Colors.light.onPrimary : Colors.light.primary} />
+          <Text style={[styles.planLabel, draft.places.length > 0 && styles.planLabelActive]}>
+            {draft.places.length ? `Lập lịch trình · ${draft.places.length}` : 'Lập lịch trình'}
+          </Text>
+        </Glass>
+      </Pressable>
+
       <PlaceSheet
         detent={detent}
         onDetentChange={setDetent}
@@ -86,7 +116,7 @@ export default function RegionScreen() {
           <View style={styles.sheetHeader}>
             <View style={styles.titleRow}>
               <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
-                {params.name ?? 'Vùng đã chọn'}
+                {regionName}
               </Text>
               <Text style={styles.count}>{count}</Text>
             </View>
@@ -102,6 +132,8 @@ export default function RegionScreen() {
           ref={list}
           data={places.items}
           keyExtractor={placeKey}
+          // Dòng phụ thuộc cả dòng đang chọn lẫn bản nháp lịch trình, không chỉ `data`.
+          extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}`}
           renderItem={({ item }) => (
             <PlaceRow
               place={item}
@@ -109,6 +141,7 @@ export default function RegionScreen() {
               onPress={() => selectFromList(item)}
               // Kết quả dự phòng từ AI không có trong danh mục nên không có màn chi tiết.
               onOpenDetail={item.id ? () => openDetail(item) : undefined}
+              tripAction={tripAction(item)}
             />
           )}
           onEndReached={places.loadMore}
@@ -189,6 +222,10 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.light.backgroundElement },
   back: { position: 'absolute', left: Spacing.four },
   backGlass: { width: MinTouch, alignItems: 'center', justifyContent: 'center' },
+  plan: { position: 'absolute', right: Spacing.four },
+  planGlass: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: MinTouch, paddingHorizontal: Spacing.four },
+  planLabel: { ...Type.subhead, fontFamily: Type.headline.fontFamily, color: Colors.light.primary },
+  planLabelActive: { color: Colors.light.onPrimary },
   sheetHeader: { gap: Spacing.three, paddingBottom: Spacing.three },
   titleRow: { paddingHorizontal: Spacing.five, gap: 2 },
   title: { ...Type.title2, color: Colors.light.text },
