@@ -1,0 +1,5 @@
+# Script shell chạy trong Linux (container, EC2): luôn giữ LF kể cả khi
+# checkout trên Windows với core.autocrlf.
+*.sh text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
