@@ -8,12 +8,20 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
+  Query,
 } from '@nestjs/common';
-import type { Itinerary, ItinerarySummary } from '@rong/shared-types';
+import type {
+  Itinerary,
+  ItinerarySummary,
+  PlaceAlternative,
+} from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { AlternativesQueryDto } from './dto/alternatives.dto.js';
 import { CreateItineraryDto } from './dto/create-itinerary.dto.js';
+import { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { ItinerariesService } from './itineraries.service.js';
 
 @Controller('itineraries')
@@ -40,6 +48,26 @@ export class ItinerariesController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<Itinerary> {
     return this.itineraries.get(user.userId, id);
+  }
+
+  /** Sửa lịch trình (F8): gửi toàn bộ các ngày, server tính lại giờ và cảnh báo. */
+  @Put(':id')
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateItineraryDto,
+  ): Promise<Itinerary> {
+    return this.itineraries.update(user.userId, id, dto);
+  }
+
+  /** "Đổi điểm tương tự" (FR-8.3). */
+  @Get(':id/alternatives')
+  alternatives(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: AlternativesQueryDto,
+  ): Promise<PlaceAlternative[]> {
+    return this.itineraries.alternatives(user.userId, id, query.placeId);
   }
 
   @Delete(':id')

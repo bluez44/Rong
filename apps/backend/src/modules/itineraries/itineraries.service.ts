@@ -13,6 +13,7 @@ import type {
   ItineraryInput,
   ItinerarySummary,
   ItineraryWarning,
+  PlaceAlternative,
   PlaceCategory,
   PlannerKind,
   UnscheduledPlace,
@@ -29,6 +30,7 @@ import {
   validatePlan,
 } from './ai-planner.js';
 import type { CreateItineraryDto } from './dto/create-itinerary.dto.js';
+import type { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { Itinerary } from './entities/itinerary.entity.js';
 import {
   assignToDays,
@@ -36,14 +38,24 @@ import {
   orderNearestFirst,
   pickExtras,
 } from './planning/clustering.js';
-import { buildDays, vietnamIso, type DayWindow } from './planning/days.js';
+import {
+  buildDays,
+  toVietnamLocal,
+  vietnamIso,
+  type DayWindow,
+} from './planning/days.js';
 import type { Candidate, PlannedStop } from './planning/planning.types.js';
 import {
   MAX_TRIP_DAYS,
   PARTY_RULES,
   targetStopsPerDay,
 } from './planning/rules.js';
+import { retimeDay } from './planning/retime.js';
 import { scheduleDay } from './planning/scheduler.js';
+
+/** "Đổi điểm tương tự" (FR-8.3): số gợi ý và bán kính tìm quanh điểm đang thay. */
+const ALTERNATIVES = 3;
+const ALTERNATIVES_RADIUS_M = 5000;
 
 /** Số điểm dự bị gửi thêm cho AI để nó có thể đổi điểm bổ sung. */
 const AI_SPARE_CANDIDATES = 10;
@@ -322,6 +334,131 @@ export class ItinerariesService {
     return toResponse(await this.findOwned(ownerId, id));
   }
 
+  /**
+   * Sửa lịch trình (F8): thay các ngày và "Chưa xếp" theo đúng thứ tự người
+   * dùng đặt, rồi tính lại giờ, di chuyển và cảnh báo (FR-8.5, FR-8.6).
+   */
+  async update(
+    ownerId: string,
+    id: string,
+    dto: UpdateItineraryDto,
+  ): Promise<ItineraryResponse> {
+    const itinerary = await this.findOwned(ownerId, id);
+    const dayIds = itinerary.days.map((d) => d.id);
+    if (
+      dto.days.length !== dayIds.length ||
+      dto.days.some((d, i) => d.id !== dayIds[i])
+    ) {
+      throw bad(
+        'DAYS_MISMATCH',
+        'Lịch trình đã thay đổi ở nơi khác. Tải lại rồi thử lại.',
+      );
+    }
+    for (const item of dto.days.flatMap((d) => d.items)) {
+      if (item.kind !== 'rest' && !item.placeId) {
+        throw bad(
+          'PLACE_REQUIRED',
+          'Điểm tham quan và bữa ăn cần có địa điểm.',
+        );
+      }
+    }
+
+    const { input } = itinerary;
+    const placeIds = [
+      ...new Set([
+        ...dto.days.flatMap((d) =>
+          d.items.flatMap((i) => (i.placeId ? [i.placeId] : [])),
+        ),
+        ...dto.unscheduledPlaceIds,
+      ]),
+    ];
+    const found = await this.loadPlaces(placeIds, true);
+    const missing = placeIds.filter((pid) => !found.some((c) => c.id === pid));
+    if (missing.length > 0) {
+      throw bad('UNKNOWN_PLACES', 'Có địa điểm không tồn tại trong danh mục.', {
+        placeIds: missing,
+      });
+    }
+    const places = new Map(found.map((c) => [c.id, c]));
+    const [accommodation] = input.accommodationPlaceId
+      ? await this.loadPlaces([input.accommodationPlaceId], false)
+      : [];
+    const transport =
+      input.transport ?? PARTY_RULES[input.travelParty].defaultTransport;
+
+    const warnings: ItineraryWarning[] = [];
+    const days: ItineraryDay[] = itinerary.days.map((stored, index) => {
+      const result = retimeDay(dto.days[index].items, {
+        day: windowOf(stored, index),
+        transport,
+        accommodation: accommodation ?? null,
+        places,
+      });
+      warnings.push(...result.warnings);
+      return { ...stored, items: result.items };
+    });
+
+    const reasons = new Map(
+      itinerary.unscheduled.map((u) => [u.placeId, u.reason]),
+    );
+    itinerary.days = days;
+    itinerary.warnings = warnings;
+    itinerary.unscheduled = [...new Set(dto.unscheduledPlaceIds)].map(
+      (placeId) => ({
+        placeId,
+        name: places.get(placeId)!.name,
+        reason: reasons.get(placeId) ?? 'Chờ bạn xếp vào lịch',
+      }),
+    );
+    return toResponse(await this.itineraries.save(itinerary));
+  }
+
+  /**
+   * "Đổi điểm tương tự" (FR-8.3): điểm cùng loại quanh điểm đang thay, chưa có
+   * trong lịch trình, điểm tổng hợp cao trước.
+   */
+  async alternatives(
+    ownerId: string,
+    id: string,
+    placeId: string,
+  ): Promise<PlaceAlternative[]> {
+    const itinerary = await this.findOwned(ownerId, id);
+    const used = [
+      ...itinerary.days.flatMap((d) =>
+        d.items.flatMap((i) => (i.placeId ? [i.placeId] : [])),
+      ),
+      ...itinerary.unscheduled.map((u) => u.placeId),
+      placeId,
+    ];
+    const avoid = PARTY_RULES[itinerary.input.travelParty].avoidCategories;
+    const rows = (await this.db.query(
+      `SELECT p.id, p.name, p.category, p.description,
+              ST_Distance(p.location::geography, t.location::geography) / 1000 AS km
+         FROM places t
+         JOIN places p ON p.category = t.category
+          AND ST_DWithin(p.location::geography, t.location::geography, $3)
+        WHERE t.id = $1
+          AND p.id <> ALL($2::uuid[])
+          AND NOT (p.category = ANY($4::place_category[]))
+        ORDER BY p.composite_score DESC, km
+        LIMIT $5`,
+      [placeId, used, ALTERNATIVES_RADIUS_M, avoid, ALTERNATIVES],
+    )) as Array<{
+      id: string;
+      name: string;
+      category: PlaceCategory;
+      description: string | null;
+      km: number;
+    }>;
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      description: r.description,
+      distanceKm: Math.round(Number(r.km) * 10) / 10,
+    }));
+  }
+
   async remove(ownerId: string, id: string): Promise<void> {
     await this.itineraries.delete({
       id: (await this.findOwned(ownerId, id)).id,
@@ -445,6 +582,20 @@ function normalize(dto: CreateItineraryDto): ItineraryInput {
     transport: dto.transport ?? null,
     preferredCategories: dto.preferredCategories ?? [],
     notes: dto.notes?.trim() || null,
+  };
+}
+
+/** Khung giờ của một ngày đã lưu, để tính lại giờ khi sửa. */
+function windowOf(day: ItineraryDay, index: number): DayWindow {
+  const [y, m, d] = day.date.split('-').map(Number);
+  return {
+    index,
+    date: day.date,
+    weekday: (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7,
+    start: toVietnamLocal(day.startsAt).minute,
+    end: toVietnamLocal(day.endsAt).minute,
+    isFirst: index === 0,
+    isLast: false,
   };
 }
 
