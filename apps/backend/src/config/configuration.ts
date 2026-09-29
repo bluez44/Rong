@@ -51,6 +51,8 @@ export interface GoogleConfig {
   /** Để trống thì màn hình chi tiết chỉ có dữ liệu riêng, không có phần Google. */
   mapsApiKey: string | null;
   placesUrl: string;
+  /** Geocoding API — dùng chung mapsApiKey, cần bật "Geocoding API" cho khóa. */
+  geocodingUrl: string;
 }
 
 export interface AppConfig {
@@ -160,6 +162,9 @@ export function loadConfig(): AppConfig {
       mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
       placesUrl:
         process.env.GOOGLE_PLACES_URL || 'https://places.googleapis.com/v1',
+      geocodingUrl:
+        process.env.GOOGLE_GEOCODING_URL ||
+        'https://maps.googleapis.com/maps/api/geocode/json',
     },
   };
 }

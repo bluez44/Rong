@@ -13,6 +13,29 @@ const MAX_PHOTOS = 3;
 const MAX_REVIEWS = 5;
 /** Nửa cạnh khung tìm quanh tọa độ riêng khi ghép place_id (~250 m). */
 const MATCH_BOX_DEGREES = 0.0025;
+/** Nới khung bao của vùng khi kiểm tra kết quả Geocoding (~1 km). */
+const GEOCODE_BBOX_PADDING_DEG = 0.01;
+/**
+ * Loại kết quả Geocoding không chỉ tới một địa điểm cụ thể: Geocoding không
+ * tìm ra thì hay rơi về tâm phường, quận, thành phố hay giữa một con đường.
+ */
+const IMPRECISE_GEOCODE_TYPES = new Set([
+  'political',
+  'country',
+  'postal_code',
+  'plus_code',
+  'route',
+]);
+
+interface GeocodeResponse {
+  status: string;
+  error_message?: string;
+  results?: Array<{
+    place_id: string;
+    types: string[];
+    geometry: { location: { lat: number; lng: number } };
+  }>;
+}
 
 /**
  * Chỉ các trường thật sự hiển thị. Places API tính tiền theo trường yêu cầu,
@@ -69,7 +92,8 @@ interface RawPlace {
 }
 
 /**
- * Cổng duy nhất tới Google Places API (New) — PRD 7.4. Không module nào khác
+ * Cổng duy nhất tới Google Maps Platform (Places API New, Geocoding API) —
+ * PRD 7.4. Không module nào khác
  * được gọi Google. Không lưu và không cache gì ngoài place_id (do PlacesService
  * lưu); mọi nội dung khác đi thẳng từ Google ra response.
  */
@@ -119,6 +143,79 @@ export class GooglePlacesService {
       },
     );
     return body.places?.[0]?.id ?? null;
+  }
+
+  /**
+   * Tra tọa độ một địa điểm theo tên (+ địa chỉ) bằng Geocoding API, cho API
+   * v2. Tọa độ trả về chỉ được đưa thẳng ra response, không lưu hay cache
+   * (PRD 7.4); chỉ place_id được phép giữ lại.
+   *
+   * `bounds` của Geocoding chỉ ưu tiên chứ không giới hạn, và không tìm ra
+   * địa điểm thì Geocoding hay trả tâm phường/thành phố — nên kết quả ngoài
+   * khung bao hoặc chỉ là đơn vị hành chính, tên đường đều bị bỏ.
+   */
+  async geocode(
+    query: string,
+    bbox: [south: number, west: number, north: number, east: number] | null,
+  ): Promise<{ placeId: string; lat: number; lng: number } | null> {
+    if (this.config.mapsApiKey === null) {
+      throw new GoogleUnavailableError('Chưa cấu hình GOOGLE_MAPS_API_KEY.');
+    }
+
+    const params = new URLSearchParams({
+      address: query,
+      language: 'vi',
+      region: 'vn',
+      components: 'country:VN',
+      key: this.config.mapsApiKey,
+    });
+    if (bbox) params.set('bounds', `${bbox[0]},${bbox[1]}|${bbox[2]},${bbox[3]}`);
+
+    const started = Date.now();
+    let body: GeocodeResponse;
+    try {
+      const response = await fetch(`${this.config.geocodingUrl}?${params}`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) {
+        throw new GoogleUnavailableError(
+          `Geocoding trả về HTTP ${response.status}`,
+        );
+      }
+      body = (await response.json()) as GeocodeResponse;
+    } catch (error) {
+      // Không log URL: Geocoding API bắt khóa nằm trong query string.
+      this.logger.warn(
+        `Geocoding "${query}" lỗi sau ${Date.now() - started} ms: ${(error as Error).message}`,
+      );
+      if (error instanceof GoogleUnavailableError) throw error;
+      throw new GoogleUnavailableError(
+        `Không gọi được Geocoding: ${(error as Error).message}`,
+      );
+    }
+
+    if (body.status !== 'OK' && body.status !== 'ZERO_RESULTS') {
+      this.logger.warn(
+        `Geocoding "${query}" → ${body.status} ${body.error_message ?? ''} (${Date.now() - started} ms)`,
+      );
+      throw new GoogleUnavailableError(`Geocoding trả về ${body.status}`);
+    }
+
+    const hit = (body.results ?? []).find(
+      (result) =>
+        !result.types.some((type) => IMPRECISE_GEOCODE_TYPES.has(type)) &&
+        insideBbox(result.geometry.location, bbox),
+    );
+    this.logger.debug(
+      `Geocoding "${query}" → ${hit ? hit.types.join('|') : `không dùng được (${body.status}, ${body.results?.length ?? 0} kết quả)`} trong ${Date.now() - started} ms`,
+    );
+    return hit
+      ? {
+          placeId: hit.place_id,
+          lat: hit.geometry.location.lat,
+          lng: hit.geometry.location.lng,
+        }
+      : null;
   }
 
   /** Nội dung cho màn hình chi tiết. Trả về null nếu Google không còn địa điểm này. */
@@ -226,6 +323,21 @@ export class GooglePlacesService {
 }
 
 class GoogleNotFoundError extends Error {}
+
+function insideBbox(
+  { lat, lng }: { lat: number; lng: number },
+  bbox: [number, number, number, number] | null,
+): boolean {
+  if (!bbox) return true;
+  const [south, west, north, east] = bbox;
+  const pad = GEOCODE_BBOX_PADDING_DEG;
+  return (
+    lat >= south - pad &&
+    lat <= north + pad &&
+    lng >= west - pad &&
+    lng <= east + pad
+  );
+}
 
 function toAuthor(author: RawAuthor): GoogleAuthorAttribution {
   return {
