@@ -16,6 +16,7 @@ import { PlaceRow } from '@/components/ui/place-row';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { useRegionPlaces } from '@/hooks/use-region-places';
+import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 import { formatFullDate } from '@/lib/trip-format';
 
@@ -34,6 +35,7 @@ export default function RegionScreen() {
   const [halfHeight, setHalfHeight] = useState(0);
   const list = useRef<FlatList<PlaceListItem>>(null);
   const draft = useTripDraft(params.id);
+  const saved = useSavedPlaces();
   const regionName = params.name ?? 'Vùng đã chọn';
 
   const toggle = (category: PlaceCategory) =>
@@ -69,6 +71,15 @@ export default function RegionScreen() {
       ? { active: draft.accommodation?.id === place.id, onPress: () => tripDraft.toggleAccommodation(params.id, item) }
       : { active: draft.places.some((p) => p.id === place.id), onPress: () => tripDraft.togglePlace(params.id, item) };
   };
+
+  // Như lịch trình: chỉ lưu được địa điểm có trong danh mục (FR-9.2 mở F6 bằng danh sách này).
+  const saveAction = (place: PlaceListItem) =>
+    place.id
+      ? {
+          active: saved.isSaved(place.id),
+          onPress: () => saved.toggle({ id: place.id!, name: place.name, category: place.category }, { id: params.id, name: regionName }),
+        }
+      : undefined;
 
   const planTrip = () => router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
 
@@ -134,7 +145,7 @@ export default function RegionScreen() {
           data={places.items}
           keyExtractor={placeKey}
           // Dòng phụ thuộc cả dòng đang chọn lẫn bản nháp lịch trình, không chỉ `data`.
-          extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}`}
+          extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}|${saved.items.length}`}
           renderItem={({ item }) => (
             <PlaceRow
               place={item}
@@ -143,6 +154,7 @@ export default function RegionScreen() {
               // Mục AI không khớp danh mục thì không có màn chi tiết.
               onOpenDetail={item.id ? () => openDetail(item) : undefined}
               tripAction={tripAction(item)}
+              saveAction={saveAction(item)}
             />
           )}
           onEndReached={places.loadMore}

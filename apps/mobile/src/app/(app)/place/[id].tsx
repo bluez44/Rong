@@ -12,13 +12,15 @@ import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { usePlaceDetail } from '@/hooks/use-place-detail';
+import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 
 /**
  * `name` và `category` truyền từ danh sách để phần đầu hiện ngay trong lúc tải.
- * `regionId` có khi mở từ bản đồ vùng: bật nút thêm vào lịch trình của vùng đó.
+ * `regionId`/`regionName` có khi mở từ bản đồ vùng hoặc "Muốn đi": bật nút thêm
+ * vào lịch trình của vùng đó, và là vùng được ghi khi thả tim.
  */
-type Params = { id: string; name?: string; category?: PlaceCategory; regionId?: string };
+type Params = { id: string; name?: string; category?: PlaceCategory; regionId?: string; regionName?: string };
 
 export default function PlaceDetailScreen() {
   const params = useLocalSearchParams<Params>();
@@ -38,6 +40,9 @@ export default function PlaceDetailScreen() {
             <Icon name="back" color={Colors.light.text} />
           </Glass>
         </Pressable>
+        {place && params.regionId ? (
+          <SaveButton place={place} region={{ id: params.regionId, name: params.regionName ?? 'Vùng đã chọn' }} />
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
@@ -137,6 +142,23 @@ function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string 
   );
 }
 
+/** Nút tim "Muốn đi" (FR-9.1). */
+function SaveButton({ place, region }: { place: PlaceDetail; region: { id: string; name: string } }) {
+  const saved = useSavedPlaces();
+  const active = saved.isSaved(place.id);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={active ? 'Bỏ khỏi Muốn đi' : 'Lưu vào Muốn đi'}
+      accessibilityState={{ selected: active }}
+      onPress={() => saved.toggle({ id: place.id, name: place.name, category: place.category }, region)}>
+      <Glass shape="circle" interactive style={styles.backGlass}>
+        <Icon name={active ? 'heartFill' : 'heart'} color={active ? Colors.light.danger : Colors.light.text} />
+      </Glass>
+    </Pressable>
+  );
+}
+
 /** Thêm vào lịch trình, hoặc chọn làm nơi lưu trú với điểm lưu trú (FR-2.12). */
 function TripButton({ place, regionId }: { place: PlaceDetail; regionId: string }) {
   const draft = useTripDraft(regionId);
@@ -182,7 +204,13 @@ function directionsUrl(place: PlaceDetail): string {
 }
 
 const styles = StyleSheet.create({
-  topBar: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.two },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
   backGlass: { width: MinTouch, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.four, gap: Spacing.six },
   header: { gap: Spacing.two },

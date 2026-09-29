@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 import { useItineraries } from '@/hooks/use-itineraries';
+import { useSavedPlaces } from '@/lib/saved-places';
 import { formatDateRange, PLANNER_LABELS } from '@/lib/trip-format';
 
 export default function TripsScreen() {
@@ -33,9 +34,12 @@ export default function TripsScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.content}
         ListHeaderComponent={
-          <Text style={styles.title} accessibilityRole="header">
-            Chuyến đi
-          </Text>
+          <View style={styles.header}>
+            <Text style={styles.title} accessibilityRole="header">
+              Chuyến đi
+            </Text>
+            <SavedEntry />
+          </View>
         }
         ListEmptyComponent={<EmptyState trips={trips} />}
         refreshControl={
@@ -43,6 +47,36 @@ export default function TripsScreen() {
         }
       />
     </Screen>
+  );
+}
+
+/** Lối vào danh sách "Muốn đi" (F9). */
+function SavedEntry() {
+  const saved = useSavedPlaces();
+  const regions = new Set(saved.items.map((s) => s.regionId)).size;
+  const meta =
+    saved.status === 'loading'
+      ? 'Đang tải…'
+      : saved.items.length
+        ? `${saved.items.length} địa điểm · ${regions} điểm đến`
+        : 'Thả tim những chỗ muốn ghé để xếp lịch sau';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Muốn đi, ${meta}`}
+      onPress={() => router.push('/saved')}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      <View style={styles.icon}>
+        <Icon name="heartFill" size={20} color={Colors.light.danger} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.name}>Muốn đi</Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {meta}
+        </Text>
+      </View>
+      <Icon name="forward" size={16} />
+    </Pressable>
   );
 }
 
@@ -94,7 +128,8 @@ function TripRow({ trip }: { trip: ItinerarySummary }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.six, paddingBottom: Spacing.eight, gap: Spacing.two },
-  title: { ...Type.title1, color: Colors.light.text, marginBottom: Spacing.three },
+  header: { gap: Spacing.three, marginBottom: Spacing.five },
+  title: { ...Type.title1, color: Colors.light.text },
   loading: { paddingVertical: Spacing.six },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
   empty: { gap: Spacing.two, paddingTop: Spacing.four, alignItems: 'flex-start' },

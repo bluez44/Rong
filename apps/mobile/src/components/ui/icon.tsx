@@ -26,6 +26,8 @@ const ICONS = {
   clock: { ios: 'clock', android: 'schedule', web: 'schedule' },
   star: { ios: 'star.fill', android: 'star', web: 'star' },
   external: { ios: 'arrow.up.right', android: 'open_in_new', web: 'open_in_new' },
+  heart: { ios: 'heart', android: 'favorite', web: 'favorite' },
+  heartFill: { ios: 'heart.fill', android: 'favorite', web: 'favorite' },
   // Danh mục địa điểm, khớp PlaceCategory.
   check_in: { ios: 'camera', android: 'photo_camera', web: 'photo_camera' },
   food: { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' },
