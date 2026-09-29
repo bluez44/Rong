@@ -42,4 +42,21 @@ export class UsersService {
     }
     return toProfile(user, user.identities ?? []);
   }
+
+  async updateProfile(
+    userId: string,
+    displayName: string,
+  ): Promise<UserProfile> {
+    const { affected } = await this.users.update(userId, { displayName });
+    if (!affected) throw new UnauthorizedException();
+    return this.getProfile(userId);
+  }
+
+  /**
+   * Xóa hẳn, không xóa mềm: mọi bảng tham chiếu user (auth_identities →
+   * one_time_tokens, itineraries, saved_places) đều ON DELETE CASCADE.
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    await this.users.delete(userId);
+  }
 }

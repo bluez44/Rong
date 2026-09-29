@@ -21,3 +21,9 @@ export interface RegisterResult {
   /** Mã xác minh 6 chữ số đã được gửi tới email này; nhập mã để kích hoạt tài khoản. */
   verificationEmailSentTo: string;
 }
+
+/** PATCH /users/me. */
+export interface UpdateProfileRequest {
+  /** 1–50 ký tự sau khi bỏ khoảng trắng hai đầu. */
+  displayName: string;
+}
