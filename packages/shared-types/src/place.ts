@@ -175,3 +175,14 @@ export interface PlaceDetail extends Omit<PlaceListItem, 'id'> {
   googleStatus: GoogleContentStatus;
   google: GooglePlaceContent | null;
 }
+
+/** Một địa điểm trong danh sách "Muốn đi" — F9. Chỉ địa điểm có trong danh mục (có id). */
+export interface SavedPlace {
+  placeId: string;
+  name: string;
+  category: PlaceCategory;
+  /** Vùng người dùng đang xem khi lưu; danh sách được nhóm theo vùng này. */
+  regionId: string;
+  regionName: string;
+  savedAt: string;
+}
