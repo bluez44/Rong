@@ -9,6 +9,8 @@ import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'Rong',
   slug: 'rong',
+  // Project EAS Build (expo.dev/accounts/vlqvinh444/projects/rong).
+  owner: 'vlqvinh444',
   version: '0.1.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
@@ -61,6 +63,9 @@ const config: ExpoConfig = {
   },
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3001',
+    eas: {
+      projectId: 'ee0015b7-3b87-4e3d-8a5f-1edf7738cbb4',
+    },
   },
 };
 
