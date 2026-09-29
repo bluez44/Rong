@@ -17,6 +17,8 @@ type PlaceRowProps = {
    * với điểm lưu trú (FR-2.12). `active` là đã thêm/đã chọn.
    */
   tripAction?: { active: boolean; onPress: () => void };
+  /** Nút tim "Muốn đi" (FR-9.1). `active` là đã lưu. */
+  saveAction?: { active: boolean; onPress: () => void };
 };
 
 /**
@@ -26,15 +28,17 @@ type PlaceRowProps = {
  * Mục từ API v2 (AI đọc bài viết, có `articles`) không có điểm tổng hợp; thay
  * vào đó là số bài viết nhắc tới, và danh sách bài kèm ngày đăng khi chọn dòng.
  */
-export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction }: PlaceRowProps) {
+export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, saveAction }: PlaceRowProps) {
   const isStay = place.category === 'stay';
   const tripLabel = !tripAction
     ? null
     : isStay
       ? tripAction.active ? 'Bỏ chọn nơi lưu trú' : 'Chọn làm nơi lưu trú'
       : tripAction.active ? 'Bỏ khỏi lịch trình' : 'Thêm vào lịch trình';
+  const saveLabel = saveAction ? (saveAction.active ? 'Bỏ khỏi Muốn đi' : 'Lưu vào Muốn đi') : null;
   const actions = [
     ...(onOpenDetail ? [{ name: 'openDetail', label: 'Xem chi tiết' }] : []),
+    ...(saveAction && saveLabel ? [{ name: 'save', label: saveLabel }] : []),
     ...(tripAction && tripLabel ? [{ name: 'trip', label: tripLabel }] : []),
   ];
   const articles = place.articles;
@@ -46,6 +50,7 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction }:
   const extras = [
     score !== null ? `điểm ${score} trên 100` : null,
     articles ? `theo ${articles.length} bài viết` : null,
+    saveAction?.active ? 'đã lưu vào Muốn đi' : null,
     tripAction?.active ? (isStay ? 'nơi lưu trú của chuyến đi' : 'đã thêm vào lịch trình') : null,
   ].filter(Boolean);
 
@@ -58,6 +63,7 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction }:
       accessibilityActions={actions.length ? actions : undefined}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'openDetail') onOpenDetail?.();
+        if (e.nativeEvent.actionName === 'save') saveAction?.onPress();
         if (e.nativeEvent.actionName === 'trip') tripAction?.onPress();
       }}
       onPress={onPress}
@@ -118,6 +124,20 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction }:
           <Text style={styles.score} importantForAccessibility="no">
             {score}
           </Text>
+        ) : null}
+        {saveAction && saveLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${saveLabel}: ${place.name}`}
+            hitSlop={(MinTouch - TRIP_BUTTON) / 2}
+            onPress={saveAction.onPress}
+            style={({ pressed }) => [styles.save, pressed && styles.detailPressed]}>
+            <Icon
+              name={saveAction.active ? 'heartFill' : 'heart'}
+              size={18}
+              color={saveAction.active ? Colors.light.danger : Colors.light.textSecondary}
+            />
+          </Pressable>
         ) : null}
         {tripAction && tripLabel ? (
           <Pressable
@@ -202,4 +222,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.surface,
   },
   tripActive: { backgroundColor: Colors.light.primary },
+  save: { width: TRIP_BUTTON, height: TRIP_BUTTON, alignItems: 'center', justifyContent: 'center' },
 });

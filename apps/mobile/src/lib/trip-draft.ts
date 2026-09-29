@@ -47,6 +47,10 @@ export const tripDraft = {
   setAccommodation(regionId: string, place: DraftPlace | null) {
     set({ ...forRegion(regionId), accommodation: place });
   },
+  /** Thay cả bản nháp, ví dụ từ danh sách "Muốn đi" (FR-9.2). */
+  replace(regionId: string, places: DraftPlace[], accommodation: DraftPlace | null) {
+    set({ regionId, places: places.slice(0, MAX_SELECTED_PLACES), accommodation });
+  },
   clear() {
     set(EMPTY);
   },
