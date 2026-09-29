@@ -1,7 +1,8 @@
 # Deploy backend lên AWS EC2
 
 Một máy EC2 `t3.micro` chạy Docker Compose: Caddy (HTTPS) → backend → PostGIS.
-Push lên nhánh `backend` thì GitHub Actions test, build image lên Docker Hub,
+Push lên `main` có thay đổi backend (`apps/backend`, `packages/shared-types`,
+`infra/prod`, `pnpm-lock.yaml`) thì GitHub Actions test, build image lên Docker Hub,
 rồi ra lệnh cho máy kéo image mới qua SSM Run Command (không mở cổng SSH).
 
 ```
@@ -225,7 +226,7 @@ gh variable set EC2_INSTANCE_ID --body "$INSTANCE_ID"
 
 ### 9. Deploy lần đầu
 
-Push lên `backend`, hoặc Actions → **Deploy backend** → Run workflow. Lần đầu
+Push lên `main`, hoặc Actions → **Deploy backend** → Run workflow. Lần đầu
 mất vài phút (kéo image PostGIS, chạy toàn bộ migration, Caddy xin chứng chỉ).
 Kiểm tra:
 

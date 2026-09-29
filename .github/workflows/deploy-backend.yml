@@ -1,4 +1,4 @@
-# Push lên nhánh `backend` → test → build image, đẩy lên Docker Hub → deploy
+# Push lên `main` có đổi backend → test → build image, đẩy lên Docker Hub → deploy
 # lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
 #
 # Đặt ở environment `production` (hoặc ở mức repository):
@@ -9,7 +9,8 @@ name: Deploy backend
 
 on:
   push:
-    branches: [backend]
+    branches: [main]
+    # Chỉ deploy khi có thay đổi ảnh hưởng tới backend (merge mobile/web không kích hoạt).
     paths:
       - apps/backend/**
       - packages/shared-types/**
