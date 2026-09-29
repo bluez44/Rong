@@ -147,6 +147,18 @@ put /rong/prod/dockerhub/TOKEN '<token ec2-pull (Read-only)>'
 
 ### 7. Role cho GitHub Actions (OIDC, không dùng access key)
 
+Claim `sub` trong token của GitHub phải khớp **từng ký tự** với trust policy.
+Dạng mặc định là `repo:<owner>/<repo>:environment:production`, nhưng repo này
+dùng dạng kèm ID số của owner và repo (chống giả mạo khi đổi tên repo):
+
+```bash
+GITHUB_SUB='repo:bluez44@149250732/Rong@1375274123:environment:production'
+```
+
+Nếu tạo lại repo hay chuyển sang owner khác thì ID đổi: xem `sub` thật bằng
+cách in claim của token trong một job (giải mã phần giữa của token lấy từ
+`$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com`), rồi sửa trust policy.
+
 ```bash
 aws iam create-open-id-connect-provider \
   --url https://token.actions.githubusercontent.com \
@@ -160,7 +172,7 @@ aws iam create-role --role-name rong-github-deploy --assume-role-policy-document
     \"Action\": \"sts:AssumeRoleWithWebIdentity\",
     \"Condition\": { \"StringEquals\": {
       \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\",
-      \"token.actions.githubusercontent.com:sub\": \"repo:${GITHUB_REPO}:environment:production\"
+      \"token.actions.githubusercontent.com:sub\": \"${GITHUB_SUB}\"
     } }
   }]
 }"
