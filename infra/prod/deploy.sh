@@ -30,6 +30,10 @@ param() {
     --query Parameter.Value --output text
 }
 
+# Thiếu các biến này thì backend hoặc Caddy không chạy được (Caddy cần DOMAIN
+# để xin chứng chỉ; backend dừng ngay khi thiếu DB_*, JWT_SECRET, GEMINI_API_KEY).
+REQUIRED_VARS=(DOMAIN DB_USERNAME DB_PASSWORD DB_DATABASE JWT_SECRET GEMINI_API_KEY)
+
 # .env: mỗi dòng TÊN='giá trị' (nháy đơn để Compose không thay biến trong giá trị).
 write_env() {
   local image="$1"
@@ -44,8 +48,32 @@ write_env() {
       printf "%s='%s'\n" "${name##*/}" "$value"
     done > .env.new || { rm -f .env.new; return 1; }
   printf "BACKEND_IMAGE='%s'\n" "$image" >> .env.new
+
+  # Kiểm tra trên file mới trước khi thay: thiếu thì giữ nguyên .env đang chạy.
+  local missing=() var
+  for var in "${REQUIRED_VARS[@]}"; do
+    grep -Eq "^${var}='.+'$" .env.new || missing+=("/rong/prod/app/${var}")
+  done
+  if [ ${#missing[@]} -gt 0 ]; then
+    rm -f .env.new
+    echo "Thiếu parameter trong SSM Parameter Store: ${missing[*]}" >&2
+    return 1
+  fi
+
   chmod 600 .env.new
   mv .env.new .env
+}
+
+# Caddy lỗi cấu hình (DOMAIN sai, không xin được chứng chỉ…) thì tự khởi động
+# lại liên tục: coi là ổn khi đang chạy và không restart thêm lần nào trong 10 giây.
+caddy_running() {
+  local id before
+  id=$(docker compose ps -q caddy)
+  [ -n "$id" ] || return 1
+  before=$(docker inspect -f '{{.RestartCount}}' "$id")
+  sleep 10
+  [ "$(docker inspect -f '{{.State.Status}}' "$id")" = running ] &&
+    [ "$(docker inspect -f '{{.RestartCount}}' "$id")" = "$before" ]
 }
 
 healthy() {
@@ -72,6 +100,14 @@ docker compose up -d --remove-orphans
 if healthy; then
   echo "$IMAGE" > .deployed-image
   docker image prune -af --filter 'until=168h' >/dev/null
+
+  # Backend đã khỏe; Caddy lỗi là do cấu hình chứ không do image, nên không quay về bản cũ.
+  if ! caddy_running; then
+    echo "Backend chạy nhưng Caddy không lên — bên ngoài chưa truy cập được. Log Caddy:"
+    docker compose logs --tail 40 caddy || true
+    exit 1
+  fi
+
   echo "Deploy thành công sau $(( $(date +%s) - started )) giây"
   exit 0
 fi
