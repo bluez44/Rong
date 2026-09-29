@@ -18,6 +18,7 @@ import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { useRegionPlaces } from '@/hooks/use-region-places';
 import { ApiError } from '@/lib/api';
+import { usePreferences } from '@/lib/preferences';
 import { tripDraft, useTripDraft, type DraftPlace } from '@/lib/trip-draft';
 import { BUDGET_LABELS, PACE_LABELS, TRANSPORT_LABELS, TRAVEL_PARTY_LABELS } from '@/lib/trip-format';
 
@@ -56,7 +57,9 @@ export default function NewItineraryScreen() {
   const [budget, setBudget] = useState<BudgetTier>('moderate');
   const [pace, setPace] = useState<Pace | null>(null);
   const [transport, setTransport] = useState<Transport | null>(null);
-  const [interests, setInterests] = useState<PlaceCategory[]>([]);
+  // Sở thích chọn ở giới thiệu (F11) điền sẵn; sửa ở đây chỉ áp cho chuyến này.
+  const preferences = usePreferences();
+  const [interests, setInterests] = useState<PlaceCategory[]>(() => preferences?.interests ?? []);
   const [notes, setNotes] = useState('');
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
 

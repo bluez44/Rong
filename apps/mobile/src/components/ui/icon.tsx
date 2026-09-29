@@ -12,6 +12,8 @@ const ICONS = {
   clear: { ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' },
   layers: { ios: 'square.3.layers.3d', android: 'layers', web: 'layers' },
   pin: { ios: 'mappin', android: 'location_on', web: 'location_on' },
+  map: { ios: 'map', android: 'map', web: 'map' },
+  person: { ios: 'person', android: 'person', web: 'person' },
   back: { ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' },
   add: { ios: 'plus', android: 'add', web: 'add' },
   remove: { ios: 'minus', android: 'remove', web: 'remove' },
