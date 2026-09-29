@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 24.8.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "24.17.0",
+      "pnpm": "11.10.0",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://32.236.225.63.sslip.io"
+      }
+    },
+    "debug": {
+      "extends": "base",
+      "environment": "development",
+      "distribution": "internal",
+      "withoutCredentials": true,
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "buildType": "apk"
+      }
+    },
+    "release": {
+      "extends": "base",
+      "environment": "preview",
+      "distribution": "internal",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "environment": "production",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}
