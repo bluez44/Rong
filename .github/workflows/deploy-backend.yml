@@ -1,0 +1,122 @@
+# Push lên nhánh `backend` → test → build image, đẩy lên Docker Hub → deploy
+# lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
+#
+# Secrets:   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (quyền Read & Write)
+# Variables: DOCKERHUB_REPOSITORY (vd. bluez44/rong-backend), AWS_REGION,
+#            AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID
+name: Deploy backend
+
+on:
+  push:
+    branches: [backend]
+    paths:
+      - apps/backend/**
+      - packages/shared-types/**
+      - infra/prod/**
+      - pnpm-lock.yaml
+      - .github/workflows/deploy-backend.yml
+  workflow_dispatch:
+
+# Không hủy lần deploy đang chạy giữa chừng; lần sau xếp hàng chờ.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter "@rong/backend..."
+      - run: pnpm --filter @rong/backend typecheck
+      - run: pnpm --filter @rong/backend test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "image=${{ vars.DOCKERHUB_REPOSITORY }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          # t3.micro là x86.
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ vars.DOCKERHUB_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Environment cho phép bật "Required reviewers" nếu muốn duyệt trước khi deploy;
+    # trust policy của role AWS cũng chỉ nhận token từ environment này.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy qua SSM
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: |
+          # Gửi kèm cấu hình production của đúng commit này, để máy luôn khớp với repo.
+          bundle=$(tar -czf - -C infra/prod docker-compose.yml Caddyfile deploy.sh | base64 -w0)
+          params=$(jq -n --arg bundle "$bundle" --arg image "$IMAGE" '{
+            commands: [
+              "set -e",
+              "mkdir -p /opt/rong",
+              "echo \($bundle) | base64 -d | tar -xzf - -C /opt/rong",
+              "bash /opt/rong/deploy.sh \($image)"
+            ],
+            executionTimeout: ["900"]
+          }')
+          command_id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::7}" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $command_id"
+
+          # Waiter có sẵn của AWS CLI chỉ chờ ~100 giây; deploy lần đầu lâu hơn thế.
+          for _ in $(seq 1 180); do
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in
+              Pending|InProgress|Delayed) sleep 5 ;;
+              *) break ;;
+            esac
+          done
+
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Kết quả: $status"
+          [ "$status" = Success ]

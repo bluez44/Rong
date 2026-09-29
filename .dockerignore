@@ -1,0 +1,20 @@
+# Build context là gốc repo nhưng image backend chỉ cần backend + shared-types.
+**/node_modules
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+
+.git
+.github
+.superpowers
+docs
+infra
+apps/mobile
+apps/web
+apps/backend/test
+**/*.spec.ts
+*.log

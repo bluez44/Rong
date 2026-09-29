@@ -1,0 +1,6 @@
+# HTTPS tự động (Let's Encrypt). DOMAIN có thể là tên miền riêng hoặc tên
+# miễn phí dạng <ip-nối-bằng-gạch>.sslip.io trỏ về Elastic IP của máy.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy backend:3001
+}
