@@ -37,6 +37,11 @@ export function formatDateTime(value: string | Date): string {
   return `${formatDayTitle(value)} · ${formatTime(value)}`;
 }
 
+/** "04/10/2026" */
+export function formatFullDate(value: string | Date): string {
+  return `${formatShortDate(value)}/${vn(value).getUTCFullYear()}`;
+}
+
 /** "04/10 – 05/10/2026", hoặc "04/10/2026" nếu cùng ngày. */
 export function formatDateRange(startsAt: string, endsAt: string): string {
   const start = formatShortDate(startsAt);

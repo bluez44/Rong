@@ -17,6 +17,7 @@ import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { useRegionPlaces } from '@/hooks/use-region-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
+import { formatFullDate } from '@/lib/trip-format';
 
 type Params = { id: string; name?: string; bbox?: string; lat?: string; lng?: string };
 
@@ -27,7 +28,7 @@ export default function RegionScreen() {
   const center = params.lat && params.lng ? { lat: Number(params.lat), lng: Number(params.lng) } : null;
 
   const [categories, setCategories] = useState<PlaceCategory[]>([]);
-  const places = useRegionPlaces(params.id, categories);
+  const places = useRegionPlaces(params.id, categories, 'v2');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detent, setDetent] = useState<SheetDetent>('half');
   const [halfHeight, setHalfHeight] = useState(0);
@@ -61,7 +62,7 @@ export default function RegionScreen() {
     });
 
   const tripAction = (place: PlaceListItem) => {
-    // Kết quả dự phòng từ AI không có id nên không đưa vào lịch trình được (FR-6.3).
+    // Mục AI không khớp danh mục thì không có id nên không đưa vào lịch trình được (FR-6.3).
     if (!place.id) return undefined;
     const item = { id: place.id, name: place.name, category: place.category };
     return place.category === 'stay'
@@ -139,7 +140,7 @@ export default function RegionScreen() {
               place={item}
               selected={placeKey(item) === selectedKey}
               onPress={() => selectFromList(item)}
-              // Kết quả dự phòng từ AI không có trong danh mục nên không có màn chi tiết.
+              // Mục AI không khớp danh mục thì không có màn chi tiết.
               onOpenDetail={item.id ? () => openDetail(item) : undefined}
               tripAction={tripAction(item)}
             />
@@ -164,8 +165,8 @@ function ListStatus({ places }: { places: Places }) {
     return (
       <View style={styles.status}>
         <ActivityIndicator color={Colors.light.primary} />
-        {/* Lần đầu mở một vùng backend phải tải dữ liệu từ OpenStreetMap. */}
-        <Text style={styles.hint}>Lần đầu mở vùng này có thể mất vài giây.</Text>
+        {/* API v2: AI tìm và đọc bài viết; lần đầu mỗi vùng mới chạy thật, sau đó backend giữ kết quả vài giờ. */}
+        <Text style={styles.hint}>AI đang tìm địa điểm từ các bài viết về vùng này. Lần đầu có thể mất 10–20 giây.</Text>
       </View>
     );
   }
@@ -198,7 +199,10 @@ function ErrorNotice({ places }: { places: Places }) {
   );
 }
 
-/** Ghi công nguồn: bắt buộc theo ODbL, và theo chính sách Google khi dùng kết quả dự phòng. */
+/**
+ * Ghi công nguồn: bắt buộc theo ODbL, theo chính sách Google khi dùng kết quả
+ * dự phòng, và các bài viết mà AI dựa vào (kèm ngày đăng) với API v2.
+ */
 function Attribution({ places }: { places: Places }) {
   if (!places.attribution) return null;
   return (
@@ -207,6 +211,7 @@ function Attribution({ places }: { places: Places }) {
       {places.groundingSources.map((s) => (
         <Text key={s.uri} style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(s.uri)}>
           {s.title}
+          {s.publishedAt ? <Text style={styles.attributionText}>{` · ${formatFullDate(s.publishedAt)}`}</Text> : null}
         </Text>
       ))}
     </View>
