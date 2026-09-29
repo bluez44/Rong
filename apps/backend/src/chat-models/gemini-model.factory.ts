@@ -10,7 +10,7 @@ export function createGeminiModel() {
 
   return new ChatGoogleGenerativeAI({
     apiKey,
-    model: 'gemini-3.7-flash',
+    model: 'gemini-3-flash-preview',
     temperature: 0,
     maxRetries: 0,
   });
