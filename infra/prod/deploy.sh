@@ -13,6 +13,13 @@ set -euo pipefail
 IMAGE="${1:?Thiếu tên image}"
 cd "$(dirname "$0")"
 
+# Máy mới hoặc máy tạo không kèm user-data: tự cài Docker, AWS CLI, swap.
+if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1 || ! command -v aws >/dev/null; then
+  echo "Máy chưa có Docker/Compose/AWS CLI — chạy bootstrap.sh"
+  bash ./bootstrap.sh
+  hash -r
+fi
+
 imds_token=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token \
   -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
 REGION=$(curl -fsS -H "X-aws-ec2-metadata-token: ${imds_token}" \

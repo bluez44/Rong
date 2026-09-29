@@ -100,6 +100,11 @@ aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 echo "$INSTANCE_ID"
 ```
 
+> Dùng Ubuntu (đã thử với 26.04) cũng được: Ubuntu có sẵn SSM Agent, còn Docker,
+> Compose và AWS CLI được `bootstrap.sh` cài từ gói của Ubuntu. Không dán
+> `bootstrap.sh` vào user-data cũng không sao — lần deploy đầu tiên tự chạy nó
+> khi thấy máy còn thiếu Docker hay AWS CLI (lâu hơn vài phút).
+>
 > Nếu vừa tạo role ở bước 2 mà `run-instances` báo không tìm thấy instance profile,
 > đợi vài chục giây rồi chạy lại (IAM cần thời gian lan truyền).
 
