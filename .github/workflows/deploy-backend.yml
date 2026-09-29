@@ -1,9 +1,10 @@
 # Push lên nhánh `backend` → test → build image, đẩy lên Docker Hub → deploy
 # lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
 #
-# Secrets:   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (quyền Read & Write)
-# Variables: DOCKERHUB_REPOSITORY (vd. bluez44/rong-backend), AWS_REGION,
-#            AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID
+# Đặt ở environment `production` (hoặc ở mức repository):
+#   Secrets:   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (quyền Read & Write)
+#   Variables: DOCKERHUB_REPOSITORY (vd. bluez44/rong-backend), AWS_REGION,
+#              AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID
 name: Deploy backend
 
 on:
@@ -42,6 +43,9 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    # Secret Docker Hub (và DOCKERHUB_REPOSITORY) để ở environment production:
+    # job không khai báo environment thì không đọc được chúng.
+    environment: production
     outputs:
       image: ${{ steps.meta.outputs.image }}
     steps:
