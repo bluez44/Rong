@@ -28,11 +28,9 @@ const config: ExpoConfig = {
   android: {
     package: 'vn.rong.app',
     adaptiveIcon: {
-      // Màu trời của logo; ảnh nền là dải #0A85EA → #40B4F7.
       backgroundColor: '#0A85EA',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
     },
     predictiveBackGestureEnabled: false,
     config: {
@@ -51,9 +49,9 @@ const config: ExpoConfig = {
       'expo-splash-screen',
       {
         backgroundColor: '#0A85EA',
-        // Chữ "Rong" trắng, nền trong suốt.
+        // Nguyên tranh logo.
         image: './assets/images/splash-icon.png',
-        imageWidth: 220,
+        imageWidth: 240,
       },
     ],
     // Lưu access token trong Keychain / Keystore.
