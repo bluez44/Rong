@@ -120,7 +120,7 @@ jobs:
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
         run: |
           # Gửi kèm cấu hình production của đúng commit này, để máy luôn khớp với repo.
-          bundle=$(tar -czf - -C infra/prod docker-compose.yml Caddyfile deploy.sh | base64 -w0)
+          bundle=$(tar -czf - -C infra/prod docker-compose.yml Caddyfile deploy.sh bootstrap.sh | base64 -w0)
           params=$(jq -n --arg bundle "$bundle" --arg image "$IMAGE" '{
             commands: [
               "set -e",
