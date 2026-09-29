@@ -73,6 +73,8 @@ export interface ItineraryItem {
   reason?: string | null;
   /** Điểm do AI thêm vào chứ không phải người dùng chọn — hiện nhãn "AI gợi ý". */
   isAiSuggested: boolean;
+  /** Người dùng đặt giờ bắt đầu (F8): mục không bắt đầu sớm hơn `startsAt` khi tính lại giờ. */
+  fixedStart?: boolean;
 }
 
 export interface ItineraryDay {
@@ -134,4 +136,41 @@ export interface ItinerarySummary {
   planner: PlannerKind;
   dayCount: number;
   createdAt: string;
+}
+
+/**
+ * Một mục trong yêu cầu sửa lịch trình (F8). Server tính lại giờ, thời gian
+ * di chuyển và cảnh báo theo đúng thứ tự gửi lên.
+ */
+export interface ItineraryEditItem {
+  /** Giữ id mục cũ; mục mới có thể tự sinh UUID hoặc bỏ trống. */
+  id?: string | null;
+  kind: ItineraryItemKind;
+  /** Bắt buộc với `visit` và `meal`; `rest` có thể không gắn địa điểm. */
+  placeId: string | null;
+  mealType?: MealType | null;
+  /** Thời lượng ở điểm này, phút. */
+  durationMinutes: number;
+  /** "HH:mm" giờ Việt Nam: mục không bắt đầu sớm hơn giờ này. Bỏ trống = nối tiếp mục trước. */
+  startTime?: string | null;
+  reason?: string | null;
+  isAiSuggested?: boolean;
+}
+
+/** PUT /itineraries/:id — thay toàn bộ các ngày và danh sách "Chưa xếp". */
+export interface UpdateItineraryRequest {
+  /** Đúng các ngày hiện có, cùng thứ tự; ngày của chuyến đi không đổi ở đây. */
+  days: Array<{ id: string; items: ItineraryEditItem[] }>;
+  /** Địa điểm đã chọn nhưng chưa xếp vào ngày nào. */
+  unscheduledPlaceIds: string[];
+}
+
+/** Gợi ý cho nút "Đổi điểm tương tự" — FR-8.3. */
+export interface PlaceAlternative {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  /** Khoảng cách đường chim bay tới điểm đang thay, km. */
+  distanceKm: number;
+  description: string | null;
 }

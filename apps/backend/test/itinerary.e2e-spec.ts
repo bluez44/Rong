@@ -276,6 +276,92 @@ describe('Lịch trình (e2e)', () => {
     ).toBe(true);
   });
 
+  it('sửa lịch trình: giữ thứ tự, tính lại giờ, chuyển điểm ra "Chưa xếp"', async () => {
+    const created = await create({
+      ...baseBody(),
+      planningMode: 'manual',
+    }).expect(201);
+    const { id, days } = created.body as {
+      id: string;
+      days: Array<{ id: string }>;
+    };
+    const put = (body: object, as = token) =>
+      request(app.getHttpServer())
+        .put(`/api/itineraries/${id}`)
+        .set('Authorization', `Bearer ${as}`)
+        .send(body);
+
+    const res = await put({
+      days: days.map((d, i) => ({
+        id: d.id,
+        items:
+          i === 0
+            ? [
+                { kind: 'visit', placeId: ids.datanla, durationMinutes: 90 },
+                {
+                  kind: 'meal',
+                  mealType: 'lunch',
+                  placeId: ids.com1,
+                  durationMinutes: 60,
+                  startTime: '12:00',
+                },
+              ]
+            : [],
+      })),
+      unscheduledPlaceIds: [ids.ga],
+    }).expect(200);
+
+    const [first] = res.body.days;
+    expect(first.items.map((i: { placeId: string }) => i.placeId)).toEqual([
+      ids.datanla,
+      ids.com1,
+    ]);
+    expect(first.items[1].startsAt).toMatch(/T12:00:00\+07:00$/);
+    expect(first.items[1].fixedStart).toBe(true);
+    expect(first.items[1].travelMinutesFromPrevious).toBeGreaterThan(0);
+    expect(first.items[0].place.name).toBe('E2E datanla');
+    expect(res.body.unscheduled).toEqual([
+      { placeId: ids.ga, name: 'E2E ga', reason: 'Chờ bạn xếp vào lịch' },
+    ]);
+
+    const again = await request(app.getHttpServer())
+      .get(`/api/itineraries/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(again.body.days[0].items).toHaveLength(2);
+
+    // Sai số ngày, địa điểm lạ, lịch trình của người khác.
+    const wrongDays = await put({ days: [], unscheduledPlaceIds: [] }).expect(
+      400,
+    );
+    expect(wrongDays.body.code).toBe('DAYS_MISMATCH');
+    const unknown = await put({
+      days: days.map((d) => ({ id: d.id, items: [] })),
+      unscheduledPlaceIds: ['00000000-0000-0000-0000-000000000000'],
+    }).expect(400);
+    expect(unknown.body.code).toBe('UNKNOWN_PLACES');
+    await put(
+      {
+        days: days.map((d) => ({ id: d.id, items: [] })),
+        unscheduledPlaceIds: [],
+      },
+      otherToken,
+    ).expect(404);
+
+    // Đổi điểm tương tự: cùng loại, chưa có trong lịch trình.
+    const alt = await request(app.getHttpServer())
+      .get(`/api/itineraries/${id}/alternatives`)
+      .query({ placeId: ids.ga })
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(alt.body.length).toBeGreaterThan(0);
+    expect(alt.body.length).toBeLessThanOrEqual(3);
+    for (const a of alt.body as Array<{ id: string; category: string }>) {
+      expect(a.category).toBe('culture');
+      expect([ids.ga, ids.datanla, ids.com1]).not.toContain(a.id);
+    }
+  });
+
   it.each([
     [{ endsAt: '2026-10-04T08:00:00+07:00' }, 'INVALID_DATES'],
     [{ endsAt: '2026-10-20T08:00:00+07:00' }, 'TRIP_TOO_LONG'],
