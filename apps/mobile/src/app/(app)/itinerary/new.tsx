@@ -58,6 +58,7 @@ export default function NewItineraryScreen() {
   const [transport, setTransport] = useState<Transport | null>(null);
   const [interests, setInterests] = useState<PlaceCategory[]>([]);
   const [notes, setNotes] = useState('');
+  const [mode, setMode] = useState<'ai' | 'manual'>('ai');
 
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -75,7 +76,7 @@ export default function NewItineraryScreen() {
 
     const body: CreateBody = {
       regionId,
-      planningMode: 'ai',
+      planningMode: mode,
       startsAt: startsAt.toISOString(),
       endsAt: endsAt.toISOString(),
       travelParty: party,
@@ -96,7 +97,8 @@ export default function NewItineraryScreen() {
       const itinerary = await authFetch<Itinerary>('/itineraries', { method: 'POST', body });
       tripDraft.clear();
       // Thay form bằng lịch trình: quay lại từ lịch trình là về bản đồ vùng.
-      router.replace({ pathname: '/itinerary/[id]', params: { id: itinerary.id, regionName } });
+      // Tự sắp xếp: các ngày còn trống, mở thẳng chế độ sửa (F8).
+      router.replace({ pathname: '/itinerary/[id]', params: { id: itinerary.id, regionName, ...(mode === 'manual' && { edit: '1' }) } });
     } catch (e) {
       setError(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', 'Có lỗi không mong muốn. Thử lại sau.'));
       setSubmitting(false);
@@ -130,12 +132,28 @@ export default function NewItineraryScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
         <Section title="Cách lập">
           <View style={styles.modes}>
-            <ModeCard icon="sparkles" title="AI sắp xếp" body="Xếp theo ngày, buổi và gợi ý quán ăn." selected />
-            <ModeCard icon="calendar" title="Tự sắp xếp" body="Sắp có" disabled />
+            <ModeCard icon="sparkles" title="AI sắp xếp" body="Xếp theo ngày, buổi và gợi ý quán ăn." selected={mode === 'ai'} onPress={() => setMode('ai')} />
+            <ModeCard
+              icon="calendar"
+              title="Tự sắp xếp"
+              body="Tạo các ngày trống, bạn tự thêm và sắp điểm."
+              selected={mode === 'manual'}
+              onPress={() => setMode('manual')}
+            />
           </View>
         </Section>
 
-        <Section title="Địa điểm đã chọn" hint={draft.places.length ? undefined : 'Chưa chọn địa điểm nào: AI sẽ tự chọn trong vùng này.'}>
+        <Section
+          title="Địa điểm đã chọn"
+          hint={
+            draft.places.length
+              ? mode === 'manual'
+                ? 'Các điểm này nằm ở "Chưa xếp" để bạn đưa vào từng ngày.'
+                : undefined
+              : mode === 'manual'
+                ? 'Chưa chọn địa điểm nào: bạn có thể thêm sau trong lịch trình.'
+                : 'Chưa chọn địa điểm nào: AI sẽ tự chọn trong vùng này.'
+          }>
           {draft.places.map((place) => (
             <SelectedPlace key={place.id} place={place} onRemove={() => tripDraft.togglePlace(regionId, place)} />
           ))}
@@ -164,18 +182,21 @@ export default function NewItineraryScreen() {
         </Section>
 
         <Section title="Tùy chọn thêm">
-          <View style={styles.switchRow}>
-            <View style={styles.flex}>
-              <Text style={styles.body}>Cho AI gợi ý thêm địa điểm</Text>
-              <Text style={styles.hint}>Điểm do AI thêm có nhãn “AI gợi ý”.</Text>
+          {/* Tự sắp xếp không có bước AI chọn điểm. */}
+          {mode === 'ai' ? (
+            <View style={styles.switchRow}>
+              <View style={styles.flex}>
+                <Text style={styles.body}>Cho AI gợi ý thêm địa điểm</Text>
+                <Text style={styles.hint}>Điểm do AI thêm có nhãn “AI gợi ý”.</Text>
+              </View>
+              <Switch
+                value={allowAi}
+                onValueChange={setAllowAi}
+                trackColor={{ true: Colors.light.primary }}
+                accessibilityLabel="Cho AI gợi ý thêm địa điểm"
+              />
             </View>
-            <Switch
-              value={allowAi}
-              onValueChange={setAllowAi}
-              trackColor={{ true: Colors.light.primary }}
-              accessibilityLabel="Cho AI gợi ý thêm địa điểm"
-            />
-          </View>
+          ) : null}
           <SubLabel>Ngân sách</SubLabel>
           <ChipGroup options={BUDGETS} labels={BUDGET_LABELS} isSelected={(b) => b === budget} onPress={setBudget} />
           <SubLabel hint="Để trống: theo nhóm đi">Nhịp độ</SubLabel>
@@ -262,18 +283,30 @@ function ChipGroup<T extends string>({
   );
 }
 
-function ModeCard({ icon, title, body, selected, disabled }: { icon: 'sparkles' | 'calendar'; title: string; body: string; selected?: boolean; disabled?: boolean }) {
+function ModeCard({
+  icon,
+  title,
+  body,
+  selected,
+  onPress,
+}: {
+  icon: 'sparkles' | 'calendar';
+  title: string;
+  body: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
-    <View
-      accessible
+    <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: !!selected, disabled: !!disabled }}
+      accessibilityState={{ selected }}
       accessibilityLabel={`${title}. ${body}`}
-      style={[styles.mode, selected && styles.modeSelected, disabled && styles.modeDisabled]}>
-      <Icon name={icon} size={20} color={disabled ? Colors.light.textDisabled : Colors.light.ai} />
-      <Text style={[styles.modeTitle, disabled && { color: Colors.light.textDisabled }]}>{title}</Text>
+      onPress={onPress}
+      style={[styles.mode, selected && styles.modeSelected]}>
+      <Icon name={icon} size={20} color={Colors.light.ai} />
+      <Text style={styles.modeTitle}>{title}</Text>
       <Text style={styles.hint}>{body}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -386,7 +419,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.surface,
   },
   modeSelected: { borderColor: Colors.light.ai, borderWidth: 2, backgroundColor: Colors.light.aiBackground },
-  modeDisabled: { backgroundColor: Colors.light.backgroundElement },
   modeTitle: { ...Type.headline, color: Colors.light.text },
   selected: {
     flexDirection: 'row',
