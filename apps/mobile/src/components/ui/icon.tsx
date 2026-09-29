@@ -27,6 +27,13 @@ const ICONS = {
   star: { ios: 'star.fill', android: 'star', web: 'star' },
   external: { ios: 'arrow.up.right', android: 'open_in_new', web: 'open_in_new' },
   heart: { ios: 'heart', android: 'favorite', web: 'favorite' },
+  drag: { ios: 'line.3.horizontal', android: 'drag_handle', web: 'drag_handle' },
+  more: { ios: 'ellipsis', android: 'more_horiz', web: 'more_horiz' },
+  undo: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' },
+  edit: { ios: 'pencil', android: 'edit', web: 'edit' },
+  swap: { ios: 'arrow.triangle.2.circlepath', android: 'swap_horiz', web: 'swap_horiz' },
+  trash: { ios: 'trash', android: 'delete', web: 'delete' },
+  tray: { ios: 'tray', android: 'inbox', web: 'inbox' },
   heartFill: { ios: 'heart.fill', android: 'favorite', web: 'favorite' },
   // Danh mục địa điểm, khớp PlaceCategory.
   check_in: { ios: 'camera', android: 'photo_camera', web: 'photo_camera' },

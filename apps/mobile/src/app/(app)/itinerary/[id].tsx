@@ -1,11 +1,13 @@
 import type { Itinerary, ItineraryDay, ItineraryItem, ItineraryWarning } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ScrollViewContainer } from 'react-native-reorderable-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { Glass } from '@/components/glass';
+import { ItineraryEditor } from '@/components/itinerary-editor';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icon';
@@ -13,6 +15,7 @@ import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { useItinerary } from '@/hooks/use-itineraries';
+import { useItineraryEditor, type SaveState } from '@/hooks/use-itinerary-editor';
 import { ApiError } from '@/lib/api';
 import {
   BUDGET_LABELS,
@@ -26,14 +29,19 @@ import {
   TRAVEL_PARTY_LABELS,
 } from '@/lib/trip-format';
 
-/** `regionName` truyền từ nơi mở: lịch trình chỉ lưu `regionId`. */
-type Params = { id: string; regionName?: string };
+/**
+ * `regionName` truyền từ nơi mở: lịch trình chỉ lưu `regionId`. `edit=1` mở
+ * thẳng chế độ sửa (vừa tạo lịch trình "Tự sắp xếp").
+ */
+type Params = { id: string; regionName?: string; edit?: string };
 
 export default function ItineraryScreen() {
-  const { id, regionName } = useLocalSearchParams<Params>();
+  const { id, regionName, edit } = useLocalSearchParams<Params>();
   const insets = useSafeAreaInsets();
   const itinerary = useItinerary(id);
-  const data = itinerary.data;
+  const editor = useItineraryEditor(itinerary.data);
+  const [editing, setEditing] = useState(edit === '1');
+  const data = editor.itinerary ?? itinerary.data;
 
   return (
     <Screen edges={['top']}>
@@ -43,12 +51,38 @@ export default function ItineraryScreen() {
             <Icon name="back" color={Colors.light.text} />
           </Glass>
         </Pressable>
+        {data ? (
+          <View style={styles.topActions}>
+            {editing ? (
+              <>
+                <SaveStatus state={editor.saveState} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Hoàn tác"
+                  accessibilityState={{ disabled: !editor.canUndo }}
+                  disabled={!editor.canUndo}
+                  onPress={editor.undo}>
+                  <Glass shape="circle" interactive style={[styles.backGlass, !editor.canUndo && styles.disabled]}>
+                    <Icon name="undo" color={Colors.light.text} />
+                  </Glass>
+                </Pressable>
+              </>
+            ) : null}
+            <Pressable accessibilityRole="button" onPress={() => setEditing((v) => !v)}>
+              <Glass shape="capsule" variant={editing ? 'tinted' : 'regular'} interactive style={styles.editGlass}>
+                {editing ? null : <Icon name="edit" size={18} color={Colors.light.primary} />}
+                <Text style={[styles.editLabel, editing && { color: Colors.light.onPrimary }]}>{editing ? 'Xong' : 'Sửa'}</Text>
+              </Glass>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
-      <ScrollView
+      <ScrollViewContainer
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}
         refreshControl={
-          data ? (
+          // Kéo để tải lại xung đột với kéo thả trên Android, và có thể ghi đè thay đổi chưa lưu.
+          data && !editing ? (
             <RefreshControl refreshing={itinerary.status === 'refreshing'} onRefresh={itinerary.reload} tintColor={Colors.light.primary} />
           ) : undefined
         }>
@@ -74,9 +108,38 @@ export default function ItineraryScreen() {
           </Notice>
         ) : null}
 
-        {data ? <ItineraryBody itinerary={data} /> : null}
-      </ScrollView>
+        {editing && editor.saveState === 'error' && editor.error ? (
+          <Notice
+            tone="danger"
+            title="Chưa lưu được thay đổi"
+            action={<Button label="Thử lại" variant="plain" size="sm" onPress={editor.retry} style={styles.inlineAction} />}>
+            {editor.error.message}
+          </Notice>
+        ) : null}
+
+        {data && editing ? (
+          <>
+            <Text style={styles.hint}>
+              Giữ ≡ rồi kéo để đổi thứ tự trong ngày. Chạm một mục để chuyển ngày, đổi giờ hoặc xóa. Thay đổi được lưu tự động.
+            </Text>
+            <ItineraryEditor itinerary={data} apply={editor.apply} regionName={regionName ?? 'vùng này'} />
+          </>
+        ) : null}
+        {data && !editing ? <ItineraryBody itinerary={data} /> : null}
+      </ScrollViewContainer>
     </Screen>
+  );
+}
+
+/** Tự động lưu (FR-8.9): cho biết thay đổi đã lên server chưa. */
+function SaveStatus({ state }: { state: SaveState }) {
+  const label =
+    state === 'pending' || state === 'saving' ? 'Đang lưu…' : state === 'saved' ? 'Đã lưu' : state === 'error' ? 'Chưa lưu' : null;
+  if (!label) return null;
+  return (
+    <Text style={[styles.saveStatus, state === 'error' && { color: Colors.light.danger }]} accessibilityLiveRegion="polite">
+      {label}
+    </Text>
   );
 }
 
@@ -276,7 +339,18 @@ function DeleteButton({ id }: { id: string }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  topBar: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+  },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  editGlass: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, minHeight: MinTouch, paddingHorizontal: Spacing.four },
+  editLabel: { ...Type.subhead, fontFamily: Type.headline.fontFamily, color: Colors.light.primary },
+  saveStatus: { ...Type.footnote, color: Colors.light.textSecondary },
+  disabled: { opacity: 0.4 },
   backGlass: { width: MinTouch, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.four, gap: Spacing.six },
   header: { gap: Spacing.two },
