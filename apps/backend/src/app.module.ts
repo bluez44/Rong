@@ -9,6 +9,7 @@ import { HealthModule } from './modules/health/health.module.js';
 import { ItinerariesModule } from './modules/itineraries/itineraries.module.js';
 import { PlacesModule } from './modules/places/places.module.js';
 import { RegionsModule } from './modules/regions/regions.module.js';
+import { SavedPlacesModule } from './modules/saved-places/saved-places.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -25,6 +26,7 @@ import { UsersModule } from './modules/users/users.module.js';
     RegionsModule,
     PlacesModule,
     ItinerariesModule,
+    SavedPlacesModule,
     HealthModule,
     LangchainModule,
   ],
