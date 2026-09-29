@@ -20,7 +20,7 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: 'vn.rong.app',
     supportsTablet: false,
-    icon: './assets/expo.icon',
+    // Dùng icon.png chung. Muốn icon Liquid Glass của iOS 26 thì tạo file .icon bằng Icon Composer rồi trỏ tới đây.
     config: {
       googleMapsApiKey: process.env.GOOGLE_MAPS_IOS_API_KEY,
     },
@@ -28,7 +28,8 @@ const config: ExpoConfig = {
   android: {
     package: 'vn.rong.app',
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
+      // Màu trời của logo; ảnh nền là dải #0A85EA → #40B4F7.
+      backgroundColor: '#0A85EA',
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
@@ -49,9 +50,10 @@ const config: ExpoConfig = {
     [
       'expo-splash-screen',
       {
-        backgroundColor: '#208AEF',
+        backgroundColor: '#0A85EA',
+        // Chữ "Rong" trắng, nền trong suốt.
         image: './assets/images/splash-icon.png',
-        imageWidth: 76,
+        imageWidth: 220,
       },
     ],
     // Lưu access token trong Keychain / Keystore.
