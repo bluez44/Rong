@@ -13,6 +13,7 @@ import { PlacesService } from './places.service.js';
 const aiPlace = (patch: object = {}) => ({
   title: 'Hồ Xuân Hương',
   description: 'Hồ ở trung tâm Đà Lạt',
+  address: '',
   location: { lat: 11.94, lng: 108.44 },
   category: 'nature' as const,
   tags: ['hồ'],

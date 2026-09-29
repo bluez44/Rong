@@ -4,6 +4,11 @@ export const Places = z.array(
   z.object({
     title: z.string().describe('The title of the place'),
     description: z.string().describe('A brief description of the place'),
+    address: z
+      .string()
+      .describe(
+        'Street address as written in the source (e.g. "2 Trần Quốc Toản, Phường 1"); empty string if unknown',
+      ),
     location: z
       .object({
         lat: z.number().describe('The latitude of the place'),

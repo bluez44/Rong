@@ -6,6 +6,8 @@ import { GoogleModule } from '../google/google.module.js';
 import { OpenDataModule } from '../open-data/open-data.module.js';
 import { RegionsModule } from '../regions/regions.module.js';
 import { Place } from './entities/place.entity.js';
+import { PlacesV2Controller } from './places-v2.controller.js';
+import { PlacesV2Service } from './places-v2.service.js';
 import {
   PlaceDetailController,
   PlacesController,
@@ -20,7 +22,7 @@ import { PlacesService } from './places.service.js';
     GoogleModule,
     LangchainModule,
   ],
-  controllers: [PlacesController, PlaceDetailController],
-  providers: [PlacesService],
+  controllers: [PlacesController, PlaceDetailController, PlacesV2Controller],
+  providers: [PlacesService, PlacesV2Service],
 })
 export class PlacesModule {}

@@ -76,6 +76,23 @@ export interface PlaceListItem {
   wikidataId: string | null;
   /** Link tới bản ghi gốc trên OpenStreetMap — bắt buộc ghi nguồn theo ODbL. */
   sourceUrl: string;
+  /**
+   * Chỉ có với `ai_web_search` — tọa độ lấy từ đâu:
+   * - `catalog`: khớp danh mục OSM của app.
+   * - `geocoding`: Google Geocoding API.
+   * - `ai`: không định vị được, tọa độ do AI ước lượng — chỉ nên coi là gần đúng.
+   */
+  locationSource?: 'catalog' | 'geocoding' | 'ai';
+  /** Chỉ có với `ai_web_search`: các bài viết có nhắc tới địa điểm này. */
+  articles?: ArticleSource[];
+}
+
+/** Bài viết trên web mà kết quả AI dựa vào. */
+export interface ArticleSource {
+  title: string;
+  uri: string;
+  /** Thời điểm đăng bài (ISO 8601), null nếu trang không ghi. */
+  publishedAt: string | null;
 }
 
 export interface GoogleAuthorAttribution {
@@ -132,16 +149,23 @@ export type GoogleContentStatus = 'ok' | 'not_found' | 'unavailable';
  * - `catalog`: danh mục riêng (OSM + Wikidata), phân trang được.
  * - `ai_google_maps`: dự phòng khi nguồn dữ liệu mở lỗi — Gemini + Google Maps,
  *   một trang duy nhất, không lưu. Phải hiển thị "Google Maps" và `groundingSources`.
+ * - `ai_web_search`: API v2 — Gemini tìm web và đọc bài viết, một trang duy
+ *   nhất. `groundingSources` là các bài viết đã dùng.
  */
-export type PlaceListSource = 'catalog' | 'ai_google_maps';
+export type PlaceListSource = 'catalog' | 'ai_google_maps' | 'ai_web_search';
 
 export interface PlacesPage {
   items: PlaceListItem[];
   nextCursor: string | null;
   attribution: string;
   source: PlaceListSource;
-  /** Chỉ có với `ai_google_maps`: các nguồn Google Maps mà câu trả lời dựa vào. */
-  groundingSources?: Array<{ title: string; uri: string }>;
+  /** Chỉ có với nguồn AI: các nguồn (Google Maps hoặc bài viết) mà câu trả lời dựa vào. */
+  groundingSources?: Array<{
+    title: string;
+    uri: string;
+    /** Chỉ có với `ai_web_search`: thời điểm đăng bài (ISO 8601), null nếu không rõ. */
+    publishedAt?: string | null;
+  }>;
 }
 
 /** Màn hình chi tiết địa điểm — F5. */
