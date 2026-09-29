@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LangchainController } from './langchain.controller.js';
+import { LangchainService } from './langchain.service.js';
 
 describe('LangchainController', () => {
   let controller: LangchainController;
@@ -7,6 +8,7 @@ describe('LangchainController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LangchainController],
+      providers: [{ provide: LangchainService, useValue: {} }],
     }).compile();
 
     controller = module.get<LangchainController>(LangchainController);
