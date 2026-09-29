@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { Colors } from '@/constants/theme';
+import { loadPreferences, usePreferences } from '@/lib/preferences';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -48,8 +49,12 @@ function RootNavigator() {
     BeVietnamPro_700Bold,
     BeVietnamPro_800ExtraBold,
   });
+  const preferences = usePreferences();
+  useEffect(() => {
+    loadPreferences();
+  }, []);
   // Lỗi nạp font thì vẫn mở app với font hệ thống thay vì kẹt ở splash.
-  const ready = (fontsLoaded || !!fontError) && status !== 'loading';
+  const ready = (fontsLoaded || !!fontError) && status !== 'loading' && preferences !== null;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
@@ -58,14 +63,19 @@ function RootNavigator() {
   if (!ready) return null;
 
   const signedIn = status === 'signedIn';
+  // Lần đầu mở app: giới thiệu trước, rồi mới tới đăng nhập (F11).
+  const onboarded = preferences?.onboarded === true;
 
   return (
     <ThemeProvider value={navigationTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={signedIn}>
+        <Stack.Protected guard={!onboarded}>
+          <Stack.Screen name="onboarding" />
+        </Stack.Protected>
+        <Stack.Protected guard={onboarded && signedIn}>
           <Stack.Screen name="(app)" />
         </Stack.Protected>
-        <Stack.Protected guard={!signedIn}>
+        <Stack.Protected guard={onboarded && !signedIn}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
       </Stack>

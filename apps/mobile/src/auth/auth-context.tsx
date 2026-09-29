@@ -1,4 +1,4 @@
-import type { AuthTokens, RegisterResult } from '@rong/shared-types';
+import type { AuthTokens, RegisterResult, UserProfile } from '@rong/shared-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { ApiError, apiFetch, type RequestOptions } from '@/lib/api';
@@ -18,6 +18,10 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   /** Gọi API cần đăng nhập. Token bị từ chối (401) thì đăng xuất và báo phiên hết hạn. */
   authFetch: <T>(path: string, options?: Omit<RequestOptions, 'token'>) => Promise<T>;
+  /** Đổi tên hiển thị trên server rồi cập nhật phiên đang lưu. */
+  updateDisplayName: (displayName: string) => Promise<void>;
+  /** F11: xóa tài khoản và toàn bộ dữ liệu, rồi đăng xuất. */
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -63,8 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedIn');
   }, []);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    const authFetch = async <T,>(path: string, options?: Omit<RequestOptions, 'token'>) => {
+      try {
+        return await apiFetch<T>(path, { ...options, token: session?.accessToken });
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) await expireSession();
+        throw error;
+      }
+    };
+    return {
       status,
       session,
       sessionExpired,
@@ -81,17 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         setStatus('signedOut');
       },
-      authFetch: async <T,>(path: string, options?: Omit<RequestOptions, 'token'>) => {
-        try {
-          return await apiFetch<T>(path, { ...options, token: session?.accessToken });
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 401) await expireSession();
-          throw error;
-        }
+      authFetch,
+      updateDisplayName: async (displayName) => {
+        if (!session) return;
+        const user = await authFetch<UserProfile>('/users/me', { method: 'PATCH', body: { displayName } });
+        const next = { ...session, user };
+        await saveSession(next);
+        setSession(next);
       },
-    }),
-    [status, session, sessionExpired, startSession, expireSession],
-  );
+      deleteAccount: async () => {
+        await authFetch<void>('/users/me', { method: 'DELETE' });
+        await clearSession();
+        setSession(null);
+        setStatus('signedOut');
+      },
+    };
+  }, [status, session, sessionExpired, startSession, expireSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
