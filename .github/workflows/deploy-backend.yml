@@ -1,155 +1,155 @@
-# Push lên `main` có đổi backend → test → build image, đẩy lên Docker Hub → deploy
-# lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
-#
-# Đặt ở environment `production` (hoặc ở mức repository):
-#   Secrets:   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (quyền Read & Write)
-#   Variables: DOCKERHUB_REPOSITORY (vd. bluez44/rong-backend), AWS_REGION,
-#              AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID
-name: Deploy backend
+# # Push lên `main` có đổi backend → test → build image, đẩy lên Docker Hub → deploy
+# # lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
+# #
+# # Đặt ở environment `production` (hoặc ở mức repository):
+# #   Secrets:   DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (quyền Read & Write)
+# #   Variables: DOCKERHUB_REPOSITORY (vd. bluez44/rong-backend), AWS_REGION,
+# #              AWS_DEPLOY_ROLE_ARN, EC2_INSTANCE_ID
+# name: Deploy backend
 
-on:
-  push:
-    branches: [main]
-    # Chỉ deploy khi có thay đổi ảnh hưởng tới backend (merge mobile/web không kích hoạt).
-    paths:
-      - apps/backend/**
-      - packages/shared-types/**
-      - infra/prod/**
-      - pnpm-lock.yaml
-      - .github/workflows/deploy-backend.yml
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [main]
+#     # Chỉ deploy khi có thay đổi ảnh hưởng tới backend (merge mobile/web không kích hoạt).
+#     paths:
+#       - apps/backend/**
+#       - packages/shared-types/**
+#       - infra/prod/**
+#       - pnpm-lock.yaml
+#       - .github/workflows/deploy-backend.yml
+#   workflow_dispatch:
 
-# Không hủy lần deploy đang chạy giữa chừng; lần sau xếp hàng chờ.
-concurrency:
-  group: deploy-backend
-  cancel-in-progress: false
+# # Không hủy lần deploy đang chạy giữa chừng; lần sau xếp hàng chờ.
+# concurrency:
+#   group: deploy-backend
+#   cancel-in-progress: false
 
-permissions:
-  contents: read
+# permissions:
+#   contents: read
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --filter "@rong/backend..."
-      - run: pnpm --filter @rong/backend typecheck
-      - run: pnpm --filter @rong/backend test
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: pnpm/action-setup@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: 24
+#           cache: pnpm
+#       - run: pnpm install --frozen-lockfile --filter "@rong/backend..."
+#       - run: pnpm --filter @rong/backend typecheck
+#       - run: pnpm --filter @rong/backend test
 
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    # Secret Docker Hub (và DOCKERHUB_REPOSITORY) để ở environment production:
-    # job không khai báo environment thì không đọc được chúng.
-    environment: production
-    steps:
-      - name: Kiểm tra cấu hình
-        env:
-          DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
-          HAS_USERNAME: ${{ secrets.DOCKERHUB_USERNAME != '' }}
-          HAS_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
-        run: |
-          missing=()
-          [ -n "$DOCKERHUB_REPOSITORY" ] || missing+=("variable DOCKERHUB_REPOSITORY")
-          [ "$HAS_USERNAME" = true ] || missing+=("secret DOCKERHUB_USERNAME")
-          [ "$HAS_TOKEN" = true ] || missing+=("secret DOCKERHUB_TOKEN")
-          if [ ${#missing[@]} -gt 0 ]; then
-            printf '::error::Thiếu %s (Settings → Environments → production)\n' "${missing[@]}"
-            exit 1
-          fi
-          # Tên repo Docker Hub dạng <tài-khoản>/<repo>, là variable chứ không phải secret.
-          [[ "$DOCKERHUB_REPOSITORY" == */* ]] || { echo "::error::DOCKERHUB_REPOSITORY phải có dạng <tài-khoản>/<repo>, đang là '$DOCKERHUB_REPOSITORY'"; exit 1; }
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/backend/Dockerfile
-          # t3.micro là x86.
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ vars.DOCKERHUB_REPOSITORY }}:${{ github.sha }}
-            ${{ vars.DOCKERHUB_REPOSITORY }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+#   build:
+#     needs: test
+#     runs-on: ubuntu-latest
+#     # Secret Docker Hub (và DOCKERHUB_REPOSITORY) để ở environment production:
+#     # job không khai báo environment thì không đọc được chúng.
+#     environment: production
+#     steps:
+#       - name: Kiểm tra cấu hình
+#         env:
+#           DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+#           HAS_USERNAME: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+#           HAS_TOKEN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+#         run: |
+#           missing=()
+#           [ -n "$DOCKERHUB_REPOSITORY" ] || missing+=("variable DOCKERHUB_REPOSITORY")
+#           [ "$HAS_USERNAME" = true ] || missing+=("secret DOCKERHUB_USERNAME")
+#           [ "$HAS_TOKEN" = true ] || missing+=("secret DOCKERHUB_TOKEN")
+#           if [ ${#missing[@]} -gt 0 ]; then
+#             printf '::error::Thiếu %s (Settings → Environments → production)\n' "${missing[@]}"
+#             exit 1
+#           fi
+#           # Tên repo Docker Hub dạng <tài-khoản>/<repo>, là variable chứ không phải secret.
+#           [[ "$DOCKERHUB_REPOSITORY" == */* ]] || { echo "::error::DOCKERHUB_REPOSITORY phải có dạng <tài-khoản>/<repo>, đang là '$DOCKERHUB_REPOSITORY'"; exit 1; }
+#       - uses: actions/checkout@v4
+#       - uses: docker/setup-buildx-action@v3
+#       - uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+#       - uses: docker/build-push-action@v6
+#         with:
+#           context: .
+#           file: apps/backend/Dockerfile
+#           # t3.micro là x86.
+#           platforms: linux/amd64
+#           push: true
+#           tags: |
+#             ${{ vars.DOCKERHUB_REPOSITORY }}:${{ github.sha }}
+#             ${{ vars.DOCKERHUB_REPOSITORY }}:latest
+#           cache-from: type=gha
+#           cache-to: type=gha,mode=max
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    # Environment cho phép bật "Required reviewers" nếu muốn duyệt trước khi deploy;
-    # trust policy của role AWS cũng chỉ nhận token từ environment này.
-    environment: production
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Kiểm tra cấu hình
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-        run: |
-          missing=()
-          for name in AWS_REGION AWS_DEPLOY_ROLE_ARN EC2_INSTANCE_ID; do
-            [ -n "${!name}" ] || missing+=("variable $name")
-          done
-          if [ ${#missing[@]} -gt 0 ]; then
-            printf '::error::Thiếu %s (Settings → Environments → production → Environment variables)\n' "${missing[@]}"
-            exit 1
-          fi
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+#   deploy:
+#     needs: build
+#     runs-on: ubuntu-latest
+#     # Environment cho phép bật "Required reviewers" nếu muốn duyệt trước khi deploy;
+#     # trust policy của role AWS cũng chỉ nhận token từ environment này.
+#     environment: production
+#     permissions:
+#       contents: read
+#       id-token: write
+#     steps:
+#       - name: Kiểm tra cấu hình
+#         env:
+#           AWS_REGION: ${{ vars.AWS_REGION }}
+#           AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+#           EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+#         run: |
+#           missing=()
+#           for name in AWS_REGION AWS_DEPLOY_ROLE_ARN EC2_INSTANCE_ID; do
+#             [ -n "${!name}" ] || missing+=("variable $name")
+#           done
+#           if [ ${#missing[@]} -gt 0 ]; then
+#             printf '::error::Thiếu %s (Settings → Environments → production → Environment variables)\n' "${missing[@]}"
+#             exit 1
+#           fi
+#       - uses: actions/checkout@v4
+#       - uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+#           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Deploy qua SSM
-        env:
-          # Ghép lại ở đây thay vì nhận output của job build: output chứa giá trị
-          # trùng một secret (tên tài khoản Docker Hub) bị GitHub bỏ đi.
-          IMAGE: ${{ vars.DOCKERHUB_REPOSITORY }}:${{ github.sha }}
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-        run: |
-          # Gửi kèm cấu hình production của đúng commit này, để máy luôn khớp với repo.
-          bundle=$(tar -czf - -C infra/prod docker-compose.yml Caddyfile deploy.sh bootstrap.sh | base64 -w0)
-          params=$(jq -n --arg bundle "$bundle" --arg image "$IMAGE" '{
-            commands: [
-              "set -e",
-              "mkdir -p /opt/rong",
-              "echo \($bundle) | base64 -d | tar -xzf - -C /opt/rong",
-              "bash /opt/rong/deploy.sh \($image)"
-            ],
-            executionTimeout: ["900"]
-          }')
-          command_id=$(aws ssm send-command \
-            --instance-ids "$INSTANCE_ID" \
-            --document-name AWS-RunShellScript \
-            --comment "deploy ${GITHUB_SHA::7}" \
-            --parameters "$params" \
-            --query Command.CommandId --output text)
-          echo "SSM command: $command_id"
+#       - name: Deploy qua SSM
+#         env:
+#           # Ghép lại ở đây thay vì nhận output của job build: output chứa giá trị
+#           # trùng một secret (tên tài khoản Docker Hub) bị GitHub bỏ đi.
+#           IMAGE: ${{ vars.DOCKERHUB_REPOSITORY }}:${{ github.sha }}
+#           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+#         run: |
+#           # Gửi kèm cấu hình production của đúng commit này, để máy luôn khớp với repo.
+#           bundle=$(tar -czf - -C infra/prod docker-compose.yml Caddyfile deploy.sh bootstrap.sh | base64 -w0)
+#           params=$(jq -n --arg bundle "$bundle" --arg image "$IMAGE" '{
+#             commands: [
+#               "set -e",
+#               "mkdir -p /opt/rong",
+#               "echo \($bundle) | base64 -d | tar -xzf - -C /opt/rong",
+#               "bash /opt/rong/deploy.sh \($image)"
+#             ],
+#             executionTimeout: ["900"]
+#           }')
+#           command_id=$(aws ssm send-command \
+#             --instance-ids "$INSTANCE_ID" \
+#             --document-name AWS-RunShellScript \
+#             --comment "deploy ${GITHUB_SHA::7}" \
+#             --parameters "$params" \
+#             --query Command.CommandId --output text)
+#           echo "SSM command: $command_id"
 
-          # Waiter có sẵn của AWS CLI chỉ chờ ~100 giây; deploy lần đầu lâu hơn thế.
-          for _ in $(seq 1 180); do
-            status=$(aws ssm get-command-invocation --command-id "$command_id" \
-              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
-            case "$status" in
-              Pending|InProgress|Delayed) sleep 5 ;;
-              *) break ;;
-            esac
-          done
+#           # Waiter có sẵn của AWS CLI chỉ chờ ~100 giây; deploy lần đầu lâu hơn thế.
+#           for _ in $(seq 1 180); do
+#             status=$(aws ssm get-command-invocation --command-id "$command_id" \
+#               --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+#             case "$status" in
+#               Pending|InProgress|Delayed) sleep 5 ;;
+#               *) break ;;
+#             esac
+#           done
 
-          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
-            --query '[StandardOutputContent, StandardErrorContent]' --output text
-          echo "Kết quả: $status"
-          [ "$status" = Success ]
+#           aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" \
+#             --query '[StandardOutputContent, StandardErrorContent]' --output text
+#           echo "Kết quả: $status"
+#           [ "$status" = Success ]
