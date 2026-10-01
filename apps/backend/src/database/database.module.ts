@@ -25,6 +25,9 @@ import type { AppConfig } from '../config/configuration.js';
           autoLoadEntities: true,
           logging: nodeEnv === 'development',
           migrations: ['dist/database/migrations/*.js'],
+          ssl: {
+            rejectUnauthorized: false,
+          },
         };
       },
     }),
