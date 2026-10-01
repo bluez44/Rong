@@ -11,6 +11,7 @@ export interface DatabaseConfig {
   username: string;
   password: string;
   database: string;
+  url?: string;
 }
 
 export interface RedisConfig {
@@ -122,6 +123,7 @@ export function loadConfig(): AppConfig {
       username: process.env.DB_USERNAME as string,
       password: process.env.DB_PASSWORD as string,
       database: process.env.DB_DATABASE as string,
+      url: process.env.DATABASE_URL || undefined,
     },
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
