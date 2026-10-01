@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Chỉ manifest: đổi mã nguồn không làm mất cache của bước cài dependency.
 FROM base AS manifests
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/backend/package.json apps/backend/
 COPY packages/shared-types/package.json packages/shared-types/
 
