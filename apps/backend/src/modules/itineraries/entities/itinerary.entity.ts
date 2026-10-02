@@ -45,6 +45,10 @@ export class Itinerary {
   })
   region?: Region;
 
+  /** Nhóm chứa lịch trình (F10); null là lịch trình cá nhân. Xóa nhóm thì về null. */
+  @Column({ name: 'group_id', type: 'uuid', nullable: true })
+  groupId!: string | null;
+
   @Column({
     name: 'planner',
     type: 'enum',

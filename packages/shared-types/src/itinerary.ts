@@ -1,4 +1,8 @@
+import type { GroupRole } from './group';
 import type { PlaceCategory } from './place';
+
+/** Quyền của người đang xem trên một lịch trình: người tạo, hoặc vai trò trong nhóm chứa nó. */
+export type ItineraryRole = 'creator' | GroupRole;
 
 /**
  * Lịch trình — PRD mục 7.2, F6 (tạo), F8 (chỉnh sửa). Ước tính chi phí (F7) chưa làm.
@@ -111,7 +115,9 @@ export interface ItineraryWarning {
 export interface Itinerary {
   id: string;
   ownerId: string;
-  groupId?: string | null;
+  groupId: string | null;
+  groupName: string | null;
+  myRole: ItineraryRole;
   regionId: string;
   input: ItineraryInput;
   days: ItineraryDay[];
@@ -136,6 +142,9 @@ export interface ItinerarySummary {
   planner: PlannerKind;
   dayCount: number;
   createdAt: string;
+  groupId: string | null;
+  groupName: string | null;
+  myRole: ItineraryRole;
 }
 
 /**
@@ -173,4 +182,29 @@ export interface PlaceAlternative {
   /** Khoảng cách đường chim bay tới điểm đang thay, km. */
   distanceKm: number;
   description: string | null;
+}
+
+/** POST /itineraries/:id/share-link. Token chỉ trả về đúng một lần. */
+export interface ItineraryShareLink {
+  token: string;
+  createdAt: string;
+}
+
+/**
+ * GET /public/itineraries/:token — trang web chỉ xem (FR-10.3). Không có id
+ * hay email người dùng, ghi chú riêng, nhóm, hay nội dung Google.
+ */
+export interface PublicItinerary {
+  regionName: string;
+  startsAt: string;
+  endsAt: string;
+  travelParty: TravelParty;
+  adults: number;
+  children: number;
+  planner: PlannerKind;
+  days: ItineraryDay[];
+  unscheduled: UnscheduledPlace[];
+  warnings: ItineraryWarning[];
+  tips: string[];
+  updatedAt: string;
 }
