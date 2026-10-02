@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -21,6 +22,7 @@ import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { AlternativesQueryDto } from './dto/alternatives.dto.js';
 import { CreateItineraryDto } from './dto/create-itinerary.dto.js';
+import { MoveItineraryDto } from './dto/move-itinerary.dto.js';
 import { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { ItinerariesService } from './itineraries.service.js';
 
@@ -58,6 +60,16 @@ export class ItinerariesController {
     @Body() dto: UpdateItineraryDto,
   ): Promise<Itinerary> {
     return this.itineraries.update(user.userId, id, dto);
+  }
+
+  /** Chuyển lịch trình vào nhóm hoặc ra khỏi nhóm (`groupId: null`). Chỉ người tạo. */
+  @Patch(':id/group')
+  move(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: MoveItineraryDto,
+  ): Promise<Itinerary> {
+    return this.itineraries.move(user.userId, id, dto.groupId);
   }
 
   /** "Đổi điểm tương tự" (FR-8.3). */

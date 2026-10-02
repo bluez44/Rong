@@ -463,4 +463,168 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       });
     });
   });
+
+  describe('lịch trình trong nhóm', () => {
+    let groupId: string;
+    let tripId: string;
+
+    /** Gửi lại đúng các ngày hiện có — đủ để PUT hợp lệ. */
+    const unchanged = (trip: {
+      days: Array<{ id: string }>;
+      unscheduled: Array<{ placeId: string }>;
+    }) => ({
+      days: trip.days.map((d) => ({ id: d.id, items: [] })),
+      unscheduledPlaceIds: trip.unscheduled.map((u) => u.placeId),
+    });
+
+    beforeAll(async () => {
+      groupId = (
+        await call('a').post('/groups', { name: 'Nhóm lịch trình' }).expect(201)
+      ).body.id;
+      const viewer = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      await call('b').post(`/invites/${viewer.body.token}/accept`).expect(201);
+    });
+
+    it('owner tạo lịch trình trong nhóm; viewer không tạo được', async () => {
+      const res = await call('a')
+        .post('/itineraries', manualTrip({ groupId }))
+        .expect(201);
+      tripId = res.body.id;
+      expect(res.body).toMatchObject({
+        groupId,
+        groupName: 'Nhóm lịch trình',
+        myRole: 'creator',
+      });
+      const denied = await call('b')
+        .post('/itineraries', manualTrip({ groupId }))
+        .expect(403);
+      expect(denied.body.code).toBe('FORBIDDEN_ROLE');
+      await call('c').post('/itineraries', manualTrip({ groupId })).expect(404);
+    });
+
+    it('viewer thấy trong danh sách và xem được, nhưng không sửa, không xóa', async () => {
+      const list = await call('b').get('/itineraries').expect(200);
+      expect(list.body).toContainEqual(
+        expect.objectContaining({
+          id: tripId,
+          groupId,
+          groupName: 'Nhóm lịch trình',
+          myRole: 'viewer',
+        }),
+      );
+      const trip = await call('b').get(`/itineraries/${tripId}`).expect(200);
+      expect(trip.body.myRole).toBe('viewer');
+      await call('b')
+        .get(`/itineraries/${tripId}/alternatives?placeId=${placeIds[0]}`)
+        .expect(200);
+      expect(
+        (
+          await call('b')
+            .put(`/itineraries/${tripId}`, unchanged(trip.body))
+            .expect(403)
+        ).body.code,
+      ).toBe('FORBIDDEN_ROLE');
+      await call('b').delete(`/itineraries/${tripId}`).expect(403);
+    });
+
+    it('người ngoài nhóm nhận 404', async () => {
+      await call('c').get(`/itineraries/${tripId}`).expect(404);
+      expect(
+        (await call('c').get('/itineraries').expect(200)).body.map(
+          (x: { id: string }) => x.id,
+        ),
+      ).not.toContain(tripId);
+    });
+
+    it('editor sửa được; nhiều lần sửa liền nhau gộp thành một dòng nhật ký', async () => {
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`, { role: 'editor' })
+        .expect(201);
+      await call('b').post(`/invites/${inv.body.token}/accept`).expect(201);
+      const trip = await call('b').get(`/itineraries/${tripId}`).expect(200);
+      await call('b')
+        .put(`/itineraries/${tripId}`, unchanged(trip.body))
+        .expect(200);
+      await call('b')
+        .put(`/itineraries/${tripId}`, unchanged(trip.body))
+        .expect(200);
+      const log = await call('a')
+        .get(`/groups/${groupId}/activity`)
+        .expect(200);
+      const updates = log.body.items.filter(
+        (x: { type: string }) => x.type === 'itinerary_updated',
+      );
+      expect(updates).toHaveLength(1);
+      expect(updates[0]).toMatchObject({
+        actorId: userIds.b,
+        payload: { itineraryId: tripId },
+      });
+      await call('b').delete(`/itineraries/${tripId}`).expect(403);
+    });
+
+    it('chỉ người tạo chuyển được lịch trình giữa các nhóm', async () => {
+      const personal = await call('b')
+        .post('/itineraries', manualTrip())
+        .expect(201);
+      expect(personal.body.groupId).toBeNull();
+      const moved = await call('b')
+        .patch(`/itineraries/${personal.body.id}/group`, { groupId })
+        .expect(200);
+      expect(moved.body).toMatchObject({
+        groupId,
+        groupName: 'Nhóm lịch trình',
+        myRole: 'creator',
+      });
+      expect(
+        (await call('a').get(`/itineraries/${personal.body.id}`).expect(200))
+          .body.myRole,
+      ).toBe('owner');
+      await call('a')
+        .patch(`/itineraries/${personal.body.id}/group`, { groupId: null })
+        .expect(403);
+      const out = await call('b')
+        .patch(`/itineraries/${personal.body.id}/group`, { groupId: null })
+        .expect(200);
+      expect(out.body.groupId).toBeNull();
+      await call('a').get(`/itineraries/${personal.body.id}`).expect(404);
+      await call('c')
+        .patch(`/itineraries/${personal.body.id}/group`, { groupId })
+        .expect(404);
+    });
+
+    it('không chuyển được vào nhóm mình chỉ là viewer', async () => {
+      const other = (
+        await call('a').post('/groups', { name: 'Nhóm chỉ xem' }).expect(201)
+      ).body.id;
+      const inv = await call('a').post(`/groups/${other}/invites`).expect(201);
+      await call('b').post(`/invites/${inv.body.token}/accept`).expect(201);
+      const mine = await call('b')
+        .post('/itineraries', manualTrip())
+        .expect(201);
+      await call('b')
+        .patch(`/itineraries/${mine.body.id}/group`, { groupId: other })
+        .expect(403);
+    });
+
+    it('thành viên bị xóa khỏi nhóm mất quyền với lịch trình của nhóm ngay', async () => {
+      await call('a')
+        .delete(`/groups/${groupId}/members/${userIds.b}`)
+        .expect(204);
+      await call('b').get(`/itineraries/${tripId}`).expect(404);
+    });
+
+    it('owner nhóm xóa được lịch trình của người khác trong nhóm', async () => {
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`, { role: 'editor' })
+        .expect(201);
+      await call('b').post(`/invites/${inv.body.token}/accept`).expect(201);
+      const theirs = await call('b')
+        .post('/itineraries', manualTrip({ groupId }))
+        .expect(201);
+      await call('a').delete(`/itineraries/${theirs.body.id}`).expect(204);
+      await call('b').get(`/itineraries/${theirs.body.id}`).expect(404);
+    });
+  });
 });

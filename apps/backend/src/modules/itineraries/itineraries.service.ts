@@ -3,7 +3,6 @@ import {
   HttpException,
   Injectable,
   Logger,
-  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -19,9 +18,17 @@ import type {
   PlannerKind,
   UnscheduledPlace,
 } from '@rong/shared-types';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, type EntityManager } from 'typeorm';
 
 import { LangchainService } from '../../langchain/langchain.service.js';
+import {
+  decide,
+  type ItineraryAccess,
+  type ItineraryAction,
+} from '../groups/access.js';
+import { AccessService } from '../groups/access.service.js';
+import { ActivityService } from '../groups/activity.service.js';
+import { forbiddenRole, itineraryNotFound } from '../groups/errors.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
 import {
@@ -33,6 +40,7 @@ import {
 import type { CreateItineraryDto } from './dto/create-itinerary.dto.js';
 import type { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { Itinerary } from './entities/itinerary.entity.js';
+import { itinerarySummaries } from './itinerary-summaries.js';
 import {
   assignToDays,
   dayCapacity,
@@ -82,6 +90,8 @@ export class ItinerariesService {
     private readonly itineraries: Repository<Itinerary>,
     private readonly areas: RegionAreaService,
     private readonly langchain: LangchainService,
+    private readonly access: AccessService,
+    private readonly activity: ActivityService,
   ) {}
 
   async create(
@@ -109,6 +119,10 @@ export class ItinerariesService {
     }
 
     const region = await this.regionName(input.regionId);
+
+    // FR-6.8: lịch trình tạo trong nhóm thuộc nhóm đó; viewer không tạo được.
+    const groupId = dto.groupId ?? null;
+    if (groupId) await this.access.requireGroupRole(ownerId, groupId, 'editor');
 
     // FR-6.3: mọi địa điểm phải có trong cơ sở dữ liệu.
     const selected = await this.loadPlaces(input.selectedPlaceIds, true);
@@ -283,59 +297,36 @@ export class ItinerariesService {
       };
     });
 
-    const saved = await this.itineraries.save(
-      this.itineraries.create({
-        ownerId,
-        regionId: input.regionId,
-        planner,
-        startsAt: new Date(start),
-        endsAt: new Date(end),
-        input,
-        days: outDays,
-        unscheduled: dedupeUnscheduled(unscheduled),
-        warnings,
-        tips,
-      }),
-    );
-    return toResponse(saved);
+    const saved = await this.db.transaction(async (m) => {
+      const it = await m.save(
+        this.itineraries.create({
+          ownerId,
+          regionId: input.regionId,
+          groupId,
+          planner,
+          startsAt: new Date(start),
+          endsAt: new Date(end),
+          input,
+          days: outDays,
+          unscheduled: dedupeUnscheduled(unscheduled),
+          warnings,
+          tips,
+        }),
+      );
+      await this.logToGroup(m, it, ownerId, 'itinerary_added', region);
+      return it;
+    });
+    return this.respond(saved, { isCreator: true, groupRole: null });
   }
 
-  async list(ownerId: string): Promise<ItinerarySummary[]> {
-    const rows = (await this.db.query(
-      `SELECT i.id, i.region_id, r.name AS region_name, i.starts_at, i.ends_at, i.planner,
-              jsonb_array_length(i.days) AS day_count, i.created_at
-         FROM itineraries i JOIN regions r ON r.id = i.region_id
-        WHERE i.owner_id = $1
-        ORDER BY i.created_at DESC
-        LIMIT 100`,
-      [ownerId],
-    )) as Array<{
-      id: string;
-      region_id: string;
-      region_name: string;
-      starts_at: Date;
-      ends_at: Date;
-      planner: PlannerKind;
-      day_count: number;
-      created_at: Date;
-    }>;
-    return rows.map((r) => ({
-      id: r.id,
-      regionId: r.region_id,
-      regionName: r.region_name,
-      startsAt: r.starts_at.toISOString(),
-      endsAt: r.ends_at.toISOString(),
-      planner: r.planner,
-      dayCount: Number(r.day_count),
-      createdAt: r.created_at.toISOString(),
-      groupId: null,
-      groupName: null,
-      myRole: 'creator' as const,
-    }));
+  /** Lịch trình tôi tạo và lịch trình thuộc nhóm tôi tham gia. */
+  async list(userId: string): Promise<ItinerarySummary[]> {
+    return itinerarySummaries(this.db, userId, null);
   }
 
-  async get(ownerId: string, id: string): Promise<ItineraryResponse> {
-    return toResponse(await this.findOwned(ownerId, id));
+  async get(userId: string, id: string): Promise<ItineraryResponse> {
+    const { itinerary, access } = await this.authorize(userId, id, 'view');
+    return this.respond(itinerary, access);
   }
 
   /**
@@ -347,7 +338,7 @@ export class ItinerariesService {
     id: string,
     dto: UpdateItineraryDto,
   ): Promise<ItineraryResponse> {
-    const itinerary = await this.findOwned(ownerId, id);
+    const { itinerary, access } = await this.authorize(ownerId, id, 'edit');
     const dayIds = itinerary.days.map((d) => d.id);
     if (
       dto.days.length !== dayIds.length ||
@@ -414,7 +405,13 @@ export class ItinerariesService {
         reason: reasons.get(placeId) ?? 'Chờ bạn xếp vào lịch',
       }),
     );
-    return toResponse(await this.itineraries.save(itinerary));
+    const region = await this.regionName(itinerary.regionId);
+    const saved = await this.db.transaction(async (m) => {
+      const it = await m.save(itinerary);
+      await this.logToGroup(m, it, ownerId, 'itinerary_updated', region);
+      return it;
+    });
+    return this.respond(saved, access);
   }
 
   /**
@@ -426,7 +423,7 @@ export class ItinerariesService {
     id: string,
     placeId: string,
   ): Promise<PlaceAlternative[]> {
-    const itinerary = await this.findOwned(ownerId, id);
+    const { itinerary } = await this.authorize(ownerId, id, 'view');
     const used = [
       ...itinerary.days.flatMap((d) =>
         d.items.flatMap((i) => (i.placeId ? [i.placeId] : [])),
@@ -463,23 +460,85 @@ export class ItinerariesService {
     }));
   }
 
-  async remove(ownerId: string, id: string): Promise<void> {
-    await this.itineraries.delete({
-      id: (await this.findOwned(ownerId, id)).id,
+  async remove(userId: string, id: string): Promise<void> {
+    const { itinerary } = await this.authorize(userId, id, 'delete');
+    const region = await this.regionName(itinerary.regionId);
+    await this.db.transaction(async (m) => {
+      await this.logToGroup(m, itinerary, userId, 'itinerary_removed', region);
+      await m.delete(Itinerary, { id: itinerary.id });
     });
   }
 
-  /** Lịch trình của người khác trả 404 như không tồn tại, để không lộ id hợp lệ. */
-  private async findOwned(ownerId: string, id: string): Promise<Itinerary> {
-    const itinerary = await this.itineraries.findOneBy({ id, ownerId });
-    if (!itinerary) {
-      throw new NotFoundException({
-        statusCode: 404,
-        code: 'ITINERARY_NOT_FOUND',
-        message: 'Không tìm thấy lịch trình này.',
-      });
+  /** Chỉ người tạo; nhóm đích phải là nơi mình là owner hoặc editor. */
+  async move(
+    userId: string,
+    id: string,
+    groupId: string | null,
+  ): Promise<ItineraryResponse> {
+    const { itinerary, access } = await this.authorize(userId, id, 'move');
+    if (itinerary.groupId === groupId) return this.respond(itinerary, access);
+    if (groupId) await this.access.requireGroupRole(userId, groupId, 'editor');
+    const region = await this.regionName(itinerary.regionId);
+    const before = { ...itinerary };
+    itinerary.groupId = groupId;
+    const saved = await this.db.transaction(async (m) => {
+      await this.logToGroup(m, before, userId, 'itinerary_removed', region);
+      const it = await m.save(itinerary);
+      await this.logToGroup(m, it, userId, 'itinerary_added', region);
+      return it;
+    });
+    return this.respond(saved, access);
+  }
+
+  /**
+   * Kiểm tra quyền theo bảng ở spec S8 mục 4.6. Không xem được thì 404 như
+   * không tồn tại, để không lộ id hợp lệ; xem được mà thiếu quyền thì 403.
+   */
+  async authorize(
+    userId: string,
+    id: string,
+    action: ItineraryAction,
+  ): Promise<{ itinerary: Itinerary; access: ItineraryAccess }> {
+    const access = await this.access.itineraryAccess(userId, id);
+    const decision = access ? decide(access, action) : 'not_found';
+    if (decision === 'not_found') throw itineraryNotFound();
+    if (decision === 'forbidden') throw forbiddenRole();
+    const itinerary = await this.itineraries.findOneBy({ id });
+    if (!itinerary) throw itineraryNotFound();
+    return { itinerary, access: access! };
+  }
+
+  private async respond(
+    it: Itinerary,
+    access: ItineraryAccess,
+  ): Promise<ItineraryResponse> {
+    let groupName: string | null = null;
+    if (it.groupId) {
+      const [row] = (await this.db.query(
+        `SELECT name FROM groups WHERE id = $1`,
+        [it.groupId],
+      )) as Array<{ name: string }>;
+      groupName = row?.name ?? null;
     }
-    return itinerary;
+    return toResponse(
+      it,
+      groupName,
+      access.isCreator ? 'creator' : access.groupRole!,
+    );
+  }
+
+  private async logToGroup(
+    m: EntityManager,
+    it: Pick<Itinerary, 'id' | 'groupId'>,
+    actorId: string,
+    type: 'itinerary_added' | 'itinerary_updated' | 'itinerary_removed',
+    regionName: string,
+  ): Promise<void> {
+    if (!it.groupId) return;
+    await this.activity.record(m, it.groupId, actorId, type, {
+      itineraryId: it.id,
+      regionName,
+    });
   }
 
   private async regionName(regionId: string): Promise<string> {
@@ -630,8 +689,8 @@ function bad(
 
 function toResponse(
   it: Itinerary,
-  groupName: string | null = null,
-  myRole: ItineraryRole = 'creator',
+  groupName: string | null,
+  myRole: ItineraryRole,
 ): ItineraryResponse {
   return {
     id: it.id,
