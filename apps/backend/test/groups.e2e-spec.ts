@@ -627,4 +627,94 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       await call('b').get(`/itineraries/${theirs.body.id}`).expect(404);
     });
   });
+
+  describe('link xem lịch trình', () => {
+    let tripId: string;
+    let groupId: string;
+
+    beforeAll(async () => {
+      groupId = (
+        await call('a')
+          .post('/groups', { name: 'Nhóm chia sẻ web' })
+          .expect(201)
+      ).body.id;
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      await call('c').post(`/invites/${inv.body.token}/accept`).expect(201);
+      tripId = (
+        await call('a')
+          .post(
+            '/itineraries',
+            manualTrip({ groupId, notes: 'ghi chú riêng tư' }),
+          )
+          .expect(201)
+      ).body.id;
+    });
+
+    it('xem công khai không cần đăng nhập, không lộ dữ liệu riêng', async () => {
+      const link = await call('a')
+        .post(`/itineraries/${tripId}/share-link`)
+        .expect(201);
+      expect(link.body.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const res = await call(null)
+        .get(`/public/itineraries/${link.body.token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        travelParty: 'friends',
+        adults: 2,
+        children: 0,
+        planner: 'manual',
+      });
+      expect(typeof res.body.regionName).toBe('string');
+      expect(res.body.days).toHaveLength(2);
+      const raw = JSON.stringify(res.body);
+      for (const secret of [
+        userIds.a,
+        groupId,
+        'ghi chú riêng tư',
+        'aiEditsRemaining',
+        'ownerId',
+      ]) {
+        expect(raw).not.toContain(secret);
+      }
+    });
+
+    it('tạo lại thì link cũ chết ngay; thu hồi thì link mới chết', async () => {
+      const first = await call('a')
+        .post(`/itineraries/${tripId}/share-link`)
+        .expect(201);
+      const second = await call('a')
+        .post(`/itineraries/${tripId}/share-link`)
+        .expect(201);
+      expect(
+        (
+          await call(null)
+            .get(`/public/itineraries/${first.body.token}`)
+            .expect(404)
+        ).body.code,
+      ).toBe('SHARE_LINK_NOT_FOUND');
+      await call(null)
+        .get(`/public/itineraries/${second.body.token}`)
+        .expect(200);
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      await call(null)
+        .get(`/public/itineraries/${second.body.token}`)
+        .expect(404);
+    });
+
+    it('viewer không tạo được link; người ngoài nhận 404', async () => {
+      await call('c').post(`/itineraries/${tripId}/share-link`).expect(403);
+      await call('b').post(`/itineraries/${tripId}/share-link`).expect(404);
+    });
+
+    it('token rác trả 404', async () => {
+      for (const bad of ['abc', 'A'.repeat(43), '%00']) {
+        await call(null)
+          .get(`/public/itineraries/${encodeURIComponent(bad)}`)
+          .expect(404);
+      }
+    });
+  });
 });
