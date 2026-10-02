@@ -717,4 +717,40 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       }
     });
   });
+
+  describe('xóa tài khoản owner', () => {
+    it('nhóm biến mất, lịch trình của thành viên trở thành cá nhân', async () => {
+      const groupId = (
+        await call('a').post('/groups', { name: 'Nhóm sắp mất' }).expect(201)
+      ).body.id;
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`, { role: 'editor' })
+        .expect(201);
+      await call('b').post(`/invites/${inv.body.token}/accept`).expect(201);
+      const trip = await call('b')
+        .post('/itineraries', manualTrip({ groupId }))
+        .expect(201);
+      const ownTrip = await call('a')
+        .post('/itineraries', manualTrip({ groupId }))
+        .expect(201);
+
+      await call('a').delete('/users/me').expect(204);
+
+      await call('b').get(`/groups/${groupId}`).expect(404);
+      const after = await call('b')
+        .get(`/itineraries/${trip.body.id}`)
+        .expect(200);
+      expect(after.body).toMatchObject({
+        groupId: null,
+        groupName: null,
+        myRole: 'creator',
+      });
+      await call('b').get(`/itineraries/${ownTrip.body.id}`).expect(404);
+      const [{ n }] = (await db.query(
+        `SELECT count(*)::int AS n FROM group_activities WHERE group_id = $1`,
+        [groupId],
+      )) as Array<{ n: number }>;
+      expect(n).toBe(0);
+    });
+  });
 });
