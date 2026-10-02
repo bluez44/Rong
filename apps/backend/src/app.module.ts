@@ -5,6 +5,7 @@ import { loadConfig } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
 import { LangchainModule } from './langchain/langchain.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { GroupsModule } from './modules/groups/groups.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ItinerariesModule } from './modules/itineraries/itineraries.module.js';
 import { PlacesModule } from './modules/places/places.module.js';
@@ -27,6 +28,7 @@ import { UsersModule } from './modules/users/users.module.js';
     PlacesModule,
     ItinerariesModule,
     SavedPlacesModule,
+    GroupsModule,
     HealthModule,
     LangchainModule,
   ],
