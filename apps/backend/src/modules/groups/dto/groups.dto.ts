@@ -23,3 +23,9 @@ export class ActivityQueryDto {
   @MaxLength(300)
   cursor?: string;
 }
+export class CreateInviteDto {
+  /** Mặc định 'viewer' — FR-10.4. */
+  @IsOptional()
+  @IsIn(['editor', 'viewer'])
+  role?: InviteRole;
+}

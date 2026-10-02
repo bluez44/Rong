@@ -178,4 +178,196 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       await call(null).get('/groups').expect(401);
     });
   });
+
+  describe('link mời và thành viên', () => {
+    let groupId: string;
+    let viewerInvite: { id: string; token: string };
+
+    beforeAll(async () => {
+      const res = await call('a')
+        .post('/groups', { name: 'Nhóm mời' })
+        .expect(201);
+      groupId = res.body.id;
+    });
+
+    it('owner tạo link viewer (mặc định); token chỉ trả một lần', async () => {
+      const res = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      viewerInvite = res.body;
+      expect(res.body.role).toBe('viewer');
+      expect(res.body.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const list = await call('a')
+        .get(`/groups/${groupId}/invites`)
+        .expect(200);
+      expect(list.body).toEqual([
+        expect.objectContaining({ id: viewerInvite.id, role: 'viewer' }),
+      ]);
+      expect(list.body[0]).not.toHaveProperty('token');
+    });
+
+    it('xem trước không cần đăng nhập', async () => {
+      const res = await call(null)
+        .get(`/invites/${viewerInvite.token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        groupName: 'Nhóm mời',
+        inviterName: 'e2e-groups-a',
+        role: 'viewer',
+        memberCount: 1,
+      });
+    });
+
+    it('token rác trả 404, không lỗi 500', async () => {
+      for (const bad of ['abc', 'a'.repeat(43) + 'b', '%00', 'x'.repeat(200)]) {
+        const res = await call(null).get(`/invites/${encodeURIComponent(bad)}`);
+        expect(res.status).toBe(404);
+      }
+      const unknown = 'A'.repeat(43);
+      expect(
+        (await call('b').post(`/invites/${unknown}/accept`)).body.code,
+      ).toBe('INVITE_NOT_FOUND');
+    });
+
+    it('b chấp nhận thành viewer; chấp nhận lại không tạo trùng hay ghi thêm nhật ký', async () => {
+      const res = await call('b')
+        .post(`/invites/${viewerInvite.token}/accept`)
+        .expect(201);
+      expect(res.body.myRole).toBe('viewer');
+      await call('b').post(`/invites/${viewerInvite.token}/accept`).expect(201);
+      const detail = await call('a').get(`/groups/${groupId}`).expect(200);
+      expect(
+        detail.body.members.filter(
+          (x: { userId: string }) => x.userId === userIds.b,
+        ),
+      ).toHaveLength(1);
+      const log = await call('a')
+        .get(`/groups/${groupId}/activity`)
+        .expect(200);
+      expect(
+        log.body.items.filter(
+          (x: { type: string }) => x.type === 'member_joined',
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('viewer không tạo được link mời', async () => {
+      const res = await call('b')
+        .post(`/groups/${groupId}/invites`)
+        .expect(403);
+      expect(res.body.code).toBe('FORBIDDEN_ROLE');
+    });
+
+    it('link editor nâng b lên editor; link viewer sau đó không hạ quyền', async () => {
+      const editor = await call('a')
+        .post(`/groups/${groupId}/invites`, { role: 'editor' })
+        .expect(201);
+      const up = await call('b')
+        .post(`/invites/${editor.body.token}/accept`)
+        .expect(201);
+      expect(up.body.myRole).toBe('editor');
+      const again = await call('b')
+        .post(`/invites/${viewerInvite.token}/accept`)
+        .expect(201);
+      expect(again.body.myRole).toBe('editor');
+    });
+
+    it('link đã thu hồi trả 410', async () => {
+      await call('a')
+        .delete(`/groups/${groupId}/invites/${viewerInvite.id}`)
+        .expect(204);
+      const res = await call('c')
+        .post(`/invites/${viewerInvite.token}/accept`)
+        .expect(410);
+      expect(res.body.code).toBe('INVITE_EXPIRED');
+      await call(null).get(`/invites/${viewerInvite.token}`).expect(410);
+    });
+
+    it('link hết hạn trả 410', async () => {
+      const res = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      await db.query(
+        `UPDATE group_invites SET expires_at = now() - interval '1 minute' WHERE id = $1`,
+        [res.body.id],
+      );
+      await call('c').post(`/invites/${res.body.token}/accept`).expect(410);
+    });
+
+    it('owner đổi vai trò; không đổi được vai trò owner', async () => {
+      const res = await call('a')
+        .patch(`/groups/${groupId}/members/${userIds.b}`, { role: 'viewer' })
+        .expect(200);
+      expect(res.body.members).toContainEqual(
+        expect.objectContaining({ userId: userIds.b, role: 'viewer' }),
+      );
+      const own = await call('a')
+        .patch(`/groups/${groupId}/members/${userIds.a}`, { role: 'editor' })
+        .expect(400);
+      expect(own.body.code).toBe('CANNOT_CHANGE_OWNER');
+      await call('b')
+        .patch(`/groups/${groupId}/members/${userIds.a}`, { role: 'viewer' })
+        .expect(403);
+    });
+
+    it('owner không tự rời được; thành viên tự rời rồi mất quyền ngay', async () => {
+      const own = await call('a')
+        .delete(`/groups/${groupId}/members/${userIds.a}`)
+        .expect(400);
+      expect(own.body.code).toBe('OWNER_CANNOT_LEAVE');
+      await call('b')
+        .delete(`/groups/${groupId}/members/${userIds.b}`)
+        .expect(204);
+      await call('b').get(`/groups/${groupId}`).expect(404);
+      const log = await call('a')
+        .get(`/groups/${groupId}/activity`)
+        .expect(200);
+      expect(log.body.items[0]).toMatchObject({
+        type: 'member_left',
+        payload: { userName: 'e2e-groups-b' },
+      });
+    });
+
+    it('owner xóa thành viên; người không phải owner không xóa được người khác', async () => {
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      await call('b').post(`/invites/${inv.body.token}/accept`).expect(201);
+      await call('c').post(`/invites/${inv.body.token}/accept`).expect(201);
+      await call('c')
+        .delete(`/groups/${groupId}/members/${userIds.b}`)
+        .expect(403);
+      await call('a')
+        .delete(`/groups/${groupId}/members/${userIds.c}`)
+        .expect(204);
+      await call('c').get(`/groups/${groupId}`).expect(404);
+    });
+
+    it('nhóm đầy trả 409 GROUP_FULL', async () => {
+      const inv = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      const filler = (await db.query(
+        `INSERT INTO users (display_name)
+         SELECT 'e2e-groups-fill-' || g FROM generate_series(1, 47) g RETURNING id`,
+      )) as Array<{ id: string }>;
+      for (const f of filler) {
+        await db.query(
+          `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'viewer')`,
+          [groupId, f.id],
+        );
+      }
+      // a + b + 47 = 49; c vào là 50, người tiếp theo bị chặn.
+      await call('c').post(`/invites/${inv.body.token}/accept`).expect(201);
+      const [extra] = (await db.query(
+        `INSERT INTO users (display_name) VALUES ('e2e-groups-fill-x') RETURNING id`,
+      )) as Array<{ id: string }>;
+      const token = app.get(JwtService).sign({ sub: extra.id });
+      const res = await request(app.getHttpServer())
+        .post(`/api/invites/${inv.body.token}/accept`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(409);
+      expect(res.body.code).toBe('GROUP_FULL');
+    });
+  });
 });
