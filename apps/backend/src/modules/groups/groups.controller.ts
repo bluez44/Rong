@@ -9,28 +9,35 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import type {
   CursorPage,
   GroupActivity,
   GroupDetail,
+  GroupPlace,
   GroupSummary,
 } from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SavePlaceDto } from '../saved-places/dto/save-place.dto.js';
 import {
   ActivityQueryDto,
   GroupNameDto,
   MemberRoleDto,
 } from './dto/groups.dto.js';
+import { GroupPlacesService } from './group-places.service.js';
 import { GroupsService } from './groups.service.js';
 
-/** Nhóm, thành viên, nhật ký hoạt động — F10. */
+/** Nhóm, thành viên, nhật ký hoạt động, địa điểm chung — F10. */
 @Controller('groups')
 export class GroupsController {
-  constructor(private readonly groups: GroupsService) {}
+  constructor(
+    private readonly groups: GroupsService,
+    private readonly places: GroupPlacesService,
+  ) {}
 
   @Post()
   create(
@@ -99,5 +106,35 @@ export class GroupsController {
     @Query() query: ActivityQueryDto,
   ): Promise<CursorPage<GroupActivity>> {
     return this.groups.activity(user.userId, id, query.cursor);
+  }
+
+  /** Địa điểm chung của nhóm — FR-10.9. PUT/DELETE idempotent như "Muốn đi". */
+  @Get(':id/places')
+  listPlaces(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<GroupPlace[]> {
+    return this.places.list(user.userId, id);
+  }
+
+  @Put(':id/places/:placeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  addPlace(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('placeId', new ParseUUIDPipe()) placeId: string,
+    @Body() dto: SavePlaceDto,
+  ): Promise<void> {
+    return this.places.add(user.userId, id, placeId, dto.regionId);
+  }
+
+  @Delete(':id/places/:placeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePlace(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('placeId', new ParseUUIDPipe()) placeId: string,
+  ): Promise<void> {
+    return this.places.remove(user.userId, id, placeId);
   }
 }
