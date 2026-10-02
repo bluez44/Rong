@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { LangchainModule } from '../../langchain/langchain.module.js';
+import { GroupsModule } from '../groups/groups.module.js';
 import { RegionsModule } from '../regions/regions.module.js';
 import { Itinerary } from './entities/itinerary.entity.js';
 import { ItinerariesController } from './itineraries.controller.js';
@@ -12,6 +13,7 @@ import { ItinerariesService } from './itineraries.service.js';
     TypeOrmModule.forFeature([Itinerary]),
     RegionsModule,
     LangchainModule,
+    GroupsModule,
   ],
   controllers: [ItinerariesController],
   providers: [ItinerariesService],

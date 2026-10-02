@@ -88,4 +88,9 @@ export class CreateItineraryDto {
   @IsString()
   @MaxLength(500)
   notes?: string | null;
+
+  /** Tạo trong nhóm (FR-6.8): người tạo phải là owner hoặc editor của nhóm. */
+  @IsOptional()
+  @IsUUID()
+  groupId?: string | null;
 }
