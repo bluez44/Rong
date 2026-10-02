@@ -7,6 +7,8 @@ import { RegionsModule } from '../regions/regions.module.js';
 import { Itinerary } from './entities/itinerary.entity.js';
 import { ItinerariesController } from './itineraries.controller.js';
 import { ItinerariesService } from './itineraries.service.js';
+import { ShareLinksController } from './share-links.controller.js';
+import { ShareLinksService } from './share-links.service.js';
 
 @Module({
   imports: [
@@ -15,7 +17,7 @@ import { ItinerariesService } from './itineraries.service.js';
     LangchainModule,
     GroupsModule,
   ],
-  controllers: [ItinerariesController],
-  providers: [ItinerariesService],
+  controllers: [ItinerariesController, ShareLinksController],
+  providers: [ItinerariesService, ShareLinksService],
 })
 export class ItinerariesModule {}
