@@ -11,6 +11,7 @@ import type {
   Itinerary as ItineraryResponse,
   ItineraryDay,
   ItineraryInput,
+  ItineraryRole,
   ItinerarySummary,
   ItineraryWarning,
   PlaceAlternative,
@@ -327,6 +328,9 @@ export class ItinerariesService {
       planner: r.planner,
       dayCount: Number(r.day_count),
       createdAt: r.created_at.toISOString(),
+      groupId: null,
+      groupName: null,
+      myRole: 'creator' as const,
     }));
   }
 
@@ -624,11 +628,17 @@ function bad(
   return new BadRequestException({ statusCode: 400, code, message, ...extra });
 }
 
-function toResponse(it: Itinerary): ItineraryResponse {
+function toResponse(
+  it: Itinerary,
+  groupName: string | null = null,
+  myRole: ItineraryRole = 'creator',
+): ItineraryResponse {
   return {
     id: it.id,
     ownerId: it.ownerId,
-    groupId: null,
+    groupId: it.groupId,
+    groupName,
+    myRole,
     regionId: it.regionId,
     input: it.input,
     days: it.days,
