@@ -370,4 +370,97 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       expect(res.body.code).toBe('GROUP_FULL');
     });
   });
+
+  describe('địa điểm chung', () => {
+    let groupId: string;
+
+    beforeAll(async () => {
+      groupId = (
+        await call('a').post('/groups', { name: 'Nhóm địa điểm' }).expect(201)
+      ).body.id;
+      const viewer = await call('a')
+        .post(`/groups/${groupId}/invites`)
+        .expect(201);
+      await call('c').post(`/invites/${viewer.body.token}/accept`).expect(201);
+      const editor = await call('a')
+        .post(`/groups/${groupId}/invites`, { role: 'editor' })
+        .expect(201);
+      await call('b').post(`/invites/${editor.body.token}/accept`).expect(201);
+    });
+
+    it('editor thêm, mọi thành viên thấy, thêm lại không đổi', async () => {
+      await call('b')
+        .put(`/groups/${groupId}/places/${placeIds[0]}`, { regionId })
+        .expect(204);
+      await call('b')
+        .put(`/groups/${groupId}/places/${placeIds[0]}`, { regionId })
+        .expect(204);
+      const res = await call('c').get(`/groups/${groupId}/places`).expect(200);
+      expect(res.body).toEqual([
+        expect.objectContaining({
+          placeId: placeIds[0],
+          name: 'E2E Hồ Tuyền Lâm',
+          category: 'nature',
+          regionId,
+          addedByName: 'e2e-groups-b',
+        }),
+      ]);
+      const log = await call('a')
+        .get(`/groups/${groupId}/activity`)
+        .expect(200);
+      expect(
+        log.body.items.filter(
+          (x: { type: string }) => x.type === 'place_added',
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('viewer không thêm, không xóa được', async () => {
+      await call('c')
+        .put(`/groups/${groupId}/places/${placeIds[1]}`, { regionId })
+        .expect(403);
+      await call('c')
+        .delete(`/groups/${groupId}/places/${placeIds[0]}`)
+        .expect(403);
+    });
+
+    it('địa điểm hoặc vùng không tồn tại', async () => {
+      const missing = '00000000-0000-0000-0000-000000000000';
+      expect(
+        (
+          await call('b')
+            .put(`/groups/${groupId}/places/${missing}`, { regionId })
+            .expect(404)
+        ).body.code,
+      ).toBe('PLACE_NOT_FOUND');
+      expect(
+        (
+          await call('b')
+            .put(`/groups/${groupId}/places/${placeIds[1]}`, {
+              regionId: missing,
+            })
+            .expect(400)
+        ).body.code,
+      ).toBe('UNKNOWN_REGION');
+    });
+
+    it('xóa ghi nhật ký place_removed; xóa lần nữa vẫn 204', async () => {
+      await call('b')
+        .delete(`/groups/${groupId}/places/${placeIds[0]}`)
+        .expect(204);
+      await call('b')
+        .delete(`/groups/${groupId}/places/${placeIds[0]}`)
+        .expect(204);
+      expect(
+        (await call('a').get(`/groups/${groupId}/places`).expect(200)).body,
+      ).toEqual([]);
+      const log = await call('a')
+        .get(`/groups/${groupId}/activity`)
+        .expect(200);
+      expect(log.body.items[0]).toMatchObject({
+        type: 'place_removed',
+        payload: { placeId: placeIds[0], placeName: 'E2E Hồ Tuyền Lâm' },
+      });
+    });
+  });
 });
