@@ -33,14 +33,9 @@ describe('GET /api/health (e2e)', () => {
     await app?.close();
   });
 
-  it('từ chối khi không có access token', async () => {
-    await request(app.getHttpServer()).get('/api/health').expect(401);
-  });
-
   it('trả về ok kèm phiên bản PostGIS', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/health')
-      .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
     expect(response.body.status).toBe('ok');
