@@ -28,6 +28,10 @@ const HEADER_FALLBACK = 150;
 /**
  * Bottom sheet kính 3 nấc nổi trên bản đồ (FR-2.3). Chỉ kéo được ở phần đầu
  * để danh sách bên dưới cuộn bình thường, không tranh cử chỉ với nhau.
+ *
+ * Mọi thứ cuộn được trong `header` và `children` phải là ScrollView/FlatList
+ * của react-native-gesture-handler: bản của react-native không phối hợp được
+ * với cử chỉ kéo sheet nên bị giành mất thao tác cuộn.
  */
 export function PlaceSheet({ header, children, detent, onDetentChange, onHalfHeight }: PlaceSheetProps) {
   const { height: screenHeight } = useWindowDimensions();
@@ -83,7 +87,8 @@ export function PlaceSheet({ header, children, detent, onDetentChange, onHalfHei
 
   return (
     <Animated.View style={[styles.sheet, animatedStyle]}>
-      <Glass variant={detent === 'full' ? 'strong' : 'regular'} style={[StyleSheet.absoluteFill, styles.glass]} />
+      {/* Chỉ là nền: không để lớp kính native nhận chạm thay cho danh sách và chip. */}
+      <Glass pointerEvents="none" variant={detent === 'full' ? 'strong' : 'regular'} style={[StyleSheet.absoluteFill, styles.glass]} />
       <GestureDetector gesture={pan}>
         <View onLayout={(e) => setHeaderHeight(Math.round(e.nativeEvent.layout.height))}>
           <Pressable

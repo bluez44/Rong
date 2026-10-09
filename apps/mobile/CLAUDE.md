@@ -18,3 +18,10 @@ Mọi màn hình mới phải chừa vùng an toàn (tai thỏ, thanh home) và 
   `keyboardShouldPersistTaps="handled"` để bấm nút khi bàn phím đang mở vẫn ăn ngay lần đầu.
 - Danh sách có ô tìm kiếm: thêm `keyboardShouldPersistTaps="handled"` và `keyboardDismissMode="on-drag"`.
 - Kiểm tra trên cả iOS và Android khi bàn phím mở: ô đang gõ, nút gửi và thông báo lỗi phải nhìn thấy được.
+
+## Cử chỉ và danh sách cuộn
+
+- Thứ cuộn được (`ScrollView`, `FlatList`) nằm trong hoặc cạnh một `GestureDetector` (ví dụ `PlaceSheet` ở
+  `src/components/place-sheet.tsx`) phải lấy từ `react-native-gesture-handler`, không lấy từ `react-native`:
+  bản của react-native bị cử chỉ kéo giành mất nên không cuộn được.
+- Lớp nền chỉ để trang trí (kính, ảnh) đặt `absoluteFill` thì thêm `pointerEvents="none"`.
