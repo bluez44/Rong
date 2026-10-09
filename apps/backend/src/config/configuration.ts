@@ -45,6 +45,8 @@ export interface OpenDataConfig {
   contactEmail: string;
   /** Sau bao nhiêu ngày thì lấy lại địa điểm của một vùng từ OSM. */
   placesRefreshDays: number;
+  /** Dựng sẵn danh mục địa điểm cho các tỉnh, điểm đến đã seed ở nền (PlacesWarmer). */
+  placesWarmup: boolean;
 }
 
 /** Google Maps Platform — chỉ module `google/` được dùng (PRD 7.4). */
@@ -159,6 +161,7 @@ export function loadConfig(): AppConfig {
         process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php',
       contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
       placesRefreshDays: toInt(process.env.PLACES_REFRESH_DAYS, 30),
+      placesWarmup: process.env.PLACES_WARMUP === 'true',
     },
     google: {
       mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,

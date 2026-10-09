@@ -12,6 +12,7 @@ import {
   PlaceDetailController,
   PlacesController,
 } from './places.controller.js';
+import { PlacesWarmer } from './places-warmer.js';
 import { PlacesService } from './places.service.js';
 
 @Module({
@@ -23,6 +24,6 @@ import { PlacesService } from './places.service.js';
     LangchainModule,
   ],
   controllers: [PlacesController, PlaceDetailController, PlacesV2Controller],
-  providers: [PlacesService, PlacesV2Service],
+  providers: [PlacesService, PlacesV2Service, PlacesWarmer],
 })
 export class PlacesModule {}

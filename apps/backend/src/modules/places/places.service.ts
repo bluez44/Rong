@@ -101,7 +101,17 @@ export class PlacesService {
     let bbox: Bbox | null = null;
     try {
       bbox = await this.areas.ensure(regionId);
-      await this.ensureFresh(regionId, bbox);
+      const freshness = await this.freshness(regionId);
+      if (freshness === 'never') {
+        await this.ensureFresh(regionId, bbox);
+      } else if (freshness === 'stale') {
+        // Đã có dữ liệu thì trả ngay, làm mới ở nền: không bắt người dùng chờ Overpass.
+        this.ensureFresh(regionId, bbox).catch((error: Error) =>
+          this.logger.warn(
+            `Làm mới nền vùng ${regionId} lỗi: ${error.message}`,
+          ),
+        );
+      }
     } catch (error) {
       if (!isOpenDataOutage(error)) throw error;
       // Làm mới lỗi nhưng đã có dữ liệu cũ thì dùng dữ liệu cũ; chưa có gì
@@ -297,6 +307,34 @@ export class PlacesService {
     }
   }
 
+  /**
+   * Dựng sẵn danh mục cho một vùng (dùng bởi PlacesWarmer): tính khung bao
+   * rồi tải từ OSM nếu chưa có hoặc đã quá hạn. Trả về true nếu đã tải mới.
+   */
+  async warm(regionId: string): Promise<boolean> {
+    if ((await this.freshness(regionId)) === 'fresh') return false;
+    const bbox = await this.areas.ensure(regionId);
+    await this.ensureFresh(regionId, bbox);
+    return true;
+  }
+
+  private async freshness(
+    regionId: string,
+  ): Promise<'never' | 'stale' | 'fresh'> {
+    const [region] = (await this.db.query(
+      `SELECT places_fetched_at FROM regions WHERE id = $1`,
+      [regionId],
+    )) as Array<{ places_fetched_at: Date | null }>;
+    if (!region?.places_fetched_at) return 'never';
+    return Date.now() - region.places_fetched_at.getTime() < this.maxAgeMs()
+      ? 'fresh'
+      : 'stale';
+  }
+
+  private maxAgeMs(): number {
+    return this.config.placesRefreshDays * 24 * 60 * 60 * 1000;
+  }
+
   /** Tải lại địa điểm của vùng từ OSM nếu chưa từng tải hoặc đã quá hạn. */
   private ensureFresh(regionId: string, bbox: Bbox): Promise<void> {
     let pending = this.inFlight.get(regionId);
@@ -315,10 +353,9 @@ export class PlacesService {
       [regionId],
     )) as Array<{ name: string; places_fetched_at: Date | null }>;
 
-    const maxAgeMs = this.config.placesRefreshDays * 24 * 60 * 60 * 1000;
     if (
       region.places_fetched_at &&
-      Date.now() - region.places_fetched_at.getTime() < maxAgeMs
+      Date.now() - region.places_fetched_at.getTime() < this.maxAgeMs()
     ) {
       return;
     }

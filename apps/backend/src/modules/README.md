@@ -55,6 +55,10 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
   (`places/osm-place-mapping.ts`), chấm điểm tất định (`places/place-scoring.ts`), lưu
   lại và làm mới sau `PLACES_REFRESH_DAYS` ngày. Địa điểm thuộc vùng nào tính bằng
   khung bao lúc truy vấn, nên dùng chung cho vùng cũ và mới.
+- Chỉ vùng **chưa từng tải** mới bắt request chờ Overpass; vùng đã quá hạn thì trả dữ
+  liệu đã lưu và làm mới ở nền. Bật `PLACES_WARMUP=true` thì `places/places-warmer.ts`
+  dựng sẵn danh mục cho các điểm đến và tỉnh đã seed (30 giây sau khi khởi động, rồi
+  mỗi 6 giờ), đúng tinh thần FR-1.10 "danh mục tổng hợp sẵn".
 - Nominatim công cộng **cấm dùng cho autocomplete** và giới hạn 1 request/giây, vì vậy
   `online` chỉ bật khi người dùng bấm tìm. Production nên tự host hoặc dùng nhà cung cấp
   trả phí (đổi `NOMINATIM_URL`, `OVERPASS_URL`).

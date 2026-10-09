@@ -13,6 +13,7 @@ const service = () =>
     wikidataUrl: 'http://wikidata.test/w/api.php',
     contactEmail: 'dev@rong.vn',
     placesRefreshDays: 30,
+    placesWarmup: false,
   });
 
 const queries: string[] = [];
