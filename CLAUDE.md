@@ -31,6 +31,8 @@ pnpm migration:run            # builds first, then runs dist/database/migrations
 pnpm start:dev                # http://localhost:3001/api, try GET /api/health
 pnpm test                     # unit tests (*.spec.ts under src/, vitest)
 pnpm test:e2e                 # test/*.e2e-spec.ts against a real, migrated database
+pnpm test:speed               # places-speed.e2e-spec.ts: v1/v2 latency with fixed-delay fakes (also part of test:e2e)
+pnpm bench:places             # test/*.live-spec.ts: real Overpass/Tavily/Gemini/Google timings (costs money; PLACES_LIVE_REGION=<source_key>)
 pnpm lint                     # oxlint --type-aware
 pnpm typecheck
 pnpm format                   # prettier
@@ -69,8 +71,8 @@ Keep each external service behind its single gateway:
 | Gateway | Covers | Rules |
 | --- | --- | --- |
 | `modules/open-data/OpenDataService` | Nominatim, Overpass, Wikidata | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`, failover across the comma-separated `OVERPASS_URL` mirrors. |
-| `modules/google/` | Google Places (New), Geocoding | PRD §7.4: store nothing but `place_id`, don't cache Google coordinates or content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
-| `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, the `findPlaces` fallback, `planItinerary`). `PlaceSearchAgent` plus `web-search.tool.ts` (Tavily) power the v2 places API. Gemini models are created in `src/chat-models/`. |
+| `modules/google/` | Google Places (New), Geocoding | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days (Geocoding results are cached in memory only), never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
+| `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, the `findPlaces` fallback, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) power the v2 places API. Gemini models are created in `src/chat-models/`. |
 
 ### Places: two pipelines
 - **v1, `GET /regions/:id/places`, OSM-based, no AI.**
@@ -79,10 +81,11 @@ Keep each external service behind its single gateway:
   3. Each region's area is a **bounding box** (`RegionAreaService.ensure`), not a polygon.
   4. Places are fetched from Overpass by that bbox, classified by OSM tags (`osm-place-mapping.ts`), scored deterministically (`place-scoring.ts`), stored in `places`, and paginated with a cursor.
   5. If OSM fails and nothing is cached, it falls back to Gemini + Google Maps (`source: 'ai_google_maps'`, `id: null`, not stored).
-- **v2, `GET /v2/regions/:id/places`, web-search agent.** `places-v2.service.ts` asks `PlaceSearchAgent` for places named in web articles.
+  6. Only a region that has never been fetched blocks the request, and for at most 15 s (then it falls back and keeps loading in the background); a stale one is served from `places` and refreshed in the background. When every Overpass mirror fails, `OpenDataService` fails fast for 3 minutes instead of retrying the whole mirror list on each request. With `PLACES_WARMUP=true`, `PlacesWarmer` pre-builds the catalog for seeded destinations and provinces (30 s after boot, then every 6 h). Keep it off for e2e.
+- **v2, `GET /v2/regions/:id/places`, web search + Gemini.** `places-v2.service.ts` asks `PlaceSearchService` for places named in web articles: three fixed Tavily queries run in parallel, then one Gemini structured-output call with `thinkingLevel: 'LOW'`. Only when they return fewer than 3 articles does it fall back to a LangChain agent (`createAgent` + the `search_web` tool, max 3 searches) that gets the articles found so far and searches with its own queries.
   1. Every place is kept only if a source article actually mentions it (`web-grounding.ts`).
-  2. Each place is matched to the catalog by name similarity, or geocoded with Google, which is not cached.
-  3. Agent results are cached in memory for 6 hours.
+  2. Each place is matched to the catalog by name similarity, or geocoded with Google (coordinates cached in memory for up to 30 days).
+  3. Results are cached in memory for 6 hours. Publication dates (≤ 1.5 s) and a missing region bbox (≤ 3 s) are not waited on past their budget; they finish in the background and fill the cached result.
   4. Without a `TAVILY_API_KEY` it returns 503.
 
 `src/modules/README.md` is the module map and documents these flows and the deliberate PRD deviations. Update it when module responsibilities change.
