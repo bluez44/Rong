@@ -39,7 +39,8 @@ export default function RegionScreen() {
   const articles = useRegionPlaces(params.id, categories, 'v2');
   const places = api === 'v1' ? catalog : articles;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [detent, setDetent] = useState<SheetDetent>('half');
+  // Mở màn thì sheet thu gọn để thấy bản đồ; chọn marker hay kéo lên mới mở danh sách.
+  const [detent, setDetent] = useState<SheetDetent>('collapsed');
   const [halfHeight, setHalfHeight] = useState(0);
   const list = useRef<FlatList<PlaceListItem>>(null);
   const draft = useTripDraft(params.id);
