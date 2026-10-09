@@ -13,9 +13,8 @@ import type {
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
-import type { PlacesType } from '../../chat-models/schema.js';
-import { PlaceSearchAgent } from '../../langchain/place-search-agent.js';
-import type { WebSource } from '../../langchain/web-search.tool.js';
+import type { WebPlacesType } from '../../chat-models/schema.js';
+import { PlaceSearchService } from '../../langchain/place-search.service.js';
 import { GooglePlacesService } from '../google/google-places.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
@@ -26,8 +25,8 @@ import { articlesMentioning, fetchPublishedDate } from './web-grounding.js';
 
 /**
  * Kết quả agent (tên, địa chỉ, mô tả, bài viết nguồn kèm ngày đăng) của một
- * vùng được giữ chừng này. Tọa độ thì tra lại mỗi request: tọa độ Google không
- * được cache (PRD 7.4).
+ * vùng được giữ chừng này. Tọa độ không nằm trong cache này mà tra lại mỗi
+ * request; GooglePlacesService tự cache tọa độ Geocoding tối đa 30 ngày (PRD 7.4).
  */
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 /** Độ giống tên tối thiểu (pg_trgm, đã bỏ dấu) để coi là cùng địa điểm trong danh mục. */
@@ -36,11 +35,20 @@ const CATALOG_MIN_SIMILARITY = 0.6;
 const CATALOG_MIN_LENGTH_RATIO = 0.75;
 /** Nới khung bao khi kiểm tra tọa độ AI ước lượng (~2 km). */
 const AI_LOCATION_PADDING_DEG = 0.02;
+/**
+ * Chờ đọc ngày đăng bài tối đa chừng này rồi trả kết quả; bài chưa xong vẫn
+ * tải tiếp ở nền và điền vào kết quả trong cache cho lần sau.
+ */
+const DATES_WAIT_MS = 1500;
+/** Tương tự với khung bao của vùng chưa có (Overpass có thể mất cả phút). */
+const BBOX_WAIT_MS = 3000;
+/** Mỗi lượt Geocoding; quá giờ thì dùng tọa độ AI nếu nằm trong vùng. */
+const GEOCODE_TIMEOUT_MS = 4000;
 
 const DEFAULT_CATEGORIES = PLACE_CATEGORIES.filter((c) => c !== 'stay');
 
 /** Địa điểm của agent đã được đối chiếu: có ít nhất một bài viết nhắc tới. */
-type GroundedPlace = PlacesType[number] & { articles: ArticleSource[] };
+type GroundedPlace = WebPlacesType[number] & { articles: ArticleSource[] };
 
 interface RegionRow {
   name: string;
@@ -50,6 +58,7 @@ interface RegionRow {
 
 interface AgentResult {
   regionName: string;
+  /** null khi chưa tính xong trong BBOX_WAIT_MS; được điền sau khi có. */
   bbox: Bbox | null;
   places: GroundedPlace[];
   sources: ArticleSource[];
@@ -104,7 +113,7 @@ export class PlacesV2Service {
 
   constructor(
     @InjectDataSource() private readonly db: DataSource,
-    private readonly agent: PlaceSearchAgent,
+    private readonly agent: PlaceSearchService,
     private readonly areas: RegionAreaService,
     private readonly google: GooglePlacesService,
   ) {}
@@ -203,7 +212,7 @@ export class PlacesV2Service {
         });
 
     const started = Date.now();
-    let found: Awaited<ReturnType<PlaceSearchAgent['findPlaces']>>;
+    let found: Awaited<ReturnType<PlaceSearchService['findPlaces']>>;
     try {
       found = await this.agent.findPlaces(regionName);
     } catch (error) {
@@ -234,42 +243,53 @@ export class PlacesV2Service {
       );
     }
 
-    // Ngày đăng: Tavily hiếm khi có, nên đọc meta của trang. Chạy song song
-    // với việc chờ khung bao; chỉ tải các bài thật sự được dẫn.
-    const cited = new Map<string, WebSource>();
+    // Ngày đăng: Tavily hiếm khi có, nên đọc meta của trang; chỉ tải các bài
+    // thật sự được dẫn. Mỗi bài là một object dùng chung giữa các địa điểm và
+    // danh sách nguồn, nên điền ngày muộn vẫn hiện ở mọi chỗ.
+    const cited = new Map<string, ArticleSource>();
     for (const { articles } of grounded) {
-      for (const article of articles) cited.set(article.uri, article);
+      for (const article of articles) {
+        if (!cited.has(article.uri)) {
+          cited.set(article.uri, {
+            title: article.title,
+            uri: article.uri,
+            publishedAt: article.publishedAt,
+          });
+        }
+      }
     }
     const datesStarted = Date.now();
-    const dates = new Map(
-      await Promise.all(
-        [...cited.values()].map(
-          async (article) =>
-            [
-              article.uri,
-              article.publishedAt ?? (await fetchPublishedDate(article.uri)),
-            ] as const,
-        ),
-      ),
-    );
+    const lookups = [...cited.values()]
+      .filter((article) => article.publishedAt === null)
+      .map(async (article) => {
+        article.publishedAt = await fetchPublishedDate(article.uri);
+      });
+    const datesDone = await waitAtMost(Promise.all(lookups), DATES_WAIT_MS);
     this.logger.log(
-      `"${regionName}": ngày đăng ${[...dates.values()].filter(Boolean).length}/${dates.size} bài trong ${Date.now() - datesStarted} ms`,
+      `"${regionName}": ngày đăng ${[...cited.values()].filter((a) => a.publishedAt).length}/${cited.size} bài trong ${Date.now() - datesStarted} ms` +
+        (datesDone ? '' : ' (phần còn lại tải ở nền)'),
     );
 
-    const toArticle = (source: WebSource): ArticleSource => ({
-      title: source.title,
-      uri: source.uri,
-      publishedAt: dates.get(source.uri) ?? null,
-    });
-    return {
+    const result: AgentResult = {
       regionName,
-      bbox: await bbox,
+      bbox: null,
       places: grounded.map(({ place, articles }) => ({
         ...place,
-        articles: articles.map(toArticle),
+        articles: articles.map((article) => cited.get(article.uri)!),
       })),
-      sources: [...cited.values()].map(toArticle),
+      sources: [...cited.values()],
     };
+    // Khung bao chưa có trong BBOX_WAIT_MS thì trả trước (tra tọa độ không
+    // giới hạn vùng), điền vào kết quả trong cache khi tính xong.
+    const box = bbox.then((value) => {
+      result.bbox = value;
+    });
+    if (!(await waitAtMost(box, BBOX_WAIT_MS))) {
+      this.logger.warn(
+        `"${regionName}": khung bao chưa có sau ${BBOX_WAIT_MS} ms, trả kết quả trước`,
+      );
+    }
+    return result;
   }
 
   private async resolveLocations(
@@ -312,6 +332,7 @@ export class PlacesV2Service {
               .filter(Boolean)
               .join(', '),
             bbox,
+            GEOCODE_TIMEOUT_MS,
           );
         } finally {
           timing.geocodeSlowestMs = Math.max(
@@ -441,6 +462,22 @@ function insideBbox(
     lng >= west - padding &&
     lng <= east + padding
   );
+}
+
+/** true nếu `promise` xong trong `ms`; không hủy promise khi quá giờ. */
+async function waitAtMost(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  try {
+    return await Promise.race([promise.then(() => true), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function unavailable(): ServiceUnavailableException {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WebSource } from '../../langchain/web-search.tool.js';
+import type { WebSource } from '../../langchain/web-search.js';
 import {
   articlesMentioning,
   extractPublishedDate,

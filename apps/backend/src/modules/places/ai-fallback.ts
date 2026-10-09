@@ -12,7 +12,7 @@ const HHMM = /^([01]?\d|2[0-4]):[0-5]\d$/;
  * tọa độ ngoài Việt Nam thì bỏ cả mục, giờ sai thì để "không rõ".
  */
 export function aiPlaceToListItem(
-  place: PlacesType[number],
+  place: Omit<PlacesType[number], 'tags'>,
   regionName: string,
 ): PlaceListItem | null {
   const { lat, lng } = place.location ?? {};

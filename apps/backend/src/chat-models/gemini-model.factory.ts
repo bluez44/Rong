@@ -1,6 +1,16 @@
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import {
+  ChatGoogleGenerativeAI,
+  type GoogleGenerativeAIChatInput,
+} from '@langchain/google-genai';
 
-export function createGeminiModel() {
+/**
+ * `thinkingConfig`: Gemini 3 mặc định tự chọn mức suy nghĩ, có thể sinh rất
+ * nhiều token trước khi trả lời. Việc chỉ là trích xuất (như đọc bài viết lấy
+ * địa điểm) thì hạ xuống `LOW` để nhanh hơn hẳn.
+ */
+export function createGeminiModel(
+  options: Pick<GoogleGenerativeAIChatInput, 'thinkingConfig'> = {},
+) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -13,5 +23,6 @@ export function createGeminiModel() {
     model: 'gemini-3-flash-preview',
     temperature: 0,
     maxRetries: 0,
+    ...options,
   });
 }

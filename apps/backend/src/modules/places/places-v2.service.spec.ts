@@ -5,8 +5,8 @@ import {
 import type { DataSource } from 'typeorm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { PlaceSearchAgent } from '../../langchain/place-search-agent.js';
-import type { WebSource } from '../../langchain/web-search.tool.js';
+import type { PlaceSearchService } from '../../langchain/place-search.service.js';
+import type { WebSource } from '../../langchain/web-search.js';
 import {
   GoogleUnavailableError,
   type GooglePlacesService,
@@ -54,7 +54,7 @@ function build(options: {
   region?: object | null;
   places?: ReturnType<typeof place>[];
   sources?: WebSource[];
-  findPlaces?: PlaceSearchAgent['findPlaces'];
+  findPlaces?: PlaceSearchService['findPlaces'];
   catalog?: object[];
   locate?: GooglePlacesService['geocode'];
   googleEnabled?: boolean;
@@ -101,7 +101,7 @@ function build(options: {
     {
       enabled: options.agentEnabled ?? true,
       findPlaces,
-    } as unknown as PlaceSearchAgent,
+    } as unknown as PlaceSearchService,
     { ensure } as unknown as RegionAreaService,
     {
       enabled: options.googleEnabled ?? true,
@@ -151,7 +151,7 @@ describe('PlacesV2Service — định vị', () => {
     });
     const page = await service.listForRegion(REGION_ID, {});
 
-    expect(locate).toHaveBeenCalledWith('Quán A, 2 Lê Lợi, Đà Lạt, Lâm Đồng', BBOX);
+    expect(locate).toHaveBeenCalledWith('Quán A, 2 Lê Lợi, Đà Lạt, Lâm Đồng', BBOX, 4000);
     expect(page.attribution).toContain('Google Maps');
     expect(page.items).toEqual([
       expect.objectContaining({
@@ -223,14 +223,14 @@ describe('PlacesV2Service — định vị', () => {
     const ok = build({ region: noBbox });
     await ok.service.listForRegion(REGION_ID, {});
     expect(ok.ensure).toHaveBeenCalledWith(REGION_ID);
-    expect(ok.locate).toHaveBeenCalledWith(expect.any(String), BBOX);
+    expect(ok.locate).toHaveBeenCalledWith(expect.any(String), BBOX, 4000);
 
     const failed = build({
       region: noBbox,
       ensure: () => Promise.reject(new Error('Nominatim down')),
     });
     const page = await failed.service.listForRegion(REGION_ID, {});
-    expect(failed.locate).toHaveBeenCalledWith('Hồ Xuân Hương, Đà Lạt', null);
+    expect(failed.locate).toHaveBeenCalledWith('Hồ Xuân Hương, Đà Lạt', null, 4000);
     expect(failed.query).toHaveBeenCalledTimes(1);
     expect(page.items).toHaveLength(1);
   });
@@ -282,6 +282,66 @@ describe('PlacesV2Service — đối chiếu nguồn', () => {
     const { service } = build({});
     const page = await service.listForRegion(REGION_ID, {});
     expect(page.items[0].articles?.[0].publishedAt).toBeNull();
+  });
+
+  it('trang chậm thì không chờ quá 1,5 giây; ngày đọc xong sau được điền vào cache', async () => {
+    vi.useFakeTimers();
+    try {
+      let respond!: (response: Response) => void;
+      pageFetch.mockImplementation(
+        () => new Promise<Response>((resolve) => (respond = resolve)),
+      );
+      const { service, findPlaces } = build({ googleEnabled: false });
+
+      const pending = service.listForRegion(REGION_ID, {});
+      await vi.advanceTimersByTimeAsync(1500);
+      const first = await pending;
+      expect(first.items[0].articles?.[0].publishedAt).toBeNull();
+
+      respond(
+        new Response(
+          '<meta property="article:published_time" content="2024-03-12T00:00:00Z">',
+          { headers: { 'content-type': 'text/html' } },
+        ),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      const second = await service.listForRegion(REGION_ID, {});
+      expect(second.items[0].articles?.[0].publishedAt).toBe(
+        '2024-03-12T00:00:00.000Z',
+      );
+      expect(second.groundingSources?.[0].publishedAt).toBe(
+        '2024-03-12T00:00:00.000Z',
+      );
+      expect(findPlaces).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('PlacesV2Service — khung bao chậm', () => {
+  it('không chờ quá 3 giây; tính xong thì lần sau mới dùng khung bao', async () => {
+    vi.useFakeTimers();
+    try {
+      type Bbox = Awaited<ReturnType<RegionAreaService['ensure']>>;
+      let resolveBbox!: (bbox: Bbox) => void;
+      const { service, locate } = build({
+        region: { name: 'Đà Lạt', parent_name: null, bbox: null },
+        ensure: () => new Promise<Bbox>((resolve) => (resolveBbox = resolve)),
+      });
+
+      const pending = service.listForRegion(REGION_ID, {});
+      await vi.advanceTimersByTimeAsync(3000);
+      expect((await pending).items).toHaveLength(1);
+      expect(locate).toHaveBeenLastCalledWith(expect.any(String), null, 4000);
+
+      resolveBbox(BBOX as Bbox);
+      await vi.advanceTimersByTimeAsync(0);
+      await service.listForRegion(REGION_ID, {});
+      expect(locate).toHaveBeenLastCalledWith(expect.any(String), BBOX, 4000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

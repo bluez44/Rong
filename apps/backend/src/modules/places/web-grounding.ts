@@ -1,4 +1,4 @@
-import type { WebSource } from '../../langchain/web-search.tool.js';
+import type { WebSource } from '../../langchain/web-search.js';
 
 /**
  * Chuẩn hóa để so tên với nội dung bài: bỏ dấu (kể cả đ), chữ thường, mọi
@@ -69,13 +69,20 @@ const PUBLISHED_META_KEYS = new Set([
 export function extractPublishedDate(html: string): string | null {
   for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
     const attrs = parseAttributes(tag);
-    const key = (attrs.property ?? attrs.name ?? attrs.itemprop ?? '').toLowerCase();
+    const key = (
+      attrs.property ??
+      attrs.name ??
+      attrs.itemprop ??
+      ''
+    ).toLowerCase();
     if (PUBLISHED_META_KEYS.has(key)) {
       const date = toIsoDate(attrs.content);
       if (date) return date;
     }
   }
-  for (const tag of html.match(/<[a-z]+\b[^>]*itemprop=["']datePublished["'][^>]*>/gi) ?? []) {
+  for (const tag of html.match(
+    /<[a-z]+\b[^>]*itemprop=["']datePublished["'][^>]*>/gi,
+  ) ?? []) {
     const attrs = parseAttributes(tag);
     const date = toIsoDate(attrs.datetime ?? attrs.content);
     if (date) return date;
@@ -89,7 +96,9 @@ export function extractPublishedDate(html: string): string | null {
 
 function parseAttributes(tag: string): Record<string, string> {
   const attrs: Record<string, string> = {};
-  for (const match of tag.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+  for (const match of tag.matchAll(
+    /([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g,
+  )) {
     attrs[match[1].toLowerCase()] = match[2] ?? match[3] ?? '';
   }
   return attrs;
@@ -109,6 +118,8 @@ function toIsoDate(value: string | undefined): string | null {
 const DATE_FETCH_TIMEOUT_MS = 4000;
 /** Meta ngày đăng nằm trong <head>, không cần đọc cả trang. */
 const MAX_HTML_CHARS = 300_000;
+/** Đọc thêm chừng này sau </head>: JSON-LD có khi nằm ngay đầu <body>. */
+const AFTER_HEAD_CHARS = 20_000;
 
 /** Tải trang và đọc ngày đăng. Lỗi, hết giờ hay không có ngày đều trả null. */
 export async function fetchPublishedDate(
@@ -128,8 +139,30 @@ export async function fetchPublishedDate(
     if (!(response.headers.get('content-type') ?? '').includes('html')) {
       return null;
     }
-    return extractPublishedDate((await response.text()).slice(0, MAX_HTML_CHARS));
+    return extractPublishedDate(await readHead(response));
   } catch {
     return null;
   }
+}
+
+/** Đọc dần trang, dừng sau </head> (cộng một đoạn) hoặc khi đủ MAX_HTML_CHARS. */
+async function readHead(response: Response): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let html = '';
+  let limit = MAX_HTML_CHARS;
+  try {
+    while (html.length < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      const headEnd = html.search(/<\/head>/i);
+      if (headEnd >= 0) limit = Math.min(limit, headEnd + AFTER_HEAD_CHARS);
+    }
+  } finally {
+    // Bỏ phần còn lại của trang thay vì tải hết.
+    void reader.cancel().catch(() => undefined);
+  }
+  return html.slice(0, limit);
 }

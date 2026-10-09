@@ -40,3 +40,11 @@ export const Places = z.array(
 );
 
 export type PlacesType = z.infer<typeof Places>;
+
+/**
+ * Địa điểm đọc từ bài viết (API v2): bỏ `tags` vì không màn nào hiển thị,
+ * bớt chữ Gemini phải sinh cho mỗi địa điểm.
+ */
+export const WebPlaces = z.array(Places.element.omit({ tags: true }));
+
+export type WebPlacesType = z.infer<typeof WebPlaces>;
