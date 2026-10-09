@@ -4,8 +4,13 @@ import { Platform } from 'react-native';
 
 export type Session = {
   accessToken: string;
-  /** Mốc hết hạn, ms kể từ epoch. */
+  /** Mốc hết hạn của accessToken, ms kể từ epoch. */
   expiresAt: number;
+  /**
+   * Đổi lấy accessToken mới khi hết hạn (sống 60 ngày, mỗi lần đổi tính lại).
+   * Phiên lưu từ trước khi có refresh token thì không có trường này.
+   */
+  refreshToken?: string;
   user: UserProfile;
 };
 
@@ -26,7 +31,8 @@ export async function loadSession(): Promise<Session | null> {
     const raw = await store.get();
     if (!raw) return null;
     const session = JSON.parse(raw) as Session;
-    return session.expiresAt > Date.now() ? session : null;
+    // Access token hết hạn mà còn refresh token thì vẫn giữ phiên: lần gọi API đầu sẽ đổi token.
+    return session.refreshToken || session.expiresAt > Date.now() ? session : null;
   } catch {
     return null;
   }
