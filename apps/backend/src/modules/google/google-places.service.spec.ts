@@ -213,12 +213,19 @@ describe('GooglePlacesService.geocode', () => {
 
   it('gọi Geocoding API với khóa Maps, ưu tiên khung bao của vùng', async () => {
     const calls = mockFetch(() => ({
-      body: { status: 'OK', results: [result(['tourist_attraction', 'point_of_interest'])] },
+      body: {
+        status: 'OK',
+        results: [result(['tourist_attraction', 'point_of_interest'])],
+      },
     }));
 
     await expect(
       service().geocode('Hồ Xuân Hương, Đà Lạt', BBOX),
-    ).resolves.toEqual({ placeId: 'id-tourist_attraction', lat: 11.94, lng: 108.44 });
+    ).resolves.toEqual({
+      placeId: 'id-tourist_attraction',
+      lat: 11.94,
+      lng: 108.44,
+    });
 
     const url = new URL(calls[0].url);
     expect(url.origin + url.pathname).toBe(GEOCODE);
@@ -252,7 +259,10 @@ describe('GooglePlacesService.geocode', () => {
 
   it('không có khung bao thì không gửi bounds và không lọc vị trí', async () => {
     const calls = mockFetch(() => ({
-      body: { status: 'OK', results: [result(['point_of_interest'], 21.03, 105.85)] },
+      body: {
+        status: 'OK',
+        results: [result(['point_of_interest'], 21.03, 105.85)],
+      },
     }));
     await expect(service().geocode('Hồ Gươm', null)).resolves.toMatchObject({
       lat: 21.03,
@@ -279,5 +289,56 @@ describe('GooglePlacesService.geocode', () => {
     await expect(service(null).geocode('x', BBOX)).rejects.toBeInstanceOf(
       GoogleUnavailableError,
     );
+  });
+
+  it('cache tọa độ theo truy vấn + khung bao, hết 30 ngày thì gọi lại', async () => {
+    vi.useFakeTimers();
+    try {
+      const calls = mockFetch(() => ({
+        body: { status: 'OK', results: [result(['point_of_interest'])] },
+      }));
+      const google = service();
+
+      await google.geocode('Hồ Xuân Hương', BBOX);
+      await expect(
+        google.geocode('Hồ Xuân Hương', BBOX),
+      ).resolves.toMatchObject({
+        lat: 11.94,
+      });
+      expect(calls).toHaveLength(1);
+
+      await google.geocode('Hồ Xuân Hương', null);
+      expect(calls).toHaveLength(2);
+
+      vi.advanceTimersByTime(30 * 24 * 60 * 60 * 1000 + 1);
+      await google.geocode('Hồ Xuân Hương', BBOX);
+      expect(calls).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('không tìm ra thì nhớ một ngày; lỗi thì không cache', async () => {
+    vi.useFakeTimers();
+    try {
+      const google = service();
+      mockFetch(() => ({ status: 500, body: {} }));
+      await expect(google.geocode('x', BBOX)).rejects.toBeInstanceOf(
+        GoogleUnavailableError,
+      );
+
+      const calls = mockFetch(() => ({
+        body: { status: 'ZERO_RESULTS', results: [] },
+      }));
+      await expect(google.geocode('x', BBOX)).resolves.toBeNull();
+      await expect(google.geocode('x', BBOX)).resolves.toBeNull();
+      expect(calls).toHaveLength(1);
+
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+      await google.geocode('x', BBOX);
+      expect(calls).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

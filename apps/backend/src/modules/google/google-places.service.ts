@@ -92,14 +92,30 @@ interface RawPlace {
 }
 
 /**
+ * Tọa độ Geocoding được cache tối đa 30 ngày (PRD 7.4 nguyên tắc 2, ToS
+ * 3.2.3(b)). Chỉ giữ trong bộ nhớ, không ghi DB, nên khởi động lại là mất.
+ */
+const GEOCODE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** Không tìm ra thì nhớ ngắn hơn: Google có thể thêm địa điểm sau đó. */
+const GEOCODE_MISS_TTL_MS = 24 * 60 * 60 * 1000;
+const GEOCODE_CACHE_MAX = 10_000;
+
+type GeocodeHit = { placeId: string; lat: number; lng: number };
+
+/**
  * Cổng duy nhất tới Google Maps Platform (Places API New, Geocoding API) —
  * PRD 7.4. Không module nào khác
- * được gọi Google. Không lưu và không cache gì ngoài place_id (do PlacesService
- * lưu); mọi nội dung khác đi thẳng từ Google ra response.
+ * được gọi Google. Không lưu gì ngoài place_id (do PlacesService lưu) và
+ * không cache gì ngoài tọa độ Geocoding (tối đa 30 ngày, trong bộ nhớ); mọi
+ * nội dung khác đi thẳng từ Google ra response.
  */
 @Injectable()
 export class GooglePlacesService {
   private readonly logger = new Logger(GooglePlacesService.name);
+  private readonly geocodeCache = new Map<
+    string,
+    { expiresAt: number; value: GeocodeHit | null }
+  >();
 
   constructor(@Inject(GOOGLE_CONFIG) private readonly config: GoogleConfig) {}
 
@@ -147,8 +163,8 @@ export class GooglePlacesService {
 
   /**
    * Tra tọa độ một địa điểm theo tên (+ địa chỉ) bằng Geocoding API, cho API
-   * v2. Tọa độ trả về chỉ được đưa thẳng ra response, không lưu hay cache
-   * (PRD 7.4); chỉ place_id được phép giữ lại.
+   * v2. Kết quả (kể cả không tìm ra) được cache trong bộ nhớ, tọa độ tối đa 30
+   * ngày (PRD 7.4); lỗi thì không cache. Không ghi tọa độ Google vào DB.
    *
    * `bounds` của Geocoding chỉ ưu tiên chứ không giới hạn, và không tìm ra
    * địa điểm thì Geocoding hay trả tâm phường/thành phố — nên kết quả ngoài
@@ -157,7 +173,31 @@ export class GooglePlacesService {
   async geocode(
     query: string,
     bbox: [south: number, west: number, north: number, east: number] | null,
-  ): Promise<{ placeId: string; lat: number; lng: number } | null> {
+    timeoutMs = 10_000,
+  ): Promise<GeocodeHit | null> {
+    const key = `${query}|${bbox?.join(',') ?? ''}`;
+    const cached = this.geocodeCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const value = await this.geocodeUncached(query, bbox, timeoutMs);
+    this.geocodeCache.delete(key);
+    if (this.geocodeCache.size >= GEOCODE_CACHE_MAX) {
+      // Map giữ thứ tự chèn: bỏ mục cũ nhất.
+      const oldest = this.geocodeCache.keys().next().value;
+      if (oldest !== undefined) this.geocodeCache.delete(oldest);
+    }
+    this.geocodeCache.set(key, {
+      expiresAt: Date.now() + (value ? GEOCODE_TTL_MS : GEOCODE_MISS_TTL_MS),
+      value,
+    });
+    return value;
+  }
+
+  private async geocodeUncached(
+    query: string,
+    bbox: [south: number, west: number, north: number, east: number] | null,
+    timeoutMs: number,
+  ): Promise<GeocodeHit | null> {
     if (this.config.mapsApiKey === null) {
       throw new GoogleUnavailableError('Chưa cấu hình GOOGLE_MAPS_API_KEY.');
     }
@@ -169,13 +209,14 @@ export class GooglePlacesService {
       components: 'country:VN',
       key: this.config.mapsApiKey,
     });
-    if (bbox) params.set('bounds', `${bbox[0]},${bbox[1]}|${bbox[2]},${bbox[3]}`);
+    if (bbox)
+      params.set('bounds', `${bbox[0]},${bbox[1]}|${bbox[2]},${bbox[3]}`);
 
     const started = Date.now();
     let body: GeocodeResponse;
     try {
       const response = await fetch(`${this.config.geocodingUrl}?${params}`, {
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) {
         throw new GoogleUnavailableError(
