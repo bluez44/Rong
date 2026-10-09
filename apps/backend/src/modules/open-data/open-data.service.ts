@@ -15,6 +15,12 @@ export const OPEN_DATA_CONFIG = 'OPEN_DATA_CONFIG';
 const VIETNAM_BBOX: Bbox = [8.0, 102.0, 23.6, 110.0];
 
 /**
+ * Mọi máy chủ Overpass cùng lỗi thì trong chừng này báo lỗi ngay, không gọi
+ * lại: mỗi lượt thử cả danh sách mất hàng chục giây, và người dùng đang chờ.
+ */
+const OVERPASS_COOLDOWN_MS = 3 * 60 * 1000;
+
+/**
  * Cổng duy nhất ra các dịch vụ dữ liệu mở (OSM Nominatim, Overpass, Wikidata).
  * Không có AI ở đây: mọi thứ là truy vấn có cấu trúc và thuật toán xử lý kết
  * quả. Giống `google/`, gom về một chỗ để kiểm soát giới hạn tần suất và ghi
@@ -28,6 +34,8 @@ export class OpenDataService {
     string,
     { at: number; value: Promise<OverpassElement[]> }
   >();
+  /** Lần cuối mọi máy chủ Overpass đều lỗi, cho OVERPASS_COOLDOWN_MS. */
+  private overpassDown: { until: number; reason: string } | null = null;
 
   constructor(
     @Inject(OPEN_DATA_CONFIG) private readonly config: OpenDataConfig,
@@ -153,10 +161,22 @@ export class OpenDataService {
    * `remark` và danh sách rỗng — coi đó là lỗi, không phải "không có kết quả".
    */
   private async overpass<T>(query: string): Promise<T> {
+    const down = this.overpassDown;
+    if (down && Date.now() < down.until) {
+      throw new OpenDataError(
+        `Overpass đang lỗi ở mọi máy chủ (${down.reason}); thử lại sau ${Math.ceil((down.until - Date.now()) / 1000)} giây.`,
+      );
+    }
+
     let lastError: unknown;
+    // Chỉ đếm lỗi của máy chủ (mạng, HTTP 429/5xx). Truy vấn nặng bị hết giờ
+    // (remark) là lỗi của riêng truy vấn đó, không phải Overpass sập.
+    let serverFailures = 0;
     for (const url of this.config.overpassUrls) {
+      const host = new URL(url).host;
+      let body: T & { remark?: string };
       try {
-        const body = await this.http.getJson<T & { remark?: string }>(
+        body = await this.http.getJson<T & { remark?: string }>(
           url,
           {
             method: 'POST',
@@ -165,20 +185,33 @@ export class OpenDataService {
           },
           200_000,
         );
-        if (body.remark && /error|timed out|out of memory/i.test(body.remark)) {
-          throw new OpenDataError(
-            `Overpass (${new URL(url).host}): ${body.remark}`,
-          );
-        }
-        return body;
       } catch (error) {
         lastError = error;
         // Truy vấn sai cú pháp (HTTP 400) thì máy chủ nào cũng từ chối — không thử tiếp.
         if (error instanceof OpenDataError && !error.retryable) throw error;
+        serverFailures++;
         this.logger.warn(
-          `Overpass ${new URL(url).host} lỗi: ${(error as Error).message}; thử máy chủ kế tiếp.`,
+          `Overpass ${host} lỗi: ${(error as Error).message}; thử máy chủ kế tiếp.`,
         );
+        continue;
       }
+      if (body.remark && /error|timed out|out of memory/i.test(body.remark)) {
+        lastError = new OpenDataError(`Overpass (${host}): ${body.remark}`);
+        this.logger.warn(
+          `Overpass ${host}: ${body.remark}; thử máy chủ kế tiếp.`,
+        );
+        continue;
+      }
+      this.overpassDown = null;
+      return body;
+    }
+
+    if (serverFailures === this.config.overpassUrls.length) {
+      const reason = (lastError as Error).message;
+      this.overpassDown = { until: Date.now() + OVERPASS_COOLDOWN_MS, reason };
+      this.logger.warn(
+        `Mọi máy chủ Overpass đều lỗi; tạm ngừng gọi trong ${OVERPASS_COOLDOWN_MS / 1000} giây.`,
+      );
     }
     throw lastError;
   }

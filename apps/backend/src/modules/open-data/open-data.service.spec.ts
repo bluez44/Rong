@@ -126,6 +126,46 @@ describe('Overpass nhiều máy chủ', () => {
       /mirror\.test trả về HTTP 504/,
     );
   });
+
+  it('mọi máy chủ đều lỗi thì tạm ngừng gọi 3 phút, hết hạn thì thử lại', async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 504 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const s = service();
+    const box: [number, number, number, number] = [11.8, 108.3, 12, 108.6];
+
+    await expect(
+      s.placesInBbox(box, ['["amenity"="cafe"]'], 10),
+    ).rejects.toThrow(/HTTP 504/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Lần sau báo lỗi ngay, không gọi máy chủ nào.
+    await expect(s.listBoundaries('6')).rejects.toThrow(/Overpass đang lỗi/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const now = Date.now();
+    const clock = vi
+      .spyOn(Date, 'now')
+      .mockReturnValue(now + 3 * 60 * 1000 + 1);
+    try {
+      fetchMock.mockImplementation(
+        async () => new Response(JSON.stringify({ elements: [relation] })),
+      );
+      await expect(s.listBoundaries('6')).resolves.toEqual([relation]);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('truy vấn nặng bị hết giờ (remark) ở mọi máy chủ không làm tạm ngừng', async () => {
+    overpassReturns({ elements: [], remark: 'runtime error: Query timed out' });
+    const s = service();
+
+    await expect(s.listBoundaries('4')).rejects.toThrow(/timed out/);
+    await expect(s.listBoundaries('4')).rejects.toThrow(/timed out/);
+    // Lần hai vẫn gửi truy vấn đi (2 máy chủ × 2 lần).
+    expect(queries).toHaveLength(4);
+  });
 });
 
 describe('lỗi mạng', () => {

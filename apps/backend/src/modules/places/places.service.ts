@@ -53,6 +53,12 @@ const WIKIDATA_CAP = 1000;
 /** Địa điểm chưa ghép được với Google thì sau chừng này mới thử lại (quán mới mở có thể đã lên Google). */
 const GOOGLE_REMATCH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Vùng chưa từng tải thì chờ OSM tối đa chừng này. Overpass công cộng có lúc
+ * mất vài phút (hoặc lỗi ở mọi máy chủ); người dùng không nên chờ theo.
+ */
+const FIRST_LOAD_WAIT_MS = 15_000;
+
 /** Mặc định không gồm lưu trú, để khách sạn không lấn át điểm vui chơi (FR-2.12). */
 const DEFAULT_CATEGORIES = PLACE_CATEGORIES.filter((c) => c !== 'stay');
 
@@ -103,7 +109,17 @@ export class PlacesService {
       bbox = await this.areas.ensure(regionId);
       const freshness = await this.freshness(regionId);
       if (freshness === 'never') {
-        await this.ensureFresh(regionId, bbox);
+        // Lần tải đầu: chờ có giới hạn. Quá giờ thì tải tiếp ở nền (lần sau
+        // có dữ liệu) và lần này dùng phương án dự phòng như khi OSM lỗi.
+        const pending = this.ensureFresh(regionId, bbox);
+        if (!(await settlesWithin(pending, FIRST_LOAD_WAIT_MS))) {
+          pending.catch((error: Error) =>
+            this.logger.warn(`Tải nền vùng ${regionId} lỗi: ${error.message}`),
+          );
+          throw new OpenDataError(
+            `Tải địa điểm từ OSM quá ${FIRST_LOAD_WAIT_MS / 1000} giây; tiếp tục ở nền`,
+          );
+        }
       } else if (freshness === 'stale') {
         // Đã có dữ liệu thì trả ngay, làm mới ở nền: không bắt người dùng chờ Overpass.
         this.ensureFresh(regionId, bbox).catch((error: Error) =>
@@ -445,6 +461,22 @@ export class PlacesService {
 interface DetailRow extends PlaceRow {
   google_place_id: string | null;
   google_matched_at: Date | null;
+}
+
+/** true nếu `promise` xong trong `ms`; lỗi trong thời gian đó thì ném ra. Không hủy promise. */
+async function settlesWithin(
+  promise: Promise<unknown>,
+  ms: number,
+): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  try {
+    return await Promise.race([promise.then(() => true), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Lỗi do nguồn dữ liệu mở (mạng, quá tải, không xác định được khu vực) — đáng chuyển sang dự phòng. */
