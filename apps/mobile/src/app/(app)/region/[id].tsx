@@ -1,7 +1,10 @@
 import type { PlaceCategory, PlaceListItem } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+// Bản của gesture-handler: phối hợp được với cử chỉ kéo sheet (PlaceSheet), bản
+// của react-native thì bị cử chỉ đó giành mất nên không cuộn được.
+import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
