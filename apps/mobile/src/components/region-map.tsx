@@ -1,7 +1,8 @@
 import type { PlaceListItem } from '@rong/shared-types';
+import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
-import MapView, { Marker, type Region } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 
 import { placeKey, type RegionMapProps } from '@/components/region-map-shared';
 import { MapMarker } from '@/components/ui/map-marker';
@@ -9,12 +10,25 @@ import { MAX_MAP_MARKERS } from '@/constants/places';
 import { Spacing } from '@/constants/theme';
 
 const FALLBACK_DELTA = 0.2;
+/** Khung quanh vị trí người dùng khi tự căn giữa lúc mở màn (~3 km). */
+const USER_DELTA = 0.03;
 
 export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomInset, topInset }: RegionMapProps) {
   const map = useRef<MapView>(null);
   const [visible, setVisible] = useState<Region | null>(null);
   const fittedToPlaces = useRef(false);
   const padding = { top: topInset + Spacing.four, right: Spacing.six, bottom: bottomInset + Spacing.four, left: Spacing.six };
+
+  // Chấm vị trí và nút "vị trí của tôi" là của bản đồ; app chỉ cần xin quyền.
+  const [locationGranted, setLocationGranted] = useState(false);
+  // Chỉ tự căn giữa vào người dùng một lần, ở lần đầu bản đồ báo có vị trí.
+  const centeredOnUser = useRef(false);
+
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync()
+      .then(({ status }) => setLocationGranted(status === 'granted'))
+      .catch(() => undefined);
+  }, []);
 
   const initialRegion: Region | undefined = bbox
     ? {
@@ -38,9 +52,9 @@ export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomI
     );
   };
 
-  // Vùng chưa có khung bao (FR-1.5): zoom vừa các địa điểm của trang đầu.
+  // Vùng chưa có khung bao (FR-1.5): zoom vừa các địa điểm của trang đầu, nếu chưa căn vào người dùng.
   useEffect(() => {
-    if (bbox || fittedToPlaces.current || places.length === 0) return;
+    if (bbox || fittedToPlaces.current || centeredOnUser.current || places.length === 0) return;
     fittedToPlaces.current = true;
     map.current?.fitToCoordinates(
       places.map((p) => ({ latitude: p.coordinates.lat, longitude: p.coordinates.lng })),
@@ -65,9 +79,20 @@ export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomI
       ref={map}
       style={StyleSheet.absoluteFill}
       initialRegion={initialRegion}
+      provider={PROVIDER_GOOGLE}
       mapPadding={padding}
       onMapReady={fitBbox}
       onRegionChangeComplete={setVisible}
+      showsUserLocation={locationGranted}
+      showsMyLocationButton={locationGranted}
+      onUserLocationChange={({ nativeEvent: { coordinate } }) => {
+        if (centeredOnUser.current || !coordinate) return;
+        centeredOnUser.current = true;
+        map.current?.animateToRegion(
+          { latitude: coordinate.latitude, longitude: coordinate.longitude, latitudeDelta: USER_DELTA, longitudeDelta: USER_DELTA },
+          500,
+        );
+      }}
       showsPointsOfInterests={false}
       toolbarEnabled={false}
       showsCompass={false}>

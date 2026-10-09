@@ -56,6 +56,13 @@ const config: ExpoConfig = {
     ],
     // Lưu access token trong Keychain / Keystore.
     'expo-secure-store',
+    // Vị trí hiện tại trên bản đồ vùng, chỉ khi đang dùng app (không chạy nền).
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission: 'Rong dùng vị trí của bạn để hiện bạn đang ở đâu trên bản đồ.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
