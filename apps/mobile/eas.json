@@ -6,10 +6,7 @@
   "build": {
     "base": {
       "node": "24.17.0",
-      "pnpm": "11.10.0",
-      "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://32.236.225.63.sslip.io"
-      }
+      "pnpm": "11.10.0"
     },
     "debug": {
       "extends": "base",
