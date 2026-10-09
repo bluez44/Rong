@@ -52,3 +52,10 @@ export class ResendVerificationDto {
   @IsEmail({}, { message: 'Email không hợp lệ.' })
   email!: string;
 }
+
+export class RefreshTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  refreshToken!: string;
+}

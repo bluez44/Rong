@@ -4,6 +4,7 @@ import type { AuthTokens, RegisterResult } from '@rong/shared-types';
 import { AuthService } from './auth.service.js';
 import {
   LoginDto,
+  RefreshTokenDto,
   RegisterDto,
   ResendVerificationDto,
   VerifyEmailDto,
@@ -36,5 +37,17 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   resendVerification(@Body() dto: ResendVerificationDto): Promise<void> {
     return this.auth.resendVerification(dto.email);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  refresh(@Body() dto: RefreshTokenDto): Promise<AuthTokens> {
+    return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  logout(@Body() dto: RefreshTokenDto): Promise<void> {
+    return this.auth.logout(dto.refreshToken);
   }
 }

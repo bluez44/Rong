@@ -22,6 +22,7 @@ import { normalizeEmail } from './email.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
 import { OneTimeTokenService } from './one-time-token.service.js';
 import { PasswordService } from './password.service.js';
+import { RefreshTokenService } from './refresh-token.service.js';
 
 /** Chặn việc bấm "gửi lại email" liên tục biến backend thành máy spam hộp thư người khác. */
 const RESEND_COOLDOWN_MS = 60_000;
@@ -39,6 +40,7 @@ export class AuthService {
     private readonly identities: Repository<AuthIdentity>,
     private readonly passwords: PasswordService,
     private readonly oneTimeTokens: OneTimeTokenService,
+    private readonly refreshTokens: RefreshTokenService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
     @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
@@ -125,7 +127,7 @@ export class AuthService {
     const user = await this.users.findOneByOrFail({ id: identity.userId });
     await this.users.update(user.id, { lastSeenAt: new Date() });
 
-    return this.issueAccessToken(user, [identity]);
+    return this.issueTokens(user, [identity]);
   }
 
   /**
@@ -164,7 +166,7 @@ export class AuthService {
     const user = await this.users.findOneByOrFail({ id: identity.userId });
     await this.users.update(user.id, { lastSeenAt: new Date() });
 
-    return this.issueAccessToken(user, [identity]);
+    return this.issueTokens(user, [identity]);
   }
 
   /**
@@ -189,7 +191,52 @@ export class AuthService {
     await this.sendVerificationEmail(identity);
   }
 
-  private issueAccessToken(user: User, identities: AuthIdentity[]): AuthTokens {
+  /**
+   * Đổi refresh token lấy cặp token mới (token cũ hết hiệu lực). Token lạ, hết
+   * hạn, đã thu hồi hay đã dùng đều trả cùng một lỗi; app gặp lỗi này thì
+   * đăng xuất.
+   */
+  async refresh(refreshToken: string): Promise<AuthTokens> {
+    const rotated = await this.refreshTokens.rotate(refreshToken);
+    const user = rotated
+      ? await this.users.findOneBy({ id: rotated.userId })
+      : null;
+    if (!rotated || !user) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        code: 'INVALID_REFRESH_TOKEN',
+        message: 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.',
+      });
+    }
+
+    await this.users.update(user.id, { lastSeenAt: new Date() });
+    const identities = await this.identities.findBy({ userId: user.id });
+    return {
+      ...this.signAccessToken(user, identities),
+      refreshToken: rotated.refresh.token,
+    };
+  }
+
+  /** Đăng xuất: thu hồi refresh token (và cả họ của nó). Luôn thành công. */
+  logout(refreshToken: string): Promise<void> {
+    return this.refreshTokens.revoke(refreshToken);
+  }
+
+  private async issueTokens(
+    user: User,
+    identities: AuthIdentity[],
+  ): Promise<AuthTokens> {
+    const refresh = await this.refreshTokens.issue(user.id);
+    return {
+      ...this.signAccessToken(user, identities),
+      refreshToken: refresh.token,
+    };
+  }
+
+  private signAccessToken(
+    user: User,
+    identities: AuthIdentity[],
+  ): Omit<AuthTokens, 'refreshToken'> {
     const payload: AccessTokenPayload = { sub: user.id };
     return {
       accessToken: this.jwt.sign(payload),

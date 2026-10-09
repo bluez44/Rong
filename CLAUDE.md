@@ -55,6 +55,7 @@ Mobile: run `pnpm --filter @rong/mobile start` for Metro, or `android` / `ios` f
 - **Auth is on by default.** `AuthModule` registers `JwtAuthGuard` as a global `APP_GUARD`. Mark open routes with `@Public()` and read the caller with `@CurrentUser()`. The JWT payload is `{ sub: userId }`.
   - Open today: `auth/*`, `health`, `invites/:token` (preview) and `public/itineraries/:token`.
 - **Login design:** email + password with argon2id, then a 6-digit email verification code stored HMAC'd in `one_time_tokens`. The `auth_identities` table leaves room for OAuth providers.
+- **Sessions:** a 15-minute JWT access token plus a 60-day refresh token (`REFRESH_TOKEN_TTL_DAYS`), stored SHA-256'd in `refresh_tokens` by `RefreshTokenService`. `POST /auth/refresh` rotates it (one use, new token in the same family, expiry restarts); presenting an already-used token revokes the whole family. `POST /auth/logout` revokes the family. The mobile `authFetch` refreshes once on expiry or 401, shared across concurrent requests, and signs out only when the refresh token is rejected.
 - **Config:** everything goes through `src/config/configuration.ts` (`loadConfig` validates env). Add new env vars there and in `.env.example`.
 - **Errors:** throw Nest exceptions with a `{ code: 'SOME_CODE', message }` body. Clients and tests match on `code`.
 

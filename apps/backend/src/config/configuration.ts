@@ -22,6 +22,8 @@ export interface RedisConfig {
 export interface AuthConfig {
   jwtSecret: string;
   accessTokenTtlSeconds: number;
+  /** Không mở app chừng này ngày thì phải đăng nhập lại; mỗi lần đổi token thì tính lại từ đầu. */
+  refreshTokenTtlDays: number;
   emailVerificationTtlMinutes: number;
 }
 
@@ -134,6 +136,7 @@ export function loadConfig(): AppConfig {
     auth: {
       jwtSecret: requireStrongSecret(process.env.JWT_SECRET as string),
       accessTokenTtlSeconds: toInt(process.env.ACCESS_TOKEN_TTL_SECONDS, 900),
+      refreshTokenTtlDays: toInt(process.env.REFRESH_TOKEN_TTL_DAYS, 60),
       emailVerificationTtlMinutes: toInt(
         process.env.EMAIL_VERIFICATION_TTL_MINUTES,
         15,

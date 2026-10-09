@@ -13,7 +13,17 @@ export interface AuthTokens {
   accessToken: string;
   /** Số giây còn lại của accessToken. */
   expiresIn: number;
+  /**
+   * Đổi lấy cặp token mới qua POST /auth/refresh khi accessToken hết hạn. Dùng
+   * được một lần: lần đổi trả về refreshToken mới, phải lưu đè token cũ.
+   */
+  refreshToken: string;
   user: UserProfile;
+}
+
+/** POST /auth/refresh và POST /auth/logout. */
+export interface RefreshTokenRequest {
+  refreshToken: string;
 }
 
 export interface RegisterResult {

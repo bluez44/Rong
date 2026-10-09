@@ -13,10 +13,12 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
 import { OneTimeToken } from './entities/one-time-token.entity.js';
+import { RefreshToken } from './entities/refresh-token.entity.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { OneTimeTokenService } from './one-time-token.service.js';
 import { PasswordService } from './password.service.js';
+import { RefreshTokenService } from './refresh-token.service.js';
 
 function authConfigFrom(config: ConfigService): AuthConfig {
   const auth = config.get<AppConfig['auth']>('auth');
@@ -28,7 +30,7 @@ function authConfigFrom(config: ConfigService): AuthConfig {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, AuthIdentity, OneTimeToken]),
+    TypeOrmModule.forFeature([User, AuthIdentity, OneTimeToken, RefreshToken]),
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -47,6 +49,7 @@ function authConfigFrom(config: ConfigService): AuthConfig {
     AuthService,
     PasswordService,
     OneTimeTokenService,
+    RefreshTokenService,
     JwtStrategy,
     {
       provide: AUTH_CONFIG,

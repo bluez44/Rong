@@ -8,10 +8,12 @@ import { AuthService } from './auth.service.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
 import type { OneTimeTokenService } from './one-time-token.service.js';
 import { PasswordService } from './password.service.js';
+import type { RefreshTokenService } from './refresh-token.service.js';
 
 const CONFIG: AuthConfig = {
   jwtSecret: 'khoa-bi-mat-du-dai-cho-test-32-ky-tu',
   accessTokenTtlSeconds: 900,
+  refreshTokenTtlDays: 60,
   emailVerificationTtlMinutes: 15,
 };
 
@@ -51,9 +53,16 @@ function buildHarness() {
       if (!user) throw new Error('not found');
       return user;
     }),
+    findOneBy: vi.fn(
+      async ({ id }: { id: string }) =>
+        users.find((row) => row.id === id) ?? null,
+    ),
     update: vi.fn(async () => undefined),
   };
   const identityRepo = {
+    findBy: vi.fn(async ({ userId }: { userId: string }) =>
+      identities.filter((row) => row.userId === userId),
+    ),
     findOneBy: vi.fn(
       async (where: { provider: string; providerAccountId: string }) =>
         identities.find(
@@ -85,6 +94,25 @@ function buildHarness() {
     ),
     issuedRecently: vi.fn(async () => false),
   };
+  // Vòng đời token thật (đổi, phát hiện dùng lại) nằm trong SQL: xem test/auth-refresh.e2e-spec.ts.
+  const refreshOwners = new Map<string, string>(); // token còn dùng được → userId
+  let refreshIssued = 0;
+  const refreshTokens = {
+    issue: vi.fn(async (userId: string) => {
+      const token = `refresh-${++refreshIssued}-${userId}`;
+      refreshOwners.set(token, userId);
+      return { token, expiresAt: new Date() };
+    }),
+    rotate: vi.fn(async (token: string) => {
+      const userId = refreshOwners.get(token);
+      if (!userId) return null;
+      refreshOwners.delete(token);
+      return { userId, refresh: await refreshTokens.issue(userId) };
+    }),
+    revoke: vi.fn(async (token: string) => {
+      refreshOwners.delete(token);
+    }),
+  };
   const mail = { send: vi.fn(async () => undefined) };
   const jwt = new JwtService({ secret: CONFIG.jwtSecret });
 
@@ -94,6 +122,7 @@ function buildHarness() {
     identityRepo as never,
     new PasswordService(),
     oneTimeTokens as unknown as OneTimeTokenService,
+    refreshTokens as unknown as RefreshTokenService,
     jwt,
     mail as unknown as MailService,
     CONFIG,
@@ -113,6 +142,7 @@ function buildHarness() {
     identities,
     mail,
     oneTimeTokens,
+    refreshTokens,
     jwt,
     lastEmailedCode,
   };
@@ -296,6 +326,68 @@ describe('AuthService', () => {
     await h.service.resendVerification('ha@rong.vn');
 
     expect(h.mail.send).not.toHaveBeenCalled();
+  });
+
+  describe('refresh token', () => {
+    const signedIn = async () => {
+      await h.service.register({
+        email: 'ha@rong.vn',
+        password: 'mat-khau-du-dai',
+      });
+      return h.service.verifyEmail({
+        email: 'ha@rong.vn',
+        code: h.lastEmailedCode(),
+      });
+    };
+
+    it('xác minh email và đăng nhập đều trả kèm refresh token', async () => {
+      const verified = await signedIn();
+      expect(verified.refreshToken).toBeTruthy();
+
+      const login = await h.service.login({
+        email: 'ha@rong.vn',
+        password: 'mat-khau-du-dai',
+      });
+      expect(login.refreshToken).toBeTruthy();
+      expect(login.refreshToken).not.toBe(verified.refreshToken);
+    });
+
+    it('đổi refresh token lấy cặp token mới, kèm hồ sơ người dùng', async () => {
+      const { refreshToken } = await signedIn();
+
+      const next = await h.service.refresh(refreshToken);
+
+      expect(h.jwt.verify(next.accessToken)).toMatchObject({ sub: 'user-1' });
+      expect(next.expiresIn).toBe(900);
+      expect(next.refreshToken).not.toBe(refreshToken);
+      expect(next.user).toMatchObject({
+        email: 'ha@rong.vn',
+        emailVerified: true,
+      });
+    });
+
+    it('token không đổi được (lạ, đã dùng, đã thu hồi) trả INVALID_REFRESH_TOKEN', async () => {
+      const { refreshToken } = await signedIn();
+      await h.service.refresh(refreshToken);
+
+      await expect(errorCode(h.service.refresh(refreshToken))).resolves.toBe(
+        'INVALID_REFRESH_TOKEN',
+      );
+      await expect(errorCode(h.service.refresh('khong-co'))).resolves.toBe(
+        'INVALID_REFRESH_TOKEN',
+      );
+    });
+
+    it('đăng xuất thu hồi refresh token', async () => {
+      const { refreshToken } = await signedIn();
+
+      await h.service.logout(refreshToken);
+
+      expect(h.refreshTokens.revoke).toHaveBeenCalledWith(refreshToken);
+      await expect(errorCode(h.service.refresh(refreshToken))).resolves.toBe(
+        'INVALID_REFRESH_TOKEN',
+      );
+    });
   });
 
   it('gửi mail lỗi không làm hỏng việc đăng ký', async () => {
