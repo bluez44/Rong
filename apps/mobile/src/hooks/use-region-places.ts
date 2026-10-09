@@ -7,9 +7,10 @@ import { ApiError } from '@/lib/api';
 const PAGE_SIZE = 20;
 
 /**
- * - `v2`: AI tìm web và đọc bài viết (nhanh hơn với vùng mới mở), một trang
+ * - `v1`: danh mục OSM do backend dựng sẵn, phân trang, mọi mục có id. Danh
+ *   sách chính của màn vùng.
+ * - `v2`: AI tìm web và đọc bài viết (chậm ở lần đầu mỗi vùng), một trang
  *   duy nhất, mỗi mục kèm bài viết nguồn. Không có nơi lưu trú.
- * - `v1`: danh mục OSM, phân trang, mọi mục có id.
  */
 export type PlacesApi = 'v1' | 'v2';
 

@@ -15,7 +15,7 @@ import { Notice } from '@/components/ui/notice';
 import { PlaceRow } from '@/components/ui/place-row';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
-import { useRegionPlaces } from '@/hooks/use-region-places';
+import { useRegionPlaces, type PlacesApi } from '@/hooks/use-region-places';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 import { formatFullDate } from '@/lib/trip-format';
@@ -29,7 +29,12 @@ export default function RegionScreen() {
   const center = params.lat && params.lng ? { lat: Number(params.lat), lng: Number(params.lng) } : null;
 
   const [categories, setCategories] = useState<PlaceCategory[]>([]);
-  const places = useRegionPlaces(params.id, categories, 'v2');
+  // Danh mục OSM (dựng sẵn ở backend) là danh sách chính. Gợi ý AI từ bài viết
+  // tải song song ở tab riêng, nên không bắt người dùng chờ AI mới thấy địa điểm.
+  const [api, setApi] = useState<PlacesApi>('v1');
+  const catalog = useRegionPlaces(params.id, categories, 'v1');
+  const articles = useRegionPlaces(params.id, categories, 'v2');
+  const places = api === 'v1' ? catalog : articles;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detent, setDetent] = useState<SheetDetent>('half');
   const [halfHeight, setHalfHeight] = useState(0);
@@ -85,6 +90,13 @@ export default function RegionScreen() {
 
   const count = places.status === 'loading' ? 'Đang tải địa điểm…' : `${places.items.length}${places.nextCursor ? '+' : ''} địa điểm`;
 
+  const switchApi = (next: PlacesApi) => {
+    if (next === api) return;
+    setApi(next);
+    setSelectedKey(null);
+    list.current?.scrollToOffset({ offset: 0, animated: false });
+  };
+
   return (
     <View style={styles.screen}>
       <RegionMap
@@ -132,6 +144,10 @@ export default function RegionScreen() {
               </Text>
               <Text style={styles.count}>{count}</Text>
             </View>
+            <View style={styles.sources}>
+              <Chip label="Danh mục" icon="layers" selected={api === 'v1'} onPress={() => switchApi('v1')} />
+              <Chip label="Từ bài viết" icon="sparkles" selected={api === 'v2'} onPress={() => switchApi('v2')} />
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
               {CATEGORIES.map((c) => (
@@ -161,7 +177,7 @@ export default function RegionScreen() {
           onEndReachedThreshold={0.5}
           onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<ListStatus places={places} />}
+          ListEmptyComponent={<ListStatus places={places} api={api} />}
           ListFooterComponent={places.items.length > 0 ? <ListFooter places={places} /> : null}
         />
       </PlaceSheet>
@@ -172,13 +188,18 @@ export default function RegionScreen() {
 type Places = ReturnType<typeof useRegionPlaces>;
 
 /** Trạng thái khi chưa có dòng nào: đang tải lần đầu, lỗi, hoặc bộ lọc rỗng. */
-function ListStatus({ places }: { places: Places }) {
+function ListStatus({ places, api }: { places: Places; api: PlacesApi }) {
   if (places.status === 'loading') {
     return (
       <View style={styles.status}>
         <ActivityIndicator color={Colors.light.primary} />
-        {/* API v2: AI tìm và đọc bài viết; lần đầu mỗi vùng mới chạy thật, sau đó backend giữ kết quả vài giờ. */}
-        <Text style={styles.hint}>AI đang tìm địa điểm từ các bài viết về vùng này. Lần đầu có thể mất 10–20 giây.</Text>
+        {/* v2: AI tìm và đọc bài viết; lần đầu mỗi vùng mới chạy thật, sau đó backend giữ kết quả vài giờ.
+            v1: vùng đã dựng sẵn thì gần như tức thì; vùng chưa từng mở thì backend phải tải từ OSM. */}
+        <Text style={styles.hint}>
+          {api === 'v2'
+            ? 'AI đang tìm địa điểm từ các bài viết về vùng này. Lần đầu có thể mất 10–20 giây.'
+            : 'Đang tải danh mục địa điểm của vùng này…'}
+        </Text>
       </View>
     );
   }
@@ -247,6 +268,7 @@ const styles = StyleSheet.create({
   titleRow: { paddingHorizontal: Spacing.five, gap: 2 },
   title: { ...Type.title2, color: Colors.light.text },
   count: { ...Type.subhead, color: Colors.light.textSecondary },
+  sources: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.five },
   chips: { gap: Spacing.two, paddingHorizontal: Spacing.five },
   listContent: { padding: Spacing.two, paddingBottom: Spacing.eight },
   status: { padding: Spacing.four, gap: Spacing.two, alignItems: 'flex-start' },
