@@ -89,7 +89,12 @@ export default function RegionScreen() {
         }
       : undefined;
 
-  const planTrip = () => router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
+  // Lịch trình chỉ dùng được địa điểm có trong danh mục (FR-6.3): chưa tìm thấy
+  // điểm nào như vậy ở cả hai nguồn thì chưa cho lập.
+  const canPlan = catalog.items.length > 0 || articles.items.some((p) => p.id);
+  const planTrip = () => {
+    if (canPlan) router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
+  };
 
   const count = places.status === 'loading' ? 'Đang tải địa điểm…' : `${places.items.length}${places.nextCursor ? '+' : ''} địa điểm`;
 
@@ -125,9 +130,12 @@ export default function RegionScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={draft.places.length ? `Lập lịch trình với ${draft.places.length} địa điểm đã chọn` : 'Lập lịch trình'}
+        accessibilityHint={canPlan ? undefined : 'Chưa tìm thấy địa điểm nào trong vùng này'}
+        accessibilityState={{ disabled: !canPlan }}
+        disabled={!canPlan}
         onPress={planTrip}
-        style={[styles.plan, { top: insets.top + Spacing.two }]}>
-        <Glass shape="capsule" variant={draft.places.length ? 'tinted' : 'regular'} interactive style={styles.planGlass}>
+        style={[styles.plan, { top: insets.top + Spacing.two }, !canPlan && styles.planDisabled]}>
+        <Glass shape="capsule" variant={draft.places.length ? 'tinted' : 'regular'} interactive={canPlan} style={styles.planGlass}>
           <Icon name="calendar" size={18} color={draft.places.length ? Colors.light.onPrimary : Colors.light.primary} />
           <Text style={[styles.planLabel, draft.places.length > 0 && styles.planLabelActive]}>
             {draft.places.length ? `Lập lịch trình · ${draft.places.length}` : 'Lập lịch trình'}
@@ -267,6 +275,7 @@ const styles = StyleSheet.create({
   planGlass: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: MinTouch, paddingHorizontal: Spacing.four },
   planLabel: { ...Type.subhead, fontFamily: Type.headline.fontFamily, color: Colors.light.primary },
   planLabelActive: { color: Colors.light.onPrimary },
+  planDisabled: { opacity: 0.45 },
   sheetHeader: { gap: Spacing.three, paddingBottom: Spacing.three },
   titleRow: { paddingHorizontal: Spacing.five, gap: 2 },
   title: { ...Type.title2, color: Colors.light.text },
