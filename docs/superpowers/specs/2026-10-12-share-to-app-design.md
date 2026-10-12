@@ -94,10 +94,11 @@ CREATE UNIQUE INDEX uq_place_google ON places (google_place_id) WHERE source = '
 - `composite_score` của dòng Google là `0` (cột vẫn `NOT NULL`, không bao giờ
   được dùng để xếp).
 - `location` của dòng Google là tọa độ Google, `location_expires_at = now() + 30 ngày`.
-  Tác vụ dọn `GoogleLocationJanitor` (chạy mỗi 6 giờ, độc lập với
-  `PLACES_WARMUP`) đặt `location = NULL, location_expires_at = NULL` cho dòng
-  đã quá hạn, và đặt `candidates = '[]'` cho `share_imports` quá 30 ngày (ứng
-  viên có tọa độ Google; `metadata` giữ lại cho thẻ nguồn). Ai cần tọa độ thì gọi `PlaceLocationService.ensure(ids)`
+  Tác vụ dọn `GoogleLocationJanitor` (module places, chạy mỗi 6 giờ, độc lập
+  với `PLACES_WARMUP`) đặt `location = NULL, location_expires_at = NULL` cho
+  dòng đã quá hạn. `ShareImportsService` tự dọn bảng của nó cùng chu kỳ: đặt
+  `candidates = '[]'` cho `share_imports` quá 30 ngày (ứng viên có tọa độ
+  Google; `metadata` giữ lại cho thẻ nguồn). Ai cần tọa độ thì gọi `PlaceLocationService.ensure(ids)`
   (mục 4.5).
 - `uq_place_osm (osm_type, osm_id)` giữ nguyên; Postgres coi `NULL` là khác
   nhau nên dòng Google không đụng ràng buộc này.
@@ -133,7 +134,7 @@ ALTER TABLE saved_places
 
 ## 4. Backend — module `share-import`
 
-```
+```text
 modules/share-import/
   share-import.module.ts
   share-imports.controller.ts
@@ -142,7 +143,7 @@ modules/share-import/
   share-url.ts                  # tách & chuẩn hóa URL, nhận diện nền tảng (thuần)
   place-extraction.ts           # Gemini structured output + grounding
   place-resolver.ts             # catalog → Google, độ tin cậy (thuần với deps tiêm vào)
-  region-assign.ts              # chọn vùng theo bbox nhỏ nhất (SQL)
+  region-lookup.service.ts      # vùng theo tên gợi ý / theo bbox nhỏ nhất (SQL)
   dto/
 ```
 
@@ -198,8 +199,10 @@ Với mỗi tên đã grounding:
    - Google tắt / lỗi → bỏ bước này (log một dòng gộp như v2).
 4. Không có lựa chọn nào → ứng viên `confidence: 'none'` (app chỉ cho "Tự tìm").
 
-Mỗi lựa chọn được gán vùng (`region-assign.ts`): vùng có bbox chứa tọa độ, nếu
-nhiều thì bbox diện tích nhỏ nhất; không có vùng nào chứa thì bỏ lựa chọn đó.
+Mỗi lựa chọn được gán vùng (`RegionLookupService.assign`): trong các vùng là
+điểm đến hoặc tỉnh, ranh giới hiện hành, đã có bbox, chọn vùng có bbox chứa
+tọa độ với diện tích nhỏ nhất (không gán vào phường/xã: "Muốn đi" nhóm theo nơi
+sẽ đi). Không có vùng nào chứa thì bỏ lựa chọn đó.
 
 `StoredCandidate` lưu trong `share_imports.candidates`:
 
@@ -256,7 +259,7 @@ catalog trả tên từ `places`.
 
 ### 4.7 Job nền
 
-```
+```text
 pending
   → share-url + LinkMetadataService           (lỗi: tiếp tục với shared_text)
   → không có metadata và không có text         → failed METADATA_UNAVAILABLE
@@ -289,7 +292,9 @@ thời gian từng bước (như `timing` của v2), không log nội dung Googl
 - Tạo lịch trình: trước khi phân cụm, gọi `PlaceLocationService.ensure` cho các
   địa điểm người dùng chọn; id không lấy được tọa độ bị bỏ và thêm cảnh báo
   `PLACE_LOCATION_UNAVAILABLE`.
-- `retime` khi sửa: tương tự.
+- Sửa lịch trình (`PUT`, retime): gọi `ensure` cho mọi địa điểm; nếu còn địa
+  điểm không lấy được tọa độ thì trả `503 PLACE_LOCATION_UNAVAILABLE` thay vì
+  âm thầm bỏ địa điểm khỏi lịch người dùng đang sửa.
 
 ### 5.3 Saved places
 
@@ -344,9 +349,9 @@ Cập nhật `src/modules/README.md` (module mới, `places.source`, sai khác 1
   - Hỏi lại mỗi 1,5 giây tới khi `done`/`failed`; trong lúc chờ hiện thẻ nguồn
     (nếu đã có) và trạng thái "Đang tìm địa điểm…".
   - Ứng viên `high` tick sẵn; `low` hiện tối đa 3 lựa chọn dạng radio, kèm
-    địa chỉ và tên vùng; `none` và mọi ứng viên có nút "Tự tìm" mở ô tìm địa
-    điểm trong catalog (dùng API tìm sẵn có) — chọn xong lưu bằng
-    `PUT /saved-places/:placeId` với `source` thủ công.
+    địa chỉ và tên vùng; `none` có nút "Tự tìm" mở màn tìm điểm đến sẵn có
+    (`/search`), người dùng thả tim địa điểm như bình thường (lưu thủ công).
+    Backend chưa có API tìm địa điểm theo tên.
   - Nút "Lưu N địa điểm" → `/save` → sang tab Muốn đi.
   - `failed` hoặc không có ứng viên: ô "Dán mô tả" → tạo job mới chỉ có `text`
     (FR-4.8).
@@ -365,6 +370,7 @@ Cập nhật `src/modules/README.md` (module mới, `places.source`, sai khác 1
 | `INVALID_SELECTION` | 400 | Lựa chọn không có trong ứng viên |
 | `SHARE_IMPORT_EXPIRED` | 400 | Lựa chọn Google của job quá 30 ngày |
 | `SAVED_LIMIT` | 400 | Như `saved-places` |
+| `PLACE_LOCATION_UNAVAILABLE` | 503 | Chi tiết hoặc sửa lịch trình với địa điểm Google không lấy lại được tọa độ |
 
 `error_code` của job: `METADATA_UNAVAILABLE`, `AI_UNAVAILABLE`, `TIMEOUT`,
 `INTERRUPTED`.
@@ -379,7 +385,7 @@ Cập nhật `src/modules/README.md` (module mới, `places.source`, sai khác 1
 - `place-extraction`: grounding loại tên bịa, gộp trùng (Gemini giả).
 - `place-resolver`: catalog → `high`; Google trong vùng → `high`; ngoài vùng →
   `low` ≤ 3; Google tắt → chỉ catalog; không gì → `none`.
-- `region-assign`: chọn bbox nhỏ nhất.
+- `RegionLookupService` (e2e): khớp tên không dấu, chọn bbox nhỏ nhất.
 
 **e2e (`test/share-imports.e2e-spec.ts`,** Gemini, metadata và Google giả qua
 `overrideProvider`):
