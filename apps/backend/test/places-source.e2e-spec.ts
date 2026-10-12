@@ -117,6 +117,18 @@ describe('places.source (e2e)', () => {
     );
   });
 
+  it('saved_places có display_name và chỉ mục share_import_id', async () => {
+    const [col] = (await db.query(
+      `SELECT is_nullable FROM information_schema.columns
+        WHERE table_name = 'saved_places' AND column_name = 'display_name'`,
+    )) as Array<{ is_nullable: string }>;
+    expect(col?.is_nullable).toBe('YES');
+    const [index] = (await db.query(
+      `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_saved_place_share_import'`,
+    )) as Array<{ indexdef: string }>;
+    expect(index?.indexdef).toContain('(share_import_id)');
+  });
+
   describe('dòng Google không được liệt kê hay xếp hạng', () => {
     let regionId: string;
     let osmId: string;

@@ -44,6 +44,7 @@ interface GeocodeResponse {
  */
 const DETAILS_FIELDS = [
   'id',
+  'displayName',
   'formattedAddress',
   'googleMapsUri',
   'rating',
@@ -69,6 +70,7 @@ interface RawAuthor {
 
 interface RawPlace {
   id: string;
+  displayName?: { text?: string };
   formattedAddress?: string;
   googleMapsUri?: string;
   rating?: number;
@@ -302,6 +304,7 @@ export class GooglePlacesService {
     const hours = place.currentOpeningHours ?? place.regularOpeningHours;
     return {
       placeId: place.id,
+      name: place.displayName?.text ?? null,
       googleMapsUri: place.googleMapsUri ?? null,
       address: place.formattedAddress ?? null,
       rating: place.rating ?? null,

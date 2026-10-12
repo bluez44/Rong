@@ -290,7 +290,12 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
           userId,
           placeId,
           option.regionId,
-          { source: 'share', shareImportId: id },
+          {
+            source: 'share',
+            shareImportId: id,
+            // Dòng Google dùng chung theo place_id: tên trong places là của người chia sẻ đầu tiên.
+            displayName: option.kind === 'google' ? candidate.name : null,
+          },
           m,
         );
       }

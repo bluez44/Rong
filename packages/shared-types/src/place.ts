@@ -129,6 +129,8 @@ export interface GooglePhoto {
  */
 export interface GooglePlaceContent {
   placeId: string;
+  /** Tên Google, chỉ hiển thị trực tiếp (không lưu). */
+  name: string | null;
   googleMapsUri: string | null;
   address: string | null;
   rating: number | null;
