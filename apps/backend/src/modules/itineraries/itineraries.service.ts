@@ -385,7 +385,10 @@ export class ItinerariesService {
         ...dto.unscheduledPlaceIds,
       ]),
     ];
-    if ((await this.locations.ensure(placeIds)).length > 0) {
+    const toLocate = input.accommodationPlaceId
+      ? [...new Set([...placeIds, input.accommodationPlaceId])]
+      : placeIds;
+    if ((await this.locations.ensure(toLocate)).length > 0) {
       throw new ServiceUnavailableException({
         statusCode: 503,
         code: 'PLACE_LOCATION_UNAVAILABLE',
