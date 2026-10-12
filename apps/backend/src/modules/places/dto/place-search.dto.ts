@@ -2,6 +2,8 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class PlaceSearchDto {
+  /** Cắt khoảng trắng trước khi kiểm độ dài: chuỗi toàn khoảng trắng → 400. */
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   @MaxLength(100)

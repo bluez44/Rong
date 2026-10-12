@@ -32,6 +32,7 @@ describe('Tìm địa điểm (e2e)', () => {
   let otherUserId: string;
   let daLat: string;
   let osmReu: string;
+  let otherGoogleRow: string;
 
   const google = {
     enabled: true,
@@ -106,14 +107,24 @@ describe('Tìm địa điểm (e2e)', () => {
       'e2e-ps-osm-reu',
     );
     await osm(-9602, 'E2E ps Bánh căn Sài Gòn', 'food', 106.7, 10.78);
-    await db.query(
-      `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
-       VALUES ('google', 'e2e-ps-other', 'E2E ps tên người khác', 'food',
-               ST_SetSRID(ST_MakePoint(108.441, 11.946), 4326), now() + interval '20 days', 0)
-       ON CONFLICT (google_place_id) WHERE source = 'google' DO UPDATE
-         SET name = EXCLUDED.name, location = EXCLUDED.location,
-             location_expires_at = EXCLUDED.location_expires_at`,
-    );
+    const googleRow = async (
+      googlePlaceId: string,
+      name: string,
+    ): Promise<string> => {
+      const [row] = (await db.query(
+        `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
+         VALUES ('google', $1, $2, 'food',
+                 ST_SetSRID(ST_MakePoint(108.441, 11.946), 4326), now() + interval '20 days', 0)
+         ON CONFLICT (google_place_id) WHERE source = 'google' DO UPDATE
+           SET name = EXCLUDED.name, location = EXCLUDED.location,
+               location_expires_at = EXCLUDED.location_expires_at
+         RETURNING id`,
+        [googlePlaceId, name],
+      )) as Array<{ id: string }>;
+      return row.id;
+    };
+    otherGoogleRow = await googleRow('e2e-ps-other', 'E2E ps tên người khác');
+    await googleRow('e2e-ps-other-noname', 'E2E ps tên người khác 2');
   });
 
   beforeEach(() => {
@@ -153,9 +164,10 @@ describe('Tìm địa điểm (e2e)', () => {
     };
   };
 
+  /** Chỉ đếm dòng của spec này: spec khác chạy song song cũng ghi `places`. */
   const countPlaces = async (): Promise<number> => {
     const [{ n }] = (await db.query(
-      `SELECT count(*)::int AS n FROM places`,
+      `SELECT count(*)::int AS n FROM places WHERE google_place_id LIKE 'e2e-ps-%'`,
     )) as Array<{ n: number }>;
     return n;
   };
@@ -173,6 +185,12 @@ describe('Tìm địa điểm (e2e)', () => {
     expect(google.searchByName).not.toHaveBeenCalled();
   });
 
+  it('chuỗi tìm chỉ có khoảng trắng → 400, không tốn lượt Google', async () => {
+    await api().search(daLat, '   ').expect(400);
+    await api().search(daLat, '   ', true).expect(400);
+    expect(google.searchByName).not.toHaveBeenCalled();
+  });
+
   it('ký tự đặc biệt không lỗi và không khớp bừa', async () => {
     const res = await api().search(daLat, "%_'").expect(200);
     expect(res.body.catalog).toEqual([]);
@@ -183,16 +201,23 @@ describe('Tìm địa điểm (e2e)', () => {
       { googlePlaceId: 'e2e-ps-new-2', name: 'Mới 2', address: 'A2' },
       { googlePlaceId: 'e2e-ps-osm-reu', name: 'Rêu (Google)', address: null },
       { googlePlaceId: 'e2e-ps-other', name: 'Tên Google thật', address: null },
+      // Dòng Google mà Google không trả tên: không lộ tên người khác, để ở danh sách Google.
+      { googlePlaceId: 'e2e-ps-other-noname', name: null, address: null },
       { googlePlaceId: 'e2e-ps-new-1', name: 'Mới 1', address: 'A1' },
     ]);
+    const before = await countPlaces();
     const res = await api().search(daLat, 'quan', true).expect(200);
     expect(
       res.body.google.map((g: { googlePlaceId: string }) => g.googlePlaceId),
-    ).toEqual(['e2e-ps-new-2', 'e2e-ps-new-1']);
-    expect(res.body.existing.map((h: { name: string }) => h.name)).toEqual([
-      'E2E ps Cà phê Rêu',
-      'Tên Google thật',
+    ).toEqual(['e2e-ps-new-2', 'e2e-ps-other-noname', 'e2e-ps-new-1']);
+    expect(
+      res.body.existing.map((h: { id: string; name: string }) => [h.id, h.name]),
+    ).toEqual([
+      [osmReu, 'E2E ps Cà phê Rêu'],
+      [otherGoogleRow, 'Tên Google thật'],
     ]);
+    expect(JSON.stringify(res.body)).not.toContain('E2E ps tên người khác');
+    expect(await countPlaces()).toBe(before); // tìm không ghi DB
     expect(google.searchByName.mock.calls[0][1]).toHaveLength(4); // bbox của vùng
   });
 

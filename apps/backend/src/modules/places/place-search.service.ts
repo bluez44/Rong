@@ -76,7 +76,10 @@ export class PlaceSearchService {
     online: boolean,
   ): Promise<PlaceSearchResponse> {
     await this.requireRegion(regionId);
-    if (online && !this.limiter.tryConsume(userId)) {
+    const bbox = await this.areas.ensure(regionId);
+    // Chỉ tính lượt khi thật sự gọi Google.
+    const useGoogle = online && this.google.enabled;
+    if (useGoogle && !this.limiter.tryConsume(userId)) {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
@@ -87,7 +90,6 @@ export class PlaceSearchService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    const bbox = await this.areas.ensure(regionId);
     const query = q.trim();
 
     const catalog = (await this.db.query(
@@ -106,19 +108,24 @@ export class PlaceSearchService {
 
     let google: GooglePlaceHit[] | null = null;
     let existing: PlaceSearchHit[] = [];
-    if (online && this.google.enabled) {
+    if (useGoogle) {
       try {
         const hits = await this.google.searchByName(query, bbox, GOOGLE_LIMIT);
         const known = await this.byGoogleIds(hits.map((h) => h.googlePlaceId));
-        existing = hits.flatMap((h) => {
+        // Dòng Google: tên trong DB do người khác đặt — hiện tên Google trực
+        // tiếp; Google không trả tên thì để hit ở danh sách Google, không lộ
+        // tên người khác.
+        const existingRow = (h: GooglePlaceHit): HitRow | null => {
           const row = known.get(h.googlePlaceId);
+          if (!row) return null;
+          return row.source === 'osm' || h.name !== null ? row : null;
+        };
+        existing = hits.flatMap((h) => {
+          const row = existingRow(h);
           if (!row) return [];
-          // Dòng Google: tên trong DB do người khác đặt — hiện tên Google trực tiếp.
-          return [
-            toHit(row, row.source === 'google' ? (h.name ?? row.name) : row.name),
-          ];
+          return [toHit(row, row.source === 'google' ? h.name! : row.name)];
         });
-        google = hits.filter((h) => !known.has(h.googlePlaceId));
+        google = hits.filter((h) => !existingRow(h));
       } catch (error) {
         if (!(error instanceof GoogleUnavailableError)) throw error;
         this.logger.warn(`Tìm Google "${query}" lỗi: ${error.message}`);
