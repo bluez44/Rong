@@ -133,6 +133,34 @@ describe('LinkMetadataService.fetch', () => {
     expect((await svc.fetch(new URL(page)))?.title).toBe('Đà Lạt mùa hoa');
   });
 
+  it('ảnh Open Graph tương đối được giải theo URL cuối; không phải https thì null', async () => {
+    const og = (image: string) => `<meta property="og:title" content="T"><meta property="og:image" content="${image}">`;
+    const cases: Array<[string, string | null]> = [
+      ['/img/a.jpg', 'https://blog.vn/img/a.jpg'],
+      ['https://cdn.vn/b.jpg', 'https://cdn.vn/b.jpg'],
+      ['http://cdn.vn/c.jpg', null],
+      ['javascript:alert(1)', null],
+      ['data:image/png;base64,AAAA', null],
+    ];
+    for (const [image, expected] of cases) {
+      const page = 'https://blog.vn/bai-viet/1';
+      const { svc } = service({ [page]: { body: og(image) } });
+      expect((await svc.fetch(new URL(page)))?.thumbnailUrl, image).toBe(expected);
+    }
+  });
+
+  it('thumbnail oEmbed không phải https tuyệt đối thì null', async () => {
+    const page = 'https://www.tiktok.com/@an/video/3';
+    const { svc } = service({
+      [page]: { status: 403 },
+      [`https://www.tiktok.com/oembed?url=${encodeURIComponent(page)}`]: {
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'X', thumbnail_url: 'http://p16.tiktokcdn.com/t.jpg' }),
+      },
+    });
+    expect((await svc.fetch(new URL(page)))?.thumbnailUrl).toBeNull();
+  });
+
   it('Facebook không có token: đọc Open Graph; bị chặn thì null', async () => {
     const page = 'https://www.facebook.com/share/r/1';
     const { svc } = service({ [page]: { status: 403 } });

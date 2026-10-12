@@ -79,6 +79,26 @@ describe('resolvePlaces', () => {
     expect(c).toMatchObject({ confidence: 'none', options: [] });
   });
 
+  it('Google lỗi → ghi một cảnh báo gộp cho cả lượt (số lỗi + các thông báo khác nhau)', async () => {
+    const warn = vi.fn();
+    let n = 0;
+    const d = deps({
+      searchGoogle: vi.fn(async () => {
+        throw new Error(n++ === 2 ? 'timeout' : 'quota');
+      }),
+      warn,
+    });
+    await resolvePlaces([place('Quán A'), place('Quán B'), place('Quán C')], d);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toBe('Google Text Search lỗi 3/3 lượt, chỉ dùng danh mục: quota; timeout');
+  });
+
+  it('Google không lỗi → không cảnh báo', async () => {
+    const warn = vi.fn();
+    await resolvePlaces([place('Quán A')], deps({ warn }));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('không có vùng gợi ý thì khớp danh mục toàn quốc với ngưỡng chặt hơn', async () => {
     const d = deps();
     await resolvePlaces([place('Chợ Bến Thành', null)], d);

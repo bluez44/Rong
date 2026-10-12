@@ -24,6 +24,8 @@ export interface ResolverDeps {
   /** Ném lỗi khi Google không dùng được. */
   searchGoogle(query: string, bbox: Bbox | null): Promise<GoogleHit[]>;
   assignRegions(points: Array<{ lat: number; lng: number }>): Promise<Array<string | null>>;
+  /** Một dòng cảnh báo gộp mọi lỗi Google của lượt nhận diện. */
+  warn?(message: string): void;
 }
 
 const MAX_GOOGLE_OPTIONS = 3;
@@ -49,6 +51,8 @@ export async function resolvePlaces(
   places: ExtractedPlace[],
   deps: ResolverDeps,
 ): Promise<StoredCandidate[]> {
+  const googleErrors: string[] = [];
+  let googleCalls = 0;
   const drafts = await Promise.all(
     places.map(async (place, i): Promise<Draft> => {
       const base = {
@@ -74,8 +78,10 @@ export async function resolvePlaces(
         const query = [place.name, place.address, region?.name ?? place.regionHint]
           .filter(Boolean)
           .join(', ');
+        googleCalls++;
         hits = await deps.searchGoogle(query, bbox);
-      } catch {
+      } catch (error) {
+        googleErrors.push((error as Error).message);
         hits = [];
       }
       const toOption = (hit: GoogleHit) => ({
@@ -93,6 +99,13 @@ export async function resolvePlaces(
       };
     }),
   );
+
+  // Google hỏng (quota, mạng…) thì mọi lượt cùng lỗi: gộp một dòng.
+  if (googleErrors.length > 0) {
+    deps.warn?.(
+      `Google Text Search lỗi ${googleErrors.length}/${googleCalls} lượt, chỉ dùng danh mục: ${[...new Set(googleErrors)].join('; ')}`,
+    );
+  }
 
   const points = drafts.flatMap((d) => d.options.map(({ lat, lng }) => ({ lat, lng })));
   const regionIds = await deps.assignRegions(points);

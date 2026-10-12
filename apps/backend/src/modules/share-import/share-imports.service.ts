@@ -379,6 +379,7 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
               ? this.google.searchText(query, bbox)
               : Promise.resolve([]),
           assignRegions: (points) => this.regions.assign(points),
+          warn: (message) => this.logger.warn(`Share ${id}: ${message}`),
         });
       })();
       // Công việc bị bỏ dở (hết giờ, server tắt) vẫn có thể lỗi về sau: nuốt để không thành unhandled rejection.

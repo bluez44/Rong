@@ -6,6 +6,9 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
   "scripts": {
     "build:deps": "pnpm --filter @rong/shared-types build",
     "build": "pnpm build:deps && nest build",

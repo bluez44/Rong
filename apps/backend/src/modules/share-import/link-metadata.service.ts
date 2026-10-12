@@ -113,6 +113,17 @@ export function parseOpenGraph(html: string): {
   };
 }
 
+/** Ảnh đại diện chỉ nhận URL https tuyệt đối (ảnh tương đối giải theo trang cuối); còn lại null. */
+export function safeImageUrl(raw: string | null, base: URL): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, base);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function attr(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'));
   return match ? (match[1] ?? match[2] ?? null) : null;
@@ -170,7 +181,12 @@ export class LinkMetadataService {
       if (!resolved.html) return null;
       const og = parseOpenGraph(resolved.html);
       if (!og.title && !og.description) return null;
-      return { platform, finalUrl: resolved.url.toString(), ...og };
+      return {
+        platform,
+        finalUrl: resolved.url.toString(),
+        ...og,
+        thumbnailUrl: safeImageUrl(og.thumbnailUrl, resolved.url),
+      };
     } catch (error) {
       if (error instanceof UnsafeUrlError) throw error;
       this.logger.warn(`Không đọc được metadata ${url.hostname}: ${(error as Error).message}`);
@@ -234,7 +250,7 @@ export class LinkMetadataService {
         title: body.title?.trim() || null,
         description: null,
         authorName: body.author_name?.trim() || null,
-        thumbnailUrl: body.thumbnail_url || null,
+        thumbnailUrl: safeImageUrl(body.thumbnail_url ?? null, page),
       };
     } catch {
       return null;
