@@ -20,7 +20,7 @@ export const MAX_SAVED_PLACES = 500;
  * chung giữa mọi người); null thì giữ tên đã có.
  */
 export type SaveOrigin = {
-  source: 'manual' | 'share';
+  source: 'manual' | 'share' | 'search';
   shareImportId: string | null;
   displayName?: string | null;
 };
@@ -34,7 +34,7 @@ interface SavedRow {
   region_name: string;
   parent_name: string | null;
   created_at: Date;
-  source: 'manual' | 'share';
+  source: 'manual' | 'share' | 'search';
   platform: SharePlatform | null;
   share_title: string | null;
   share_url: string | null;
@@ -122,7 +122,7 @@ export class SavedPlacesService {
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, place_id) DO UPDATE
          SET region_id = EXCLUDED.region_id,
-             source = CASE WHEN EXCLUDED.source = 'share' THEN 'share' ELSE saved_places.source END,
+             source = CASE WHEN EXCLUDED.source <> 'manual' THEN EXCLUDED.source ELSE saved_places.source END,
              share_import_id = COALESCE(EXCLUDED.share_import_id, saved_places.share_import_id),
              display_name = COALESCE(EXCLUDED.display_name, saved_places.display_name)`,
       [
