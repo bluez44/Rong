@@ -17,6 +17,8 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.enableCors();
+  // SIGTERM (Docker stop, deploy): chạy onModuleDestroy — job share đang chạy được đánh INTERRUPTED, janitor dừng.
+  app.enableShutdownHooks();
 
   const port = configService.get<number>('port') ?? 3001;
   await app.listen(port);
