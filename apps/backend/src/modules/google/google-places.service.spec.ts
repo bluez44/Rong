@@ -168,6 +168,10 @@ describe('GooglePlacesService.details', () => {
     );
     expect(header(detailsCall, 'X-Goog-FieldMask')).toContain('rating');
     expect(header(detailsCall, 'X-Goog-FieldMask')).toContain('displayName');
+    expect(header(detailsCall, 'X-Goog-FieldMask')).not.toContain('location');
+    expect(header(detailsCall, 'X-Goog-FieldMask')).not.toContain(
+      'primaryType',
+    );
     expect(calls.filter((c) => c.url.includes('/media'))).toHaveLength(3);
     expect(
       calls.every(
@@ -422,5 +426,72 @@ describe('GooglePlacesService.locate / summary', () => {
       'displayName,formattedAddress',
     );
     await expect(service().summary('gone')).resolves.toBeNull();
+  });
+});
+
+describe('GooglePlacesService.searchByName', () => {
+  it('xin id + tên + địa chỉ, giới hạn trong khung vùng, giữ thứ tự Google', async () => {
+    const calls = mockFetch(() => ({
+      body: {
+        places: [
+          {
+            id: 'B',
+            displayName: { text: 'Quán B' },
+            formattedAddress: '2 Đường B',
+          },
+          { id: 'A', displayName: { text: 'Quán A' } },
+        ],
+      },
+    }));
+    await expect(
+      service().searchByName('quán', [11.8, 108.3, 12.0, 108.6]),
+    ).resolves.toEqual([
+      { googlePlaceId: 'B', name: 'Quán B', address: '2 Đường B' },
+      { googlePlaceId: 'A', name: 'Quán A', address: null },
+    ]);
+    const [call] = calls;
+    expect(call.url).toBe(`${BASE}/places:searchText`);
+    expect(header(call, 'X-Goog-FieldMask')).toBe(
+      'places.id,places.displayName,places.formattedAddress',
+    );
+    const body = JSON.parse(call.init.body as string);
+    expect(body).toMatchObject({
+      textQuery: 'quán',
+      regionCode: 'VN',
+      languageCode: 'vi',
+      pageSize: 5,
+    });
+    expect(body.locationRestriction.rectangle).toEqual({
+      low: { latitude: 11.8, longitude: 108.3 },
+      high: { latitude: 12.0, longitude: 108.6 },
+    });
+  });
+});
+
+describe('GooglePlacesService.preview', () => {
+  it('như details, thêm location và primaryType', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('/media')
+        ? { body: {} }
+        : {
+            body: {
+              id: 'P1',
+              displayName: { text: 'Quán P' },
+              location: { latitude: 11.9, longitude: 108.4 },
+              primaryType: 'cafe',
+            },
+          },
+    );
+    const result = await service().preview('P1');
+    expect(result?.content).toMatchObject({ placeId: 'P1', name: 'Quán P' });
+    expect(result?.location).toEqual({ lat: 11.9, lng: 108.4 });
+    expect(result?.primaryType).toBe('cafe');
+    expect(header(calls[0], 'X-Goog-FieldMask')).toContain('location');
+    expect(header(calls[0], 'X-Goog-FieldMask')).toContain('primaryType');
+  });
+
+  it('404 → null', async () => {
+    mockFetch(() => ({ status: 404, body: {} }));
+    await expect(service().preview('gone')).resolves.toBeNull();
   });
 });
