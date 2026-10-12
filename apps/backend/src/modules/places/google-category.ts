@@ -11,8 +11,25 @@ import type { PlaceCategory } from '@rong/shared-types';
 const RULES: Array<[PlaceCategory, string[]]> = [
   ['cafe', ['cafe', 'coffee', 'tea_house']],
   ['nightlife', ['bar', 'night_club', 'pub']],
-  ['stay', ['lodging', 'hotel', 'hostel', 'resort', 'guest_house', 'motel', 'inn']],
-  ['kids', ['amusement_park', 'zoo', 'aquarium', 'water_park', 'playground']],
+  [
+    'stay',
+    [
+      'lodging',
+      'hotel',
+      'hostel',
+      'resort',
+      'guest_house',
+      'motel',
+      'inn',
+      'bed_and_breakfast',
+      'campground',
+    ],
+  ],
+  // Trước "nature": "theme_park" chứa từ "park".
+  [
+    'kids',
+    ['amusement_park', 'theme_park', 'zoo', 'aquarium', 'water_park', 'playground'],
+  ],
   [
     'culture',
     [

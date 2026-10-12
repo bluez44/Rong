@@ -30,6 +30,7 @@ describe('Tìm địa điểm (e2e)', () => {
   let token: string;
   let otherToken: string;
   let otherUserId: string;
+  let detailsToken: string;
   let daLat: string;
   let osmReu: string;
   let otherGoogleRow: string;
@@ -51,7 +52,7 @@ describe('Tìm địa điểm (e2e)', () => {
       .overrideProvider(GooglePlacesService)
       .useValue(google)
       .overrideProvider(PLACE_SEARCH_CONFIG)
-      .useValue({ dailyLimit: 3 })
+      .useValue({ dailyLimit: 3, detailsDailyLimit: 5 })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -66,10 +67,13 @@ describe('Tìm địa điểm (e2e)', () => {
 
     db = app.get(DataSource);
     const jwt = app.get(JwtService);
-    const [user, other] = (await db.query(
-      `INSERT INTO users (display_name) VALUES ('e2e-place-search'), ('e2e-place-search-other') RETURNING id`,
+    const [user, other, details] = (await db.query(
+      `INSERT INTO users (display_name)
+       VALUES ('e2e-place-search'), ('e2e-place-search-other'), ('e2e-place-search-details')
+       RETURNING id`,
     )) as Array<{ id: string }>;
     token = jwt.sign({ sub: user.id });
+    detailsToken = jwt.sign({ sub: details.id });
     otherToken = jwt.sign({ sub: other.id });
     otherUserId = other.id;
 
@@ -133,7 +137,8 @@ describe('Tìm địa điểm (e2e)', () => {
 
   afterAll(async () => {
     await db?.query(
-      `DELETE FROM users WHERE display_name IN ('e2e-place-search', 'e2e-place-search-other')`,
+      `DELETE FROM users
+        WHERE display_name IN ('e2e-place-search', 'e2e-place-search-other', 'e2e-place-search-details')`,
     );
     await db?.query(
       `DELETE FROM places
@@ -230,7 +235,11 @@ describe('Tìm địa điểm (e2e)', () => {
     expect(res.body.catalog.length).toBeGreaterThan(0);
   });
 
-  it('quá giới hạn tìm online → 429; tìm danh mục vẫn được', async () => {
+  it('quá giới hạn tìm online → 429; tìm danh mục vẫn được; Google lỗi không tính lượt', async () => {
+    google.searchByName.mockRejectedValueOnce(
+      new GoogleUnavailableError('quota'),
+    );
+    await api(otherToken).search(daLat, 'x', true).expect(200);
     google.searchByName.mockResolvedValue([]);
     for (let i = 0; i < 3; i++)
       await api(otherToken).search(daLat, 'x', true).expect(200);
@@ -272,6 +281,43 @@ describe('Tìm địa điểm (e2e)', () => {
       coordinates: { lat: 11.95, lng: 108.44 },
     });
     expect(await countPlaces()).toBe(before);
+  });
+
+  it('quá giới hạn xem/lưu Google → 429 PLACE_DETAILS_LIMIT; địa điểm đã có không tính lượt', async () => {
+    google.preview.mockResolvedValue(null);
+    google.locate.mockResolvedValue({ lat: 11.95, lng: 108.44 });
+    // Đã có trong DB: không gọi Google, không tốn lượt.
+    for (let i = 0; i < 3; i++)
+      await api(detailsToken).preview('e2e-ps-osm-reu').expect(200);
+    for (let i = 0; i < 5; i++)
+      await api(detailsToken).preview(`e2e-ps-lim-${i}`).expect(404);
+    const res = await api(detailsToken).preview('e2e-ps-lim-x').expect(429);
+    expect(res.body.code).toBe('PLACE_DETAILS_LIMIT');
+    const saved = await api(detailsToken)
+      .save({
+        googlePlaceId: 'e2e-ps-lim-save',
+        name: 'x',
+        category: 'food',
+        regionId: daLat,
+      })
+      .expect(429);
+    expect(saved.body.code).toBe('PLACE_DETAILS_LIMIT');
+    expect(google.preview).toHaveBeenCalledTimes(5);
+    expect(google.locate).not.toHaveBeenCalled();
+    await api(detailsToken).preview('e2e-ps-osm-reu').expect(200);
+  });
+
+  it('lưu vào vùng không tồn tại → 404 REGION_NOT_FOUND, không gọi Google', async () => {
+    const res = await api()
+      .save({
+        googlePlaceId: 'e2e-ps-new-region',
+        name: 'x',
+        category: 'food',
+        regionId: randomUUID(),
+      })
+      .expect(404);
+    expect(res.body.code).toBe('REGION_NOT_FOUND');
+    expect(google.locate).not.toHaveBeenCalled();
   });
 
   it('xem trước: id sai định dạng → 400; Google không còn → 404', async () => {

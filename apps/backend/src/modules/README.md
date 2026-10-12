@@ -45,7 +45,8 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
 - **Tỉnh cũ/mới** được seed từ Nghị quyết 202/2025/QH15 (`regions/seed/vietnam-admin.ts`).
   Cùng file có danh sách **điểm đến** (tâm + bán kính + bí danh), gồm cả những địa danh
   không còn là đơn vị hành chính sau sáp nhập (huyện cũ như Cần Giờ, Củ Chi) để tìm ra ngay
-  không cần Nominatim.
+  không cần Nominatim. Khung bao của điểm đến là khung vuông quanh tâm, nên bán kính phải đủ nhỏ
+  để không phủ tâm điểm đến khác (Cần Giờ 13 km quanh rừng Sác, không lấn sang Vũng Tàu; có test).
 - **Từ khóa không ra kết quả** được đếm trong `region_search_misses` (không lưu người tìm):
   `catalog_misses` khi tìm trong danh mục, `online_misses` khi đã hỏi cả Nominatim, và
   `weak_matches` khi có kết quả nhưng điểm cao nhất dưới ngưỡng khớp tốt (0.8, ví dụ
@@ -102,7 +103,10 @@ POST /api/places/google                            lưu kết quả Google vào 
   khi cắt khoảng trắng phải có 1-100 ký tự, rỗng thì 400. Google lỗi thì `google: null` (danh mục vẫn trả).
 - **Hạn mức** `PLACE_SEARCH_DAILY_LIMIT` (mặc định 60 lượt / người / 24 giờ, `place-search-limiter.ts`, trong
   bộ nhớ). Chỉ tính khi thật sự gọi Google: gõ tìm trong danh mục hay Google chưa bật không tốn lượt. Hết hạn
-  mức thì 429 `PLACE_SEARCH_LIMIT`.
+  mức thì 429 `PLACE_SEARCH_LIMIT`. Google lỗi (`google: null`) thì trả lại lượt.
+- **Hạn mức xem/lưu** `PLACE_DETAILS_DAILY_LIMIT` (mặc định 150 lượt / người / 24 giờ, đếm riêng). Chỉ tính
+  khi phải gọi Google: xem trước một `place_id` chưa có trong DB, hoặc lưu khi phải lấy tọa độ (`locate`).
+  Hết hạn mức thì 429 `PLACE_DETAILS_LIMIT`. Hai hạn mức phải là số nguyên ≥ 1, sai thì app dừng khi khởi động.
 - **Kết quả Google trùng `place_id` đã có trong `places`** được trả ở `existing` (là địa điểm có sẵn, có `id`),
   không nằm trong `google`: dòng OSM đã ghép thì hiện tên OSM; dòng nguồn Google thì hiện tên Google trực tiếp
   (tên trong DB do người khác đặt nên không lộ ra). Dòng nguồn Google mà Google không trả tên thì để lại trong
@@ -110,12 +114,12 @@ POST /api/places/google                            lưu kết quả Google vào 
 - **Xem trước** (`GET /places/google/:googlePlaceId`): `place_id` đã khớp một dòng OSM (hoặc đã có dòng Google)
   thì chỉ trả `{ placeId }` để client mở chi tiết thường. Chưa có thì trả nội dung Google lấy trực tiếp
   (tên, địa chỉ, tọa độ, loại gợi ý, rating/ảnh…), không ghi database (PRD 7.4). 400 `INVALID_GOOGLE_PLACE_ID`,
-  404 `PLACE_NOT_FOUND`, 503 `GOOGLE_UNAVAILABLE`.
+  404 `PLACE_NOT_FOUND`, 429 `PLACE_DETAILS_LIMIT`, 503 `GOOGLE_UNAVAILABLE`.
 - **Lưu** (`POST /places/google`, body `googlePlaceId`, `name`, `category`, `regionId`): `place_id` đã khớp
   dòng OSM thì dùng dòng OSM đó, không tạo dòng mới. Chưa có thì tạo dòng `source = 'google'` qua
   `GooglePlaceRowsService.upsert` (cùng một transaction với lượt lưu). **Tên lưu là tên người dùng xác nhận**
   (`saved_places.display_name`), không bao giờ là tên Google; `places.name` của dòng Google là tên của người
-  đầu tiên lưu.
+  đầu tiên lưu. Vùng được kiểm tra trước khi gọi Google (404 `REGION_NOT_FOUND`).
 - `places/google-place-rows.service.ts` (`GooglePlaceRowsService`) là nơi duy nhất ghi dòng Google, dùng chung
   với chia sẻ vào app (F4): tên do người dùng đặt, tọa độ Google hạn 30 ngày.
 - **"Muốn đi"** (`saved_places.source`: `manual | share | search`): lưu từ tìm kiếm ghi `search`. Khi một địa

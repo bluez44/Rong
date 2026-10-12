@@ -90,7 +90,7 @@ Keep each external service behind its single gateway:
   3. Results are cached in memory for 6 hours. Publication dates (≤ 1.5 s) and a missing region bbox (≤ 3 s) are not waited on past their budget; they finish in the background and fill the cached result.
   4. Without a `TAVILY_API_KEY` it returns 503.
 
-- **Place search** (`GET /regions/:id/places/search`, `GET /places/google/:googlePlaceId`, `POST /places/google`): catalog matches while typing, Google Text Search only on submit (per-user daily limit, `PLACE_SEARCH_DAILY_LIMIT`), Google results previewed live and saved as `source = 'google'` rows named by the user.
+- **Place search** (`GET /regions/:id/places/search`, `GET /places/google/:googlePlaceId`, `POST /places/google`): catalog matches while typing, Google Text Search only on submit (per-user daily limit, `PLACE_SEARCH_DAILY_LIMIT`), Google results previewed live (Google calls for preview/save have their own per-user limit, `PLACE_DETAILS_DAILY_LIMIT`) and saved as `source = 'google'` rows named by the user.
 
 `src/modules/README.md` is the module map and documents these flows and the deliberate PRD deviations. Update it when module responsibilities change.
 

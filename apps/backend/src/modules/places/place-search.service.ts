@@ -57,6 +57,8 @@ interface HitRow {
 export class PlaceSearchService {
   private readonly logger = new Logger(PlaceSearchService.name);
   private readonly limiter: PlaceSearchLimiter;
+  /** Lượt xem trước/lưu phải gọi Google (Place Details) — tính riêng với lượt tìm. */
+  private readonly detailsLimiter: PlaceSearchLimiter;
 
   constructor(
     @InjectDataSource() private readonly db: DataSource,
@@ -67,6 +69,7 @@ export class PlaceSearchService {
     @Inject(PLACE_SEARCH_CONFIG) config: PlaceSearchConfig,
   ) {
     this.limiter = new PlaceSearchLimiter(config.dailyLimit);
+    this.detailsLimiter = new PlaceSearchLimiter(config.detailsDailyLimit);
   }
 
   async search(
@@ -128,6 +131,8 @@ export class PlaceSearchService {
         google = hits.filter((h) => !existingRow(h));
       } catch (error) {
         if (!(error instanceof GoogleUnavailableError)) throw error;
+        // Google không trả lời được: không tính lượt của người dùng.
+        this.limiter.refund(userId);
         this.logger.warn(`Tìm Google "${query}" lỗi: ${error.message}`);
         google = null;
       }
@@ -135,7 +140,10 @@ export class PlaceSearchService {
     return { catalog: catalog.map((r) => toHit(r, r.name)), existing, google };
   }
 
-  async preview(googlePlaceId: string): Promise<GooglePlacePreviewResponse> {
+  async preview(
+    userId: string,
+    googlePlaceId: string,
+  ): Promise<GooglePlacePreviewResponse> {
     if (!isValidGooglePlaceId(googlePlaceId)) {
       throw new BadRequestException({
         statusCode: 400,
@@ -146,6 +154,7 @@ export class PlaceSearchService {
     const known = (await this.byGoogleIds([googlePlaceId])).get(googlePlaceId);
     if (known) return { placeId: known.id };
     if (!this.google.enabled) throw googleUnavailable();
+    this.consumeDetails(userId);
     let result: Awaited<ReturnType<GooglePlacesService['preview']>>;
     try {
       result = await this.google.preview(googlePlaceId);
@@ -168,6 +177,8 @@ export class PlaceSearchService {
     userId: string,
     dto: SaveGooglePlaceDto,
   ): Promise<SaveGooglePlaceResponse> {
+    // Kiểm tra vùng trước: vùng sai thì không tốn lượt gọi Google.
+    await this.requireRegion(dto.regionId);
     const known = (await this.byGoogleIds([dto.googlePlaceId])).get(
       dto.googlePlaceId,
     );
@@ -175,6 +186,7 @@ export class PlaceSearchService {
     let location: { lat: number; lng: number } | null = null;
     if (!placeId) {
       if (!this.google.enabled) throw googleUnavailable();
+      this.consumeDetails(userId);
       try {
         location = await this.google.locate(dto.googlePlaceId);
       } catch (error) {
@@ -206,6 +218,20 @@ export class PlaceSearchService {
       );
     });
     return { placeId: placeId! };
+  }
+
+  /** Tính một lượt gọi Google Place Details; hết lượt thì 429. */
+  private consumeDetails(userId: string): void {
+    if (this.detailsLimiter.tryConsume(userId)) return;
+    throw new HttpException(
+      {
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        code: 'PLACE_DETAILS_LIMIT',
+        message:
+          'Bạn đã xem nhiều địa điểm trên Google Maps hôm nay. Thử lại sau nhé.',
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   /** Dòng `places` (OSM đã ghép hoặc nguồn Google) theo place_id; OSM ưu tiên. */

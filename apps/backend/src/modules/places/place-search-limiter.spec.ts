@@ -24,4 +24,19 @@ describe('PlaceSearchLimiter', () => {
     expect(limiter.tryConsume('a')).toBe(true);
     expect(limiter.tryConsume('a')).toBe(false);
   });
+
+  it('refund trả lại lượt gần nhất; không có lượt thì không làm gì', () => {
+    let t = 0;
+    const limiter = new PlaceSearchLimiter(2, 1000, () => t);
+    limiter.refund('a'); // chưa có lượt nào
+    limiter.tryConsume('a'); // t=0
+    t = 500;
+    limiter.tryConsume('a'); // t=500
+    expect(limiter.tryConsume('a')).toBe(false);
+    limiter.refund('a'); // bỏ lượt t=500
+    expect(limiter.tryConsume('a')).toBe(true); // t=500 lại
+    t = 1001; // chỉ lượt t=0 hết hạn
+    expect(limiter.tryConsume('a')).toBe(true);
+    expect(limiter.tryConsume('a')).toBe(false);
+  });
 });
