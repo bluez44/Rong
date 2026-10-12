@@ -87,28 +87,54 @@ export class RegionsService {
       matches.map((m) => m.regionId),
     );
     const results = arrangeRegionResults(matches, regions);
-    if (results.length === 0) await this.recordMiss(key, query, online);
+    const best = matches.reduce<RegionMatch | null>(
+      (top, m) => (top === null || m.score > top.score ? m : top),
+      null,
+    );
+    if (results.length === 0) {
+      await this.recordMiss(key, query, online ? 'online' : 'catalog');
+    } else if (best && best.score < GOOD_ENOUGH) {
+      // Có kết quả nhưng chỉ gần đúng ("can gio" → "Cần Thơ"): có thể người
+      // dùng vẫn không thấy nơi cần, nên cũng đếm, kèm kết quả đứng đầu.
+      await this.recordMiss(key, query, 'weak', {
+        name: regions.get(best.regionId)?.name ?? null,
+        score: best.score,
+      });
+    }
     return results;
   }
 
   /**
-   * Đếm từ khóa không ra kết quả để biết cần seed thêm gì. Lỗi ghi thì bỏ qua:
-   * không bao giờ làm hỏng lượt tìm của người dùng.
+   * Đếm từ khóa không ra kết quả (hoặc chỉ khớp gần đúng) để biết cần seed
+   * thêm gì. Lỗi ghi thì bỏ qua: không bao giờ làm hỏng lượt tìm của người dùng.
    */
   private async recordMiss(
     key: string,
     query: string,
-    online: boolean,
+    kind: 'catalog' | 'online' | 'weak',
+    best: { name: string | null; score: number } | null = null,
   ): Promise<void> {
     try {
       await this.db.query(
-        `INSERT INTO region_search_misses (search_key, sample_query, catalog_misses, online_misses)
-         VALUES ($1, $2, $3::int, $4::int)
+        `INSERT INTO region_search_misses
+           (search_key, sample_query, catalog_misses, online_misses, weak_matches, best_match_name, best_score)
+         VALUES ($1, $2, $3::int, $4::int, $5::int, $6, $7::real)
          ON CONFLICT (search_key) DO UPDATE
            SET catalog_misses = region_search_misses.catalog_misses + EXCLUDED.catalog_misses,
                online_misses = region_search_misses.online_misses + EXCLUDED.online_misses,
+               weak_matches = region_search_misses.weak_matches + EXCLUDED.weak_matches,
+               best_match_name = COALESCE(EXCLUDED.best_match_name, region_search_misses.best_match_name),
+               best_score = COALESCE(EXCLUDED.best_score, region_search_misses.best_score),
                last_seen_at = now()`,
-        [key, query.trim().slice(0, 100), online ? 0 : 1, online ? 1 : 0],
+        [
+          key,
+          query.trim().slice(0, 100),
+          kind === 'catalog' ? 1 : 0,
+          kind === 'online' ? 1 : 0,
+          kind === 'weak' ? 1 : 0,
+          best?.name ?? null,
+          best?.score ?? null,
+        ],
       );
     } catch (error) {
       this.logger.warn(

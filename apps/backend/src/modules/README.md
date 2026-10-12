@@ -47,8 +47,10 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
   không còn là đơn vị hành chính sau sáp nhập (huyện cũ như Cần Giờ, Củ Chi) để tìm ra ngay
   không cần Nominatim.
 - **Từ khóa không ra kết quả** được đếm trong `region_search_misses` (không lưu người tìm):
-  `catalog_misses` khi tìm trong danh mục, `online_misses` khi đã hỏi cả Nominatim. Xem
-  `SELECT * FROM region_search_misses ORDER BY online_misses DESC, catalog_misses DESC`
+  `catalog_misses` khi tìm trong danh mục, `online_misses` khi đã hỏi cả Nominatim, và
+  `weak_matches` khi có kết quả nhưng điểm cao nhất dưới ngưỡng khớp tốt (0.8, ví dụ
+  "can gio" ra "Cần Thơ"), kèm `best_match_name`/`best_score` của lượt gần nhất. Xem
+  `SELECT * FROM region_search_misses ORDER BY online_misses DESC, weak_matches DESC, catalog_misses DESC`
   để chọn điểm đến cần seed thêm. Lỗi ghi không làm hỏng lượt tìm.
 - **Khu vực của một vùng là một khung bao (bbox)**, không phải polygon
   (`regions/region-area.service.ts`), tính lần đầu khi lấy địa điểm của vùng:
