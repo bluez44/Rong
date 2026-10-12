@@ -15,9 +15,11 @@ import { DataSource } from 'typeorm';
 export const MAX_SAVED_PLACES = 500;
 
 /**
- * Lượt lưu đến từ đâu: người dùng tự thả tim, hay chọn từ một lượt chia sẻ (F4).
- * `displayName`: tên theo nội dung chính người này chia sẻ (dòng Google dùng
- * chung giữa mọi người); null thì giữ tên đã có.
+ * Lượt lưu đến từ đâu: người dùng tự thả tim, chọn từ một lượt chia sẻ (F4),
+ * hay lưu từ ô tìm địa điểm trong màn vùng (`search`).
+ * `displayName`: tên theo nội dung chính người này chia sẻ hoặc tên người này
+ * xác nhận khi lưu từ tìm kiếm (dòng Google dùng chung giữa mọi người); null
+ * thì giữ tên đã có.
  */
 export type SaveOrigin = {
   source: 'manual' | 'share' | 'search';
@@ -116,13 +118,17 @@ export class SavedPlacesService {
         `Danh sách "Muốn đi" tối đa ${MAX_SAVED_PLACES} địa điểm. Bỏ bớt rồi thử lại.`,
       );
     }
-    // Thả tim thủ công lại một địa điểm đã lưu từ share không xóa nguồn share.
+    // Nguồn ưu tiên share > search > manual: lưu từ tìm kiếm một địa điểm đã lưu
+    // từ share giữ nguồn share (và link gốc); thả tim thủ công lại không xóa
+    // nguồn share hay search.
     await runner.query(
       `INSERT INTO saved_places (user_id, place_id, region_id, source, share_import_id, display_name)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, place_id) DO UPDATE
          SET region_id = EXCLUDED.region_id,
-             source = CASE WHEN EXCLUDED.source <> 'manual' THEN EXCLUDED.source ELSE saved_places.source END,
+             source = CASE WHEN saved_places.source = 'share' THEN 'share'
+                           WHEN EXCLUDED.source <> 'manual' THEN EXCLUDED.source
+                           ELSE saved_places.source END,
              share_import_id = COALESCE(EXCLUDED.share_import_id, saved_places.share_import_id),
              display_name = COALESCE(EXCLUDED.display_name, saved_places.display_name)`,
       [

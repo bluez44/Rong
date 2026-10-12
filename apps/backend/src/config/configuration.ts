@@ -68,6 +68,12 @@ export interface ShareImportConfig {
   metaOembedToken: string | null;
 }
 
+/** Tìm địa điểm theo tên trong màn vùng. */
+export interface PlaceSearchConfig {
+  /** Số lượt tìm Google Maps tối đa mỗi người trong 24 giờ. */
+  dailyLimit: number;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -78,6 +84,7 @@ export interface AppConfig {
   openData: OpenDataConfig;
   google: GoogleConfig;
   shareImport: ShareImportConfig;
+  placeSearch: PlaceSearchConfig;
 }
 
 class MissingEnvError extends Error {
@@ -186,6 +193,9 @@ export function loadConfig(): AppConfig {
     shareImport: {
       dailyLimit: toInt(process.env.SHARE_IMPORT_DAILY_LIMIT, 30),
       metaOembedToken: process.env.META_OEMBED_TOKEN || null,
+    },
+    placeSearch: {
+      dailyLimit: toInt(process.env.PLACE_SEARCH_DAILY_LIMIT, 60),
     },
   };
 }
