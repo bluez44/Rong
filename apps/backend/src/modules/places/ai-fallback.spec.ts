@@ -8,6 +8,7 @@ import { OpenDataError } from '../open-data/http.js';
 import type { OpenDataService } from '../open-data/open-data.service.js';
 import type { RegionAreaService } from '../regions/region-area.service.js';
 import { aiPlaceToListItem } from './ai-fallback.js';
+import type { PlaceLocationService } from './place-location.service.js';
 import { PlacesService } from './places.service.js';
 
 const aiPlace = (patch: object = {}) => ({
@@ -117,6 +118,7 @@ describe('PlacesService.listForRegion — dự phòng khi nguồn dữ liệu m�
       { placesRefreshDays: 30 } as OpenDataConfig,
       {} as GooglePlacesService,
       langchain as unknown as LangchainService,
+      { ensure: vi.fn(async () => []) } as unknown as PlaceLocationService,
     );
     return { service, langchain };
   }

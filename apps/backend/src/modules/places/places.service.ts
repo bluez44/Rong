@@ -28,6 +28,7 @@ import {
   OpenDataService,
 } from '../open-data/open-data.service.js';
 import { OpenDataError } from '../open-data/http.js';
+import { PlaceLocationService } from './place-location.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
 import {
@@ -94,6 +95,7 @@ export class PlacesService {
     @Inject(OPEN_DATA_CONFIG) private readonly config: OpenDataConfig,
     private readonly google: GooglePlacesService,
     private readonly langchain: LangchainService,
+    private readonly locations: PlaceLocationService,
   ) {}
 
   /**
@@ -254,12 +256,21 @@ export class PlacesService {
    * riêng, kèm `googleStatus` để client hiển thị phù hợp.
    */
   async getDetail(id: string): Promise<PlaceDetail> {
+    const missing = await this.locations.ensure([id]);
+    if (missing.length > 0) {
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        code: 'PLACE_LOCATION_UNAVAILABLE',
+        message:
+          'Tạm thời không tải được vị trí địa điểm này. Hãy thử lại sau.',
+      });
+    }
     const [row] = (await this.db.query(
       `SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
               p.composite_score, p.description, p.wikidata_id, p.osm_type, p.osm_id,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
-              p.google_place_id, p.google_matched_at
+              p.google_place_id, p.google_matched_at, p.source
          FROM places p WHERE p.id = $1`,
       [id],
     )) as DetailRow[];
@@ -273,10 +284,16 @@ export class PlacesService {
     }
 
     const { status, content } = await this.googleContent(row);
+    const item = toListItem(row);
+    if (row.source === 'google') {
+      item.sourceUrl =
+        content?.googleMapsUri ??
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.name)}&query_place_id=${row.google_place_id}`;
+    }
     return {
-      ...toListItem(row),
+      ...item,
       id: row.id,
-      attribution: ATTRIBUTION,
+      attribution: row.source === 'google' ? 'Google Maps' : ATTRIBUTION,
       googleStatus: status,
       google: content,
     };
@@ -294,7 +311,7 @@ export class PlacesService {
         row.google_matched_at === null ||
         Date.now() - row.google_matched_at.getTime() > GOOGLE_REMATCH_AFTER_MS;
 
-      if (placeId === null && retryDue) {
+      if (placeId === null && retryDue && row.source !== 'google') {
         placeId = await this.google.matchPlaceId(row.name, row.lat, row.lng);
         await this.db.query(
           `UPDATE places SET google_place_id = $2, google_matched_at = now() WHERE id = $1`,
@@ -305,6 +322,9 @@ export class PlacesService {
 
       const content = await this.google.details(placeId);
       if (content === null) {
+        // Dòng Google không được gỡ place_id (chk_place_source).
+        if (row.source === 'google')
+          return { status: 'not_found', content: null };
         // place_id có thể hết hiệu lực (Google gộp/xóa địa điểm): bỏ đi để lần sau ghép lại.
         await this.db.query(
           `UPDATE places SET google_place_id = NULL, google_matched_at = now() WHERE id = $1`,
@@ -462,6 +482,7 @@ export class PlacesService {
 interface DetailRow extends PlaceRow {
   google_place_id: string | null;
   google_matched_at: Date | null;
+  source: 'osm' | 'google';
 }
 
 /** true nếu `promise` xong trong `ms`; lỗi trong thời gian đó thì ném ra. Không hủy promise. */

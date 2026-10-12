@@ -6,6 +6,8 @@ import { GoogleModule } from '../google/google.module.js';
 import { OpenDataModule } from '../open-data/open-data.module.js';
 import { RegionsModule } from '../regions/regions.module.js';
 import { Place } from './entities/place.entity.js';
+import { GoogleLocationJanitor } from './google-location-janitor.js';
+import { PlaceLocationService } from './place-location.service.js';
 import { PlacesV2Controller } from './places-v2.controller.js';
 import { PlacesV2Service } from './places-v2.service.js';
 import {
@@ -24,6 +26,13 @@ import { PlacesService } from './places.service.js';
     LangchainModule,
   ],
   controllers: [PlacesController, PlaceDetailController, PlacesV2Controller],
-  providers: [PlacesService, PlacesV2Service, PlacesWarmer],
+  providers: [
+    PlacesService,
+    PlacesV2Service,
+    PlacesWarmer,
+    PlaceLocationService,
+    GoogleLocationJanitor,
+  ],
+  exports: [PlaceLocationService],
 })
 export class PlacesModule {}
