@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   GoogleAuthorAttribution,
   GooglePlaceContent,
+  GooglePlaceHit,
 } from '@rong/shared-types';
 
 import type { GoogleConfig } from '../../config/configuration.js';
@@ -75,6 +76,8 @@ interface RawPlace {
   googleMapsUri?: string;
   rating?: number;
   userRatingCount?: number;
+  location?: { latitude: number; longitude: number };
+  primaryType?: string;
   currentOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   regularOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
   reviews?: Array<{
@@ -266,11 +269,44 @@ export class GooglePlacesService {
 
   /** Nội dung cho màn hình chi tiết. Trả về null nếu Google không còn địa điểm này. */
   async details(placeId: string): Promise<GooglePlaceContent | null> {
+    const found = await this.fetchDetails(placeId, DETAILS_FIELDS);
+    return found?.content ?? null;
+  }
+
+  /**
+   * Xem trước một địa điểm Google trước khi lưu: như `details`, thêm tọa độ và
+   * loại chính (chỉ để hiển thị/quy đổi danh mục, không lưu). null khi Google
+   * trả 404.
+   */
+  async preview(placeId: string): Promise<{
+    content: GooglePlaceContent;
+    location: { lat: number; lng: number } | null;
+    primaryType: string | null;
+  } | null> {
+    const found = await this.fetchDetails(
+      placeId,
+      `${DETAILS_FIELDS},location,primaryType`,
+    );
+    if (!found) return null;
+    const { raw, content } = found;
+    return {
+      content,
+      location: raw.location
+        ? { lat: raw.location.latitude, lng: raw.location.longitude }
+        : null,
+      primaryType: raw.primaryType ?? null,
+    };
+  }
+
+  private async fetchDetails(
+    placeId: string,
+    fieldMask: string,
+  ): Promise<{ raw: RawPlace; content: GooglePlaceContent } | null> {
     let place: RawPlace;
     try {
       place = await this.request<RawPlace>(
         `/places/${encodeURIComponent(placeId)}?languageCode=vi&regionCode=VN`,
-        { method: 'GET', fieldMask: DETAILS_FIELDS },
+        { method: 'GET', fieldMask },
       );
     } catch (error) {
       if (error instanceof GoogleNotFoundError) return null;
@@ -302,7 +338,7 @@ export class GooglePlacesService {
     );
 
     const hours = place.currentOpeningHours ?? place.regularOpeningHours;
-    return {
+    const content: GooglePlaceContent = {
       placeId: place.id,
       name: place.displayName?.text ?? null,
       googleMapsUri: place.googleMapsUri ?? null,
@@ -324,6 +360,7 @@ export class GooglePlacesService {
       })),
       photos: photos.filter((photo) => photo !== null),
     };
+    return { raw: place, content };
   }
 
   /**
@@ -369,6 +406,44 @@ export class GooglePlacesService {
           ]
         : [],
     );
+  }
+
+  /**
+   * Tìm địa điểm theo tên trong khung một vùng (ô tìm địa điểm). Tên/địa chỉ
+   * chỉ để hiển thị trực tiếp, không lưu (PRD 7.4); giữ thứ tự Google trả về.
+   */
+  async searchByName(
+    query: string,
+    bbox: Bbox,
+    max = 5,
+  ): Promise<GooglePlaceHit[]> {
+    const body = await this.request<{
+      places?: Array<{
+        id: string;
+        displayName?: { text?: string };
+        formattedAddress?: string;
+      }>;
+    }>('/places:searchText', {
+      method: 'POST',
+      fieldMask: 'places.id,places.displayName,places.formattedAddress',
+      body: {
+        textQuery: query,
+        languageCode: 'vi',
+        regionCode: 'VN',
+        pageSize: max,
+        locationRestriction: {
+          rectangle: {
+            low: { latitude: bbox[0], longitude: bbox[1] },
+            high: { latitude: bbox[2], longitude: bbox[3] },
+          },
+        },
+      },
+    });
+    return (body.places ?? []).map((p) => ({
+      googlePlaceId: p.id,
+      name: p.displayName?.text ?? null,
+      address: p.formattedAddress ?? null,
+    }));
   }
 
   /** Tọa độ hiện tại của một place_id, để làm mới tọa độ đã quá 30 ngày. */
