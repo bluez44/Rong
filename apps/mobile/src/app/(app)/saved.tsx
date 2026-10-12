@@ -1,15 +1,17 @@
-import type { SavedPlace } from '@rong/shared-types';
+import type { SavedPlace, ShareImportSummary } from '@rong/shared-types';
 import { router } from 'expo-router';
 import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
 import { Screen } from '@/components/screen';
+import { PLATFORM_LABELS } from '@/components/share-source-card';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
+import { useShareImports } from '@/hooks/use-share-imports';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { MAX_SELECTED_PLACES, tripDraft } from '@/lib/trip-draft';
 
@@ -18,6 +20,7 @@ type Group = { regionId: string; regionName: string; data: SavedPlace[] };
 /** Danh sách "Muốn đi" (F9), nhóm theo điểm đến; mỗi nhóm mở được luồng tạo lịch trình (F6). */
 export default function SavedScreen() {
   const saved = useSavedPlaces();
+  const shares = useShareImports();
   const insets = useSafeAreaInsets();
   const groups = groupByRegion(saved.items);
 
@@ -37,9 +40,12 @@ export default function SavedScreen() {
         stickySectionHeadersEnabled={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}
         ListHeaderComponent={
-          <Text style={styles.title} accessibilityRole="header">
-            Muốn đi
-          </Text>
+          <View style={styles.headerBlock}>
+            <Text style={styles.title} accessibilityRole="header">
+              Muốn đi
+            </Text>
+            {shares.items.length > 0 ? <PendingShares items={shares.items} /> : null}
+          </View>
         }
         renderSectionHeader={({ section }) => <GroupHeader group={section} />}
         renderItem={({ item }) => (
@@ -52,7 +58,10 @@ export default function SavedScreen() {
         )}
         ListEmptyComponent={<EmptyState saved={saved} />}
         refreshControl={
-          <RefreshControl refreshing={saved.status === 'refreshing'} onRefresh={saved.reload} tintColor={Colors.light.primary} />
+          <RefreshControl refreshing={saved.status === 'refreshing'} onRefresh={() => {
+              saved.reload();
+              shares.reload();
+            }} tintColor={Colors.light.primary} />
         }
       />
     </Screen>
@@ -87,6 +96,36 @@ function GroupHeader({ group }: { group: Group }) {
   );
 }
 
+function PendingShares({ items }: { items: ShareImportSummary[] }) {
+  return (
+    <View style={styles.shares}>
+      <Text style={styles.sharesTitle} accessibilityRole="header">
+        Từ bài chia sẻ
+      </Text>
+      {items.map((s) => {
+        const status = s.status === 'pending' ? 'Đang nhận diện…' : `${s.candidateCount} địa điểm chờ bạn chọn`;
+        const title = s.source.title ?? 'Bài chia sẻ';
+        return (
+          <Pressable
+            key={s.id}
+            accessibilityRole="button"
+            accessibilityLabel={`${PLATFORM_LABELS[s.source.platform]}, ${title}, ${status}`}
+            onPress={() => router.push({ pathname: '/share-import/[id]', params: { id: s.id } })}
+            style={({ pressed }) => [styles.shareRow, pressed && styles.pressed]}>
+            <View style={styles.flex}>
+              <Text style={styles.meta}>{PLATFORM_LABELS[s.source.platform]}</Text>
+              <Text style={styles.name} numberOfLines={1}>
+                {title}
+              </Text>
+              <Text style={styles.meta}>{status}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function SavedRow({ item, onRemove }: { item: SavedPlace; onRemove: () => void }) {
   const openDetail = () =>
     router.push({
@@ -109,7 +148,10 @@ function SavedRow({ item, onRemove }: { item: SavedPlace; onRemove: () => void }
           <Text style={styles.name} numberOfLines={1}>
             {item.name}
           </Text>
-          <Text style={styles.meta}>{CATEGORY_LABELS[item.category]}</Text>
+          <Text style={styles.meta}>
+            {CATEGORY_LABELS[item.category]}
+            {item.shareSource ? ` · Từ ${PLATFORM_LABELS[item.shareSource.platform]}` : ''}
+          </Text>
         </View>
       </Pressable>
       <Pressable
@@ -139,6 +181,7 @@ function EmptyState({ saved }: { saved: ReturnType<typeof useSavedPlaces> }) {
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>Chưa lưu địa điểm nào</Text>
       <Text style={styles.hint}>Thả tim những chỗ bạn muốn ghé khi xem một điểm đến. Chúng sẽ được gom ở đây theo từng nơi.</Text>
+      <Text style={styles.hint}>Hoặc chia sẻ video, bài viết từ TikTok, Facebook… vào Rong.</Text>
       <Button label="Tìm điểm đến" onPress={() => router.push('/search')} style={styles.emptyAction} />
     </View>
   );
@@ -160,6 +203,17 @@ const styles = StyleSheet.create({
   topBar: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.two },
   backGlass: { width: MinTouch, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.four, gap: Spacing.two },
+  headerBlock: { gap: Spacing.two },
+  shares: { gap: Spacing.two, marginTop: Spacing.two },
+  sharesTitle: { ...Type.headline, color: Colors.light.text },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.three,
+    borderRadius: Radius.md,
+    borderCurve: 'continuous',
+    backgroundColor: Colors.light.surface,
+  },
   title: { ...Type.title1, color: Colors.light.text, marginBottom: Spacing.two },
   loading: { paddingVertical: Spacing.six },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
