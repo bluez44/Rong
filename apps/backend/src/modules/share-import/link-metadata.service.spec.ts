@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createPinnedLookup,
   isPublicAddress,
   LinkMetadataService,
   parseOpenGraph,
@@ -53,6 +54,11 @@ describe('isPublicAddress', () => {
     ['::ffff:7f00:1', false],
     ['::ffff:a9fe:a9fe', false],
     ['64:ff9b::7f00:1', false],
+    ['::7f00:1', false],
+    ['::ffff:0:7f00:1', false],
+    ['2002:7f00:1::', false],
+    ['64:ff9b:1::1', false],
+    ['fec0::1', false],
     ['93.184.216.34', true],
     ['::ffff:5db8:d822', true],
     ['2606:4700::1111', true],
@@ -168,6 +174,30 @@ describe('LinkMetadataService.fetch', () => {
     const page = 'https://a.vn/video.mp4';
     const { svc } = service({ [page]: { headers: { 'content-type': 'video/mp4' }, body: 'x' } });
     await expect(svc.fetch(new URL(page))).resolves.toBeNull();
+  });
+});
+
+describe('createPinnedLookup', () => {
+  const run = (addresses: string[], all = false) =>
+    new Promise<{ error: Error | null; address: unknown; family?: number }>((resolve) => {
+      createPinnedLookup(async () => addresses)('x.vn', { all }, (error, address, family) =>
+        resolve({ error, address, family }),
+      );
+    });
+
+  it('từ chối khi có địa chỉ không công khai', async () => {
+    const result = await run(['93.184.216.34', '127.0.0.1']);
+    expect(result.error).toBeInstanceOf(UnsafeUrlError);
+  });
+
+  it('địa chỉ công khai thì trả đúng địa chỉ đã kiểm tra', async () => {
+    expect(await run(['93.184.216.34'])).toEqual({
+      error: null,
+      address: '93.184.216.34',
+      family: 4,
+    });
+    const all = await run(['2606:4700::1111'], true);
+    expect(all.address).toEqual([{ address: '2606:4700::1111', family: 6 }]);
   });
 });
 
