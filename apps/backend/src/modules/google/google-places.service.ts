@@ -5,6 +5,7 @@ import type {
 } from '@rong/shared-types';
 
 import type { GoogleConfig } from '../../config/configuration.js';
+import type { Bbox } from '../regions/bbox.js';
 
 export const GOOGLE_CONFIG = 'GOOGLE_CONFIG';
 
@@ -100,14 +101,16 @@ const GEOCODE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const GEOCODE_MISS_TTL_MS = 24 * 60 * 60 * 1000;
 const GEOCODE_CACHE_MAX = 10_000;
 
-type GeocodeHit = { placeId: string; lat: number; lng: number };
+export type GoogleHit = { placeId: string; lat: number; lng: number };
+type GeocodeHit = GoogleHit;
 
 /**
  * Cổng duy nhất tới Google Maps Platform (Places API New, Geocoding API) —
  * PRD 7.4. Không module nào khác
- * được gọi Google. Không lưu gì ngoài place_id (do PlacesService lưu) và
- * không cache gì ngoài tọa độ Geocoding (tối đa 30 ngày, trong bộ nhớ); mọi
- * nội dung khác đi thẳng từ Google ra response.
+ * được gọi Google. Không lưu gì ngoài place_id (PlacesService,
+ * ShareImports lưu) và tọa độ tối đa 30 ngày (Geocoding trong bộ nhớ; dòng
+ * `places` nguồn Google có `location_expires_at`); mọi nội dung khác đi thẳng
+ * từ Google ra response.
  */
 @Injectable()
 export class GooglePlacesService {
@@ -318,6 +321,94 @@ export class GooglePlacesService {
       })),
       photos: photos.filter((photo) => photo !== null),
     };
+  }
+
+  /**
+   * Tìm địa điểm theo tên cho share-to-app (F4): chỉ id + tọa độ (tọa độ được
+   * cache tối đa 30 ngày, PRD 7.4). Không xin tên hay loại Google.
+   */
+  async searchText(
+    query: string,
+    bbox: Bbox | null,
+    max = 3,
+  ): Promise<GoogleHit[]> {
+    const body = await this.request<{
+      places?: Array<{
+        id: string;
+        location?: { latitude: number; longitude: number };
+      }>;
+    }>('/places:searchText', {
+      method: 'POST',
+      fieldMask: 'places.id,places.location',
+      body: {
+        textQuery: query,
+        languageCode: 'vi',
+        regionCode: 'VN',
+        pageSize: max,
+        ...(bbox && {
+          locationBias: {
+            rectangle: {
+              low: { latitude: bbox[0], longitude: bbox[1] },
+              high: { latitude: bbox[2], longitude: bbox[3] },
+            },
+          },
+        }),
+      },
+    });
+    return (body.places ?? []).flatMap((p) =>
+      p.location
+        ? [
+            {
+              placeId: p.id,
+              lat: p.location.latitude,
+              lng: p.location.longitude,
+            },
+          ]
+        : [],
+    );
+  }
+
+  /** Tọa độ hiện tại của một place_id, để làm mới tọa độ đã quá 30 ngày. */
+  async locate(placeId: string): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const place = await this.request<{
+        location?: { latitude: number; longitude: number };
+      }>(`/places/${encodeURIComponent(placeId)}`, {
+        method: 'GET',
+        fieldMask: 'location',
+      });
+      return place.location
+        ? { lat: place.location.latitude, lng: place.location.longitude }
+        : null;
+    } catch (error) {
+      if (error instanceof GoogleNotFoundError) return null;
+      throw error;
+    }
+  }
+
+  /** Tên + địa chỉ Google để người dùng phân biệt các lựa chọn. Chỉ hiển thị, không lưu. */
+  async summary(
+    placeId: string,
+  ): Promise<{ name: string | null; address: string | null } | null> {
+    try {
+      const place = await this.request<{
+        displayName?: { text?: string };
+        formattedAddress?: string;
+      }>(
+        `/places/${encodeURIComponent(placeId)}?languageCode=vi&regionCode=VN`,
+        {
+          method: 'GET',
+          fieldMask: 'displayName,formattedAddress',
+        },
+      );
+      return {
+        name: place.displayName?.text ?? null,
+        address: place.formattedAddress ?? null,
+      };
+    } catch (error) {
+      if (error instanceof GoogleNotFoundError) return null;
+      throw error;
+    }
   }
 
   private async request<T>(
