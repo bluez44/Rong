@@ -103,7 +103,8 @@ export type ItineraryWarningType =
   | 'place_closed'
   | 'long_travel_leg'
   | 'overloaded_day'
-  | 'missing_meal';
+  | 'missing_meal'
+  | 'place_location_unavailable';
 
 export interface ItineraryWarning {
   type: ItineraryWarningType;

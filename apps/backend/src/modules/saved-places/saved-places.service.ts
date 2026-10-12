@@ -47,6 +47,9 @@ export class SavedPlacesService {
         ? `${r.region_name}, ${r.parent_name}`
         : r.region_name,
       savedAt: r.created_at.toISOString(),
+      // Tạm thời: dữ liệu thật từ lượt chia sẻ sẽ có ở Task 10.
+      source: 'manual',
+      shareSource: null,
     }));
   }
 

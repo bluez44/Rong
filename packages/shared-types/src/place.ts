@@ -1,3 +1,5 @@
+import type { SharePlatform } from './share-import';
+
 /**
  * Địa điểm — PRD mục 7.2 (Place), F2, F3, F5.
  *
@@ -185,4 +187,8 @@ export interface SavedPlace {
   regionId: string;
   regionName: string;
   savedAt: string;
+  /** 'share' khi lưu từ một lượt chia sẻ vào app (F4). */
+  source: 'manual' | 'share';
+  /** Chỉ khi `source = 'share'` và lượt chia sẻ còn: để ghi nguồn và mở link gốc. */
+  shareSource: { platform: SharePlatform; title: string | null; url: string | null } | null;
 }

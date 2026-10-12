@@ -71,6 +71,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
               regionId: region.id,
               regionName: region.name,
               savedAt: new Date().toISOString(),
+              source: 'manual' as const,
+              shareSource: null,
             },
             ...itemsRef.current,
           ];
