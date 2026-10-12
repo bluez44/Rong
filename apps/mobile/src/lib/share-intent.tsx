@@ -24,11 +24,17 @@ export function useIncomingShare() {
     sending.current = true;
     authFetch<{ id: string }>('/share-imports', { method: 'POST', body: { url, text } })
       .then(({ id }) => router.push({ pathname: '/share-import/[id]', params: { id } }))
-      .catch((e) =>
-        Alert.alert('Chưa nhận được nội dung chia sẻ', e instanceof ApiError ? e.message : 'Thử lại sau nhé.'),
-      )
+      // Nội dung chia sẻ đã bị xóa trước khi gửi: muốn thử lại thì phải chia sẻ lại.
+      .catch((e) => Alert.alert('Chưa nhận được nội dung chia sẻ', shareErrorMessage(e)))
       .finally(() => {
         sending.current = false;
       });
   }, [hasShareIntent, shareIntent, resetShareIntent, authFetch]);
+}
+
+function shareErrorMessage(e: unknown): string {
+  if (e instanceof ApiError && e.code === 'NETWORK_ERROR') {
+    return 'Không kết nối được máy chủ. Kiểm tra mạng rồi chia sẻ lại nhé.';
+  }
+  return e instanceof ApiError ? e.message : 'Hãy chia sẻ lại nhé.';
 }

@@ -1,6 +1,6 @@
 import type { SavedPlace, ShareImportSummary } from '@rong/shared-types';
 import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
@@ -134,27 +134,42 @@ function SavedRow({ item, onRemove }: { item: SavedPlace; onRemove: () => void }
       params: { id: item.placeId, name: item.name, category: item.category, regionId: item.regionId, regionName: item.regionName },
     });
 
+  const source = item.shareSource;
+  const sourceUrl = source?.url ?? null;
+
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${item.name}, ${CATEGORY_LABELS[item.category]}`}
-        accessibilityHint="Mở chi tiết địa điểm"
-        onPress={openDetail}
-        style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}>
-        <View style={styles.icon}>
-          <Icon name={item.category} size={20} color={Colors.light.primary} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.name} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.meta}>
-            {CATEGORY_LABELS[item.category]}
-            {item.shareSource ? ` · Từ ${PLATFORM_LABELS[item.shareSource.platform]}` : ''}
-          </Text>
-        </View>
-      </Pressable>
+      <View style={styles.flex}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${item.name}, ${CATEGORY_LABELS[item.category]}`}
+          accessibilityHint="Mở chi tiết địa điểm"
+          onPress={openDetail}
+          style={({ pressed }) => [styles.rowMain, source && styles.rowMainWithSource, pressed && styles.pressed]}>
+          <View style={styles.icon}>
+            <Icon name={item.category} size={20} color={Colors.light.primary} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.meta}>{CATEGORY_LABELS[item.category]}</Text>
+          </View>
+        </Pressable>
+        {source ? (
+          // Spec §6: chạm nhãn nguồn thì mở bài gốc; phần còn lại của dòng vẫn mở chi tiết.
+          <Pressable
+            accessibilityRole={sourceUrl ? 'link' : undefined}
+            accessibilityLabel={`Từ ${PLATFORM_LABELS[source.platform]}`}
+            accessibilityHint={sourceUrl ? 'Mở bài chia sẻ gốc' : undefined}
+            disabled={!sourceUrl}
+            onPress={sourceUrl ? () => Linking.openURL(sourceUrl) : undefined}
+            hitSlop={{ top: 6, bottom: 6 }}
+            style={({ pressed }) => [styles.sourceLabel, pressed && styles.pressed]}>
+            <Text style={[styles.meta, sourceUrl && styles.link]}>Từ {PLATFORM_LABELS[source.platform]}</Text>
+          </Pressable>
+        ) : null}
+      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Bỏ khỏi Muốn đi: ${item.name}`}
@@ -232,7 +247,15 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: Colors.light.surface,
   },
-  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
+  rowMainWithSource: { paddingBottom: Spacing.one },
+  // Thẳng cột với tên: lề trái = padding + ô biểu tượng 44 + khoảng cách.
+  sourceLabel: {
+    alignSelf: 'flex-start',
+    marginLeft: Spacing.three + 44 + Spacing.three,
+    paddingBottom: Spacing.three,
+  },
+  link: { color: Colors.light.primary },
   pressed: { opacity: 0.7 },
   icon: {
     width: 44,
