@@ -81,8 +81,11 @@ Query: `q` (1–100 ký tự), `online` (`true`/`1`, mặc định tắt).
 - **Google** (chỉ khi `online` và Google bật): `GooglePlacesService.searchByName(q,
   bbox, 5)` — Text Search với `locationRestriction` là khung bao vùng,
   `fieldMask: places.id,places.displayName,places.formattedAddress`. Mỗi kết quả
-  có `google_place_id` trùng một dòng `places` đã có thì chuyển sang danh sách
-  `existing` (kèm `id`, tên trong DB); còn lại trả trong `google`.
+  có `google_place_id` trùng một dòng `places` đã có (OSM đã ghép, ưu tiên; hoặc
+  nguồn Google) thì chuyển sang danh sách `existing` kèm `id` — tên là tên OSM
+  với dòng OSM, và tên Google lấy trực tiếp với dòng nguồn Google (tên trong DB
+  do người khác đặt, mục 2.5); còn lại trả trong `google`. Xem trước và lưu một
+  place_id đã ghép vào dòng OSM dùng luôn dòng OSM, không tạo dòng Google trùng.
 - **Giới hạn**: lượt có `online` đếm theo người dùng trong cửa sổ trượt 24 giờ,
   tối đa `PLACE_SEARCH_DAILY_LIMIT` (mặc định 60, cấu hình qua env). Vượt →
   `429 PLACE_SEARCH_LIMIT`. Bộ đếm trong bộ nhớ (`PlaceSearchLimiter`).
