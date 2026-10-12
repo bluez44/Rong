@@ -19,6 +19,7 @@ import { GooglePlacesService } from '../google/google-places.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
 import { aiPlaceToListItem } from './ai-fallback.js';
+import { type CatalogMatch, matchCatalog } from './catalog-match.js';
 import { PLACE_CATEGORIES } from './entities/place.entity.js';
 import { hoursToday } from './opening-hours.js';
 import { articlesMentioning, fetchPublishedDate } from './web-grounding.js';
@@ -29,10 +30,6 @@ import { articlesMentioning, fetchPublishedDate } from './web-grounding.js';
  * request; GooglePlacesService tự cache tọa độ Geocoding tối đa 30 ngày (PRD 7.4).
  */
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-/** Độ giống tên tối thiểu (pg_trgm, đã bỏ dấu) để coi là cùng địa điểm trong danh mục. */
-const CATALOG_MIN_SIMILARITY = 0.6;
-/** Tỉ lệ độ dài tối thiểu giữa hai tên (ngắn / dài) khi so khớp danh mục. */
-const CATALOG_MIN_LENGTH_RATIO = 0.75;
 /** Nới khung bao khi kiểm tra tọa độ AI ước lượng (~2 km). */
 const AI_LOCATION_PADDING_DEG = 0.02;
 /**
@@ -67,18 +64,6 @@ interface AgentResult {
 interface CacheEntry {
   expiresAt: number;
   result: Promise<AgentResult>;
-}
-
-interface CatalogMatch {
-  idx: string;
-  id: string;
-  lat: number;
-  lng: number;
-  osm_type: string;
-  osm_id: string;
-  wikidata_id: string | null;
-  opening_hours: string | null;
-  website: string | null;
 }
 
 /** Thời gian định vị của một request, ghi ra log để theo dõi độ chậm. */
@@ -309,7 +294,11 @@ export class PlacesV2Service {
 
     if (bbox) {
       const started = Date.now();
-      const matches = await this.matchCatalog(places, bbox);
+      const matches = await matchCatalog(
+        this.db,
+        places.map((place) => place.title),
+        bbox,
+      );
       timing.catalogMs = Date.now() - started;
       timing.catalogMatched = matches.length;
       for (const match of matches) {
@@ -361,46 +350,6 @@ export class PlacesV2Service {
       );
     }
     return { resolved, timing };
-  }
-
-  /** Mỗi tên lấy địa điểm giống nhất trong khung bao của vùng, một truy vấn cho cả danh sách. */
-  private matchCatalog(
-    places: GroundedPlace[],
-    bbox: Bbox,
-  ): Promise<CatalogMatch[]> {
-    return this.db.query(
-      `WITH candidates AS (
-         SELECT p.*, unaccent(lower(p.name)) AS norm
-           FROM places p
-          WHERE p.location && ST_MakeEnvelope($2, $3, $4, $5, 4326)
-       )
-       SELECT n.idx, m.*
-         FROM unnest($1::text[]) WITH ORDINALITY AS n(name, idx)
-         CROSS JOIN LATERAL (SELECT unaccent(lower(n.name)) AS q) nq
-         CROSS JOIN LATERAL (
-           SELECT c.id, ST_Y(c.location) AS lat, ST_X(c.location) AS lng,
-                  c.osm_type, c.osm_id, c.wikidata_id,
-                  c.tags->>'opening_hours' AS opening_hours,
-                  COALESCE(c.tags->>'website', c.tags->>'contact:website') AS website
-             FROM candidates c
-            WHERE similarity(c.norm, nq.q) >= $6
-              -- Tên ngắn nằm gọn trong tên dài vẫn đủ giống ("Chợ Đà Lạt" ~ "Đà Lạt"),
-              -- nên bắt độ dài (đã bỏ dấu) phải gần nhau.
-              AND least(length(c.norm), length(nq.q))::float8
-                  / greatest(length(c.norm), length(nq.q)) >= $7
-            ORDER BY similarity(c.norm, nq.q) DESC
-            LIMIT 1
-         ) m`,
-      [
-        places.map((place) => place.title),
-        bbox[1],
-        bbox[0],
-        bbox[3],
-        bbox[2],
-        CATALOG_MIN_SIMILARITY,
-        CATALOG_MIN_LENGTH_RATIO,
-      ],
-    ) as Promise<CatalogMatch[]>;
   }
 }
 

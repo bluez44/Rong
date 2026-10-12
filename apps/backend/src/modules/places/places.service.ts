@@ -156,6 +156,7 @@ export class PlacesService {
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website
          FROM places p
         WHERE p.location && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          AND p.source = 'osm'
           AND p.category = ANY($5::place_category[])
           AND ($6::int IS NULL OR p.composite_score < $6 OR (p.composite_score = $6 AND p.id > $7::uuid))
         ORDER BY p.composite_score DESC, p.id
@@ -187,7 +188,7 @@ export class PlacesService {
 
   private async hasPlaces(bbox: Bbox): Promise<boolean> {
     const [row] = (await this.db.query(
-      `SELECT EXISTS (SELECT 1 FROM places WHERE location && ST_MakeEnvelope($1, $2, $3, $4, 4326)) AS found`,
+      `SELECT EXISTS (SELECT 1 FROM places WHERE source = 'osm' AND location && ST_MakeEnvelope($1, $2, $3, $4, 4326)) AS found`,
       [bbox[1], bbox[0], bbox[3], bbox[2]],
     )) as Array<{ found: boolean }>;
     return row?.found === true;
