@@ -7,6 +7,7 @@ import { OpenDataModule } from '../open-data/open-data.module.js';
 import { RegionsModule } from '../regions/regions.module.js';
 import { Place } from './entities/place.entity.js';
 import { GoogleLocationJanitor } from './google-location-janitor.js';
+import { GooglePlaceRowsService } from './google-place-rows.service.js';
 import { PlaceLocationService } from './place-location.service.js';
 import { PlacesV2Controller } from './places-v2.controller.js';
 import { PlacesV2Service } from './places-v2.service.js';
@@ -32,7 +33,8 @@ import { PlacesService } from './places.service.js';
     PlacesWarmer,
     PlaceLocationService,
     GoogleLocationJanitor,
+    GooglePlaceRowsService,
   ],
-  exports: [PlaceLocationService],
+  exports: [PlaceLocationService, GooglePlaceRowsService],
 })
 export class PlacesModule {}

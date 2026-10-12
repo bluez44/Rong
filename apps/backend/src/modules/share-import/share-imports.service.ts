@@ -28,7 +28,7 @@ import {
   CATALOG_MIN_SIMILARITY,
   matchCatalog,
 } from '../places/catalog-match.js';
-import { GOOGLE_LOCATION_TTL_DAYS } from '../places/place-location.service.js';
+import { GooglePlaceRowsService } from '../places/google-place-rows.service.js';
 import { SavedPlacesService } from '../saved-places/saved-places.service.js';
 import type { CreateShareImportDto } from './dto/create-share-import.dto.js';
 import type { SaveShareImportDto } from './dto/save-share-import.dto.js';
@@ -108,6 +108,7 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
     private readonly metadata: LinkMetadataService,
     @Inject(PLACE_EXTRACTOR) private readonly extract: ExtractFn,
     private readonly google: GooglePlacesService,
+    private readonly googleRows: GooglePlaceRowsService,
     private readonly regions: RegionLookupService,
     private readonly saved: SavedPlacesService,
     @Inject(SHARE_IMPORT_CONFIG) private readonly config: ShareImportConfig,
@@ -285,7 +286,17 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
         const placeId =
           option.kind === 'catalog'
             ? option.placeId
-            : await upsertGooglePlace(m, candidate, option, row.created_at);
+            : await this.googleRows.upsert(
+                {
+                  googlePlaceId: option.googlePlaceId,
+                  name: candidate.name,
+                  category: candidate.category,
+                  lat: option.lat,
+                  lng: option.lng,
+                  fetchedAt: row.created_at,
+                },
+                m,
+              );
         await this.saved.save(
           userId,
           placeId,
@@ -513,42 +524,6 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
       params,
     ) as Promise<JobRow[]>;
   }
-}
-
-/**
- * Dòng `places` nguồn Google: tên từ nội dung người dùng. Tọa độ lấy lúc job
- * chạy nên hạn 30 ngày tính từ lúc đó (PRD 7.4), không phải lúc lưu. Dùng
- * chung theo place_id; dòng đã có tọa độ mới hơn thì giữ nguyên.
- */
-async function upsertGooglePlace(
-  m: Pick<DataSource, 'query'>,
-  candidate: StoredCandidate,
-  option: Extract<StoredOption, { kind: 'google' }>,
-  fetchedAt: Date,
-): Promise<string> {
-  const [row] = (await m.query(
-    `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
-     VALUES ('google', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326),
-             $7::timestamptz + make_interval(days => $6::int), 0)
-     ON CONFLICT (google_place_id) WHERE source = 'google'
-     DO UPDATE SET
-       location = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at
-                       THEN EXCLUDED.location ELSE places.location END,
-       location_expires_at = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at
-                                  THEN EXCLUDED.location_expires_at ELSE places.location_expires_at END,
-       updated_at = now()
-     RETURNING id`,
-    [
-      option.googlePlaceId,
-      candidate.name,
-      candidate.category,
-      option.lng,
-      option.lat,
-      GOOGLE_LOCATION_TTL_DAYS,
-      fetchedAt,
-    ],
-  )) as Array<{ id: string }>;
-  return row.id;
 }
 
 function toSummary(row: JobRow): ShareImportSummary {
