@@ -142,6 +142,52 @@ export interface GooglePlaceContent {
   photos: GooglePhoto[];
 }
 
+/** Kết quả tìm có trong DB (danh mục OSM, hoặc dòng đã có khớp theo place_id). */
+export interface PlaceSearchHit {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  coordinates: Coordinates | null;
+}
+
+/** Kết quả chỉ có trên Google: lấy trực tiếp để hiển thị, không lưu (PRD 7.4). */
+export interface GooglePlaceHit {
+  googlePlaceId: string;
+  name: string | null;
+  address: string | null;
+}
+
+export interface PlaceSearchResponse {
+  catalog: PlaceSearchHit[];
+  /** Kết quả Google trùng một địa điểm đã có trong DB, theo thứ tự Google. */
+  existing: PlaceSearchHit[];
+  /** null: không tìm Google (không bật online, hoặc Google không dùng được). */
+  google: GooglePlaceHit[] | null;
+}
+
+export interface GooglePlacePreview {
+  googlePlaceId: string;
+  name: string | null;
+  address: string | null;
+  coordinates: Coordinates | null;
+  suggestedCategory: PlaceCategory;
+  google: GooglePlaceContent;
+}
+
+/** Địa điểm đã có trong DB thì chỉ trả id để mở chi tiết thường. */
+export type GooglePlacePreviewResponse = { placeId: string } | GooglePlacePreview;
+
+export interface SaveGooglePlaceRequest {
+  googlePlaceId: string;
+  name: string;
+  category: PlaceCategory;
+  regionId: string;
+}
+
+export interface SaveGooglePlaceResponse {
+  placeId: string;
+}
+
 /**
  * - `ok`: có nội dung Google.
  * - `not_found`: đã ghép nhưng Google không có địa điểm này.
@@ -189,8 +235,8 @@ export interface SavedPlace {
   regionId: string;
   regionName: string;
   savedAt: string;
-  /** 'share' khi lưu từ một lượt chia sẻ vào app (F4). */
-  source: 'manual' | 'share';
+  /** 'share' từ chia sẻ (F4), 'search' từ ô tìm địa điểm. */
+  source: 'manual' | 'share' | 'search';
   /** Chỉ khi `source = 'share'` và lượt chia sẻ còn: để ghi nguồn và mở link gốc. */
   shareSource: { platform: SharePlatform; title: string | null; url: string | null } | null;
 }
