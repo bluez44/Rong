@@ -285,6 +285,40 @@ describe('places.source (e2e)', () => {
           expect.objectContaining({ type: 'place_location_unavailable' }),
         ]),
       );
+      const dayItems = res.body.days.flatMap(
+        (d: { items: Array<{ placeId: string | null }> }) =>
+          d.items.map((i) => i.placeId),
+      );
+      expect(dayItems).not.toContain(staleId);
+      expect(
+        res.body.unscheduled.map((u: { placeId: string }) => u.placeId),
+      ).not.toContain(staleId);
+    });
+
+    it('sửa lịch trình có địa điểm Google mất tọa độ và Google không trả → 503', async () => {
+      await db.query(
+        `UPDATE places SET location = ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
+                location_expires_at = now() + interval '30 days' WHERE id = $1`,
+        [staleId],
+      );
+      const created = await createItinerary([staleId, anchorId]).expect(201);
+      await db.query(
+        `UPDATE places SET location = NULL, location_expires_at = NULL WHERE id = $1`,
+        [staleId],
+      );
+      google.locate.mockResolvedValueOnce(null);
+      const res = await request(app.getHttpServer())
+        .put(`/api/itineraries/${created.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          days: created.body.days.map((d: { id: string }) => ({
+            id: d.id,
+            items: [],
+          })),
+          unscheduledPlaceIds: [staleId, anchorId],
+        })
+        .expect(503);
+      expect(res.body.code).toBe('PLACE_LOCATION_UNAVAILABLE');
     });
 
     it('chi tiết địa điểm Google không có tọa độ và Google lỗi → 503', async () => {
