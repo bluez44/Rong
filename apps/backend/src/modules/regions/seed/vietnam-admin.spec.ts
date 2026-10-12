@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
+import { bboxAround, type Bbox } from '../bbox.js';
 import { DESTINATIONS, NEW_PROVINCES, OLD_PROVINCES } from './vietnam-admin.js';
+
+const contains = ([s, w, n, e]: Bbox, [lat, lng]: [number, number]) =>
+  lat >= s && lat <= n && lng >= w && lng <= e;
+
+const destinationBbox = (key: string): Bbox => {
+  const d = DESTINATIONS.find((x) => x.key === key)!;
+  return bboxAround(d.center[0], d.center[1], d.radiusKm * 1000);
+};
+
+describe('khung điểm đến', () => {
+  it('khung của một điểm đến không chứa tâm điểm đến khác', () => {
+    const overlaps: string[] = [];
+    for (const a of DESTINATIONS) {
+      const box = destinationBbox(a.key);
+      for (const b of DESTINATIONS) {
+        if (a.key !== b.key && contains(box, b.center)) {
+          overlaps.push(`${a.key} ⊃ ${b.key}`);
+        }
+      }
+    }
+    expect(overlaps).toEqual([]);
+  });
+
+  it('khung Cần Giờ không phủ thành phố Vũng Tàu', () => {
+    expect(contains(destinationBbox('can-gio'), [10.346, 107.084])).toBe(false);
+  });
+});
 
 describe('dữ liệu sáp nhập tỉnh 1/7/2025', () => {
   const oldKeys = new Set(OLD_PROVINCES.map((p) => p.key));
