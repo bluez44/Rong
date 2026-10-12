@@ -24,14 +24,30 @@ import { DataSource } from 'typeorm';
 
 import type { ShareImportConfig } from '../../config/configuration.js';
 import { GooglePlacesService } from '../google/google-places.service.js';
-import { CATALOG_MIN_SIMILARITY, matchCatalog } from '../places/catalog-match.js';
+import {
+  CATALOG_MIN_SIMILARITY,
+  matchCatalog,
+} from '../places/catalog-match.js';
 import { GOOGLE_LOCATION_TTL_DAYS } from '../places/place-location.service.js';
 import { SavedPlacesService } from '../saved-places/saved-places.service.js';
 import type { CreateShareImportDto } from './dto/create-share-import.dto.js';
 import type { SaveShareImportDto } from './dto/save-share-import.dto.js';
-import { LinkMetadataService, UnsafeUrlError, type LinkMetadata } from './link-metadata.service.js';
-import { buildExtractionInput, extractPlaces, PLACE_EXTRACTOR, type ExtractFn } from './place-extraction.js';
-import { resolvePlaces, type StoredCandidate, type StoredOption } from './place-resolver.js';
+import {
+  LinkMetadataService,
+  UnsafeUrlError,
+  type LinkMetadata,
+} from './link-metadata.service.js';
+import {
+  buildExtractionInput,
+  extractPlaces,
+  PLACE_EXTRACTOR,
+  type ExtractFn,
+} from './place-extraction.js';
+import {
+  resolvePlaces,
+  type StoredCandidate,
+  type StoredOption,
+} from './place-resolver.js';
 import { RegionLookupService } from './region-lookup.service.js';
 import {
   CANDIDATES_TTL_DAYS,
@@ -47,6 +63,10 @@ import { detectPlatform, normalizeShareInput } from './share-url.js';
 const NATIONWIDE_MIN_SIMILARITY = CATALOG_MIN_SIMILARITY + 0.15;
 const SUMMARY_TIMEOUT_MS = 3000;
 const SWEEP_EVERY_MS = 6 * 60 * 60 * 1000;
+/** Dọn lần đầu ngay sau khi khởi động: deploy thường xuyên thì chu kỳ 6 giờ có thể không bao giờ tới. */
+const SWEEP_FIRST_RUN_MS = 60 * 1000;
+/** Bắt cả job bị bỏ dở do tiến trình chết đột ngột (không qua onModuleDestroy). */
+const RECOVER_EVERY_MS = 60 * 1000;
 
 interface JobRow {
   id: string;
@@ -68,7 +88,7 @@ class JobError extends Error {
   }
 }
 
-/** Server đang tắt: bỏ job, lần khởi động sau đánh nó `INTERRUPTED`. */
+/** Server đang tắt: dừng job; onModuleDestroy tự đánh nó `INTERRUPTED`. */
 class ShutdownError extends Error {}
 
 /**
@@ -79,9 +99,9 @@ class ShutdownError extends Error {}
 @Injectable()
 export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ShareImportsService.name);
-  private sweepTimer: NodeJS.Timeout | null = null;
-  /** Hủy từng job đang chạy khi server tắt, để không ghi vào DB đã đóng. */
-  private readonly running = new Set<(error: Error) => void>();
+  private readonly timers: NodeJS.Timeout[] = [];
+  /** Job đang chạy trong tiến trình này → hàm hủy, dùng khi server tắt. */
+  private readonly running = new Map<string, (error: Error) => void>();
 
   constructor(
     @InjectDataSource() private readonly db: DataSource,
@@ -95,16 +115,40 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     await this.recoverInterrupted();
-    this.sweepTimer = setInterval(
-      () => void this.sweepOldCandidates().catch((e: Error) => this.logger.warn(e.message)),
-      SWEEP_EVERY_MS,
-    ).unref();
+    const sweep = () =>
+      void this.sweepOldCandidates().catch((e: Error) =>
+        this.logger.warn(`Dọn ứng viên share lỗi: ${e.message}`),
+      );
+    const recover = () =>
+      void this.recoverInterrupted().catch((e: Error) =>
+        this.logger.warn(`Thu hồi job share lỗi: ${e.message}`),
+      );
+    this.timers.push(
+      setTimeout(sweep, SWEEP_FIRST_RUN_MS).unref(),
+      setInterval(sweep, SWEEP_EVERY_MS).unref(),
+      setInterval(recover, RECOVER_EVERY_MS).unref(),
+    );
   }
 
-  onModuleDestroy(): void {
-    if (this.sweepTimer) clearInterval(this.sweepTimer);
-    for (const cancel of this.running) cancel(new ShutdownError());
+  /** Chạy trước khi TypeORM đóng kết nối: job đang dở được đánh `INTERRUPTED` để client thôi chờ. */
+  async onModuleDestroy(): Promise<void> {
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.length = 0;
+    const ids = [...this.running.keys()];
+    for (const cancel of this.running.values()) cancel(new ShutdownError());
     this.running.clear();
+    if (ids.length === 0) return;
+    await this.db
+      .query(
+        `UPDATE share_imports SET status = 'failed', error_code = 'INTERRUPTED', finished_at = now()
+          WHERE id = ANY($1::uuid[]) AND status = 'pending'`,
+        [ids],
+      )
+      .catch((e: Error) =>
+        this.logger.error(
+          `Không đánh dấu được job share bị dừng: ${e.message}`,
+        ),
+      );
   }
 
   /** Job `pending` từ lần chạy trước (server khởi động lại giữa chừng) không bao giờ xong nữa. */
@@ -125,10 +169,16 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  async create(userId: string, dto: CreateShareImportDto): Promise<{ id: string }> {
+  async create(
+    userId: string,
+    dto: CreateShareImportDto,
+  ): Promise<{ id: string }> {
     const input = normalizeShareInput(dto);
     if (!input || (dto.url?.trim() && !input.url)) {
-      throw bad('INVALID_SHARE_URL', 'Link không hợp lệ. Hãy chia sẻ một link http(s) hoặc dán mô tả.');
+      throw bad(
+        'INVALID_SHARE_URL',
+        'Link không hợp lệ. Hãy chia sẻ một link http(s) hoặc dán mô tả.',
+      );
     }
     if (input.url) {
       try {
@@ -158,7 +208,12 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
     const [{ id }] = (await this.db.query(
       `INSERT INTO share_imports (user_id, url, shared_text, platform)
        VALUES ($1, $2, $3, $4) RETURNING id`,
-      [userId, input.url?.toString() ?? null, input.text, input.url ? detectPlatform(input.url) : 'web'],
+      [
+        userId,
+        input.url?.toString() ?? null,
+        input.text,
+        input.url ? detectPlatform(input.url) : 'web',
+      ],
     )) as Array<{ id: string }>;
     void this.run(id, input.url, input.text);
     return { id };
@@ -175,11 +230,30 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
 
   async get(userId: string, id: string): Promise<ShareImport> {
     const row = await this.findOwned(userId, id);
-    return { ...toSummary(row), errorCode: row.error_code, candidates: await this.present(row.candidates) };
+    return {
+      ...toSummary(row),
+      errorCode: row.error_code,
+      candidates: await this.present(row.candidates),
+    };
   }
 
-  async save(userId: string, id: string, dto: SaveShareImportDto): Promise<SaveShareImportResponse> {
+  async save(
+    userId: string,
+    id: string,
+    dto: SaveShareImportDto,
+  ): Promise<SaveShareImportResponse> {
     const row = await this.findOwned(userId, id);
+    // Trước khi tra ứng viên: job cũ đã bị dọn ứng viên vẫn báo đúng là hết hạn.
+    if (
+      dto.selections.some((selection) => selection.kind === 'google') &&
+      Date.now() - row.created_at.getTime() >
+        CANDIDATES_TTL_DAYS * 24 * 60 * 60 * 1000
+    ) {
+      throw bad(
+        'SHARE_IMPORT_EXPIRED',
+        'Kết quả nhận diện đã quá cũ. Hãy chia sẻ lại link.',
+      );
+    }
     if (row.status !== 'done') {
       throw new ConflictException({
         statusCode: 409,
@@ -188,43 +262,59 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
       });
     }
     const chosen = dto.selections.map((selection) => {
-      const candidate = row.candidates.find((c) => c.key === selection.candidateKey);
+      const candidate = row.candidates.find(
+        (c) => c.key === selection.candidateKey,
+      );
       const option = candidate?.options.find((o) =>
         o.kind === 'catalog'
           ? selection.kind === 'catalog' && o.placeId === selection.placeId
-          : selection.kind === 'google' && o.googlePlaceId === selection.googlePlaceId,
+          : selection.kind === 'google' &&
+            o.googlePlaceId === selection.googlePlaceId,
       );
       if (!candidate || !option) {
-        throw bad('INVALID_SELECTION', 'Lựa chọn không nằm trong kết quả nhận diện.');
+        throw bad(
+          'INVALID_SELECTION',
+          'Lựa chọn không nằm trong kết quả nhận diện.',
+        );
       }
       return { candidate, option };
     });
-    if (
-      chosen.some(({ option }) => option.kind === 'google') &&
-      Date.now() - row.created_at.getTime() > CANDIDATES_TTL_DAYS * 24 * 60 * 60 * 1000
-    ) {
-      throw bad('SHARE_IMPORT_EXPIRED', 'Kết quả nhận diện đã quá cũ. Hãy chia sẻ lại link.');
-    }
 
     await this.db.transaction(async (m) => {
       for (const { candidate, option } of chosen) {
-        const placeId = option.kind === 'catalog' ? option.placeId : await upsertGooglePlace(m, candidate, option);
-        await this.saved.save(userId, placeId, option.regionId, { source: 'share', shareImportId: id }, m);
+        const placeId =
+          option.kind === 'catalog'
+            ? option.placeId
+            : await upsertGooglePlace(m, candidate, option, row.created_at);
+        await this.saved.save(
+          userId,
+          placeId,
+          option.regionId,
+          { source: 'share', shareImportId: id },
+          m,
+        );
       }
     });
     return { saved: chosen.length };
   }
 
-  private async run(id: string, url: URL | null, text: string | null): Promise<void> {
+  private async run(
+    id: string,
+    url: URL | null,
+    text: string | null,
+  ): Promise<void> {
     const started = Date.now();
     const timing: string[] = [];
     let timer: NodeJS.Timeout | undefined;
     let cancel: ((error: Error) => void) | undefined;
     try {
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new JobError('TIMEOUT')), JOB_TIMEOUT_MS);
+        timer = setTimeout(
+          () => reject(new JobError('TIMEOUT')),
+          JOB_TIMEOUT_MS,
+        );
         cancel = reject;
-        this.running.add(reject);
+        this.running.set(id, reject);
       });
       const work = (async () => {
         let meta: LinkMetadata | null = null;
@@ -239,7 +329,11 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
               meta?.platform ?? null,
               meta?.finalUrl ?? null,
               meta
-                ? JSON.stringify({ title: meta.title, authorName: meta.authorName, thumbnailUrl: meta.thumbnailUrl })
+                ? JSON.stringify({
+                    title: meta.title,
+                    authorName: meta.authorName,
+                    thumbnailUrl: meta.thumbnailUrl,
+                  })
                 : null,
             ],
           );
@@ -251,7 +345,9 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
         try {
           places = await extractPlaces(input, this.extract);
         } catch (error) {
-          this.logger.warn(`Gemini lỗi cho share ${id}: ${(error as Error).message}`);
+          this.logger.warn(
+            `Gemini lỗi cho share ${id}: ${(error as Error).message}`,
+          );
           throw new JobError('AI_UNAVAILABLE');
         }
         timing.push(`gemini ${places.length} tên ${Date.now() - started} ms`);
@@ -265,10 +361,18 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
               bbox,
               bbox ? CATALOG_MIN_SIMILARITY : NATIONWIDE_MIN_SIMILARITY,
             );
-            return match ? { placeId: match.id, lat: Number(match.lat), lng: Number(match.lng) } : null;
+            return match
+              ? {
+                  placeId: match.id,
+                  lat: Number(match.lat),
+                  lng: Number(match.lng),
+                }
+              : null;
           },
           searchGoogle: (query, bbox) =>
-            this.google.enabled ? this.google.searchText(query, bbox) : Promise.resolve([]),
+            this.google.enabled
+              ? this.google.searchText(query, bbox)
+              : Promise.resolve([]),
           assignRegions: (points) => this.regions.assign(points),
         });
       })();
@@ -293,39 +397,62 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
             WHERE id = $1 AND status = 'pending'`,
           [id, code],
         )
-        .catch((e: Error) => this.logger.error(`Không ghi được lỗi share ${id}: ${e.message}`));
+        .catch((e: Error) =>
+          this.logger.error(`Không ghi được lỗi share ${id}: ${e.message}`),
+        );
     } finally {
       clearTimeout(timer);
-      if (cancel) this.running.delete(cancel);
-      this.logger.log(`Share ${id}: ${timing.join(', ')} (tổng ${Date.now() - started} ms)`);
+      if (cancel && this.running.get(id) === cancel) this.running.delete(id);
+      this.logger.log(
+        `Share ${id}: ${timing.join(', ')} (tổng ${Date.now() - started} ms)`,
+      );
     }
   }
 
   /** Ứng viên trả cho client: tên danh mục từ DB, tên/địa chỉ Google lấy trực tiếp cho lựa chọn tin cậy thấp. */
-  private async present(candidates: StoredCandidate[]): Promise<ShareImportCandidate[]> {
+  private async present(
+    candidates: StoredCandidate[],
+  ): Promise<ShareImportCandidate[]> {
     const options = candidates.flatMap((c) => c.options);
-    const catalogIds = options.flatMap((o) => (o.kind === 'catalog' ? [o.placeId] : []));
+    const catalogIds = options.flatMap((o) =>
+      o.kind === 'catalog' ? [o.placeId] : [],
+    );
     const catalogNames = new Map<string, string>(
       catalogIds.length
         ? (
-            (await this.db.query(`SELECT id, name FROM places WHERE id = ANY($1::uuid[])`, [catalogIds])) as Array<{
+            (await this.db.query(
+              `SELECT id, name FROM places WHERE id = ANY($1::uuid[])`,
+              [catalogIds],
+            )) as Array<{
               id: string;
               name: string;
             }>
           ).map((r) => [r.id, r.name])
         : [],
     );
-    const regionNames = await this.regions.names([...new Set(options.map((o) => o.regionId))]);
+    const regionNames = await this.regions.names([
+      ...new Set(options.map((o) => o.regionId)),
+    ]);
     const lowGoogle = candidates
       .filter((c) => c.confidence === 'low' || c.options.length > 1)
-      .flatMap((c) => c.options.flatMap((o) => (o.kind === 'google' ? [o.googlePlaceId] : [])));
-    const summaries = new Map<string, { name: string | null; address: string | null }>();
+      .flatMap((c) =>
+        c.options.flatMap((o) =>
+          o.kind === 'google' ? [o.googlePlaceId] : [],
+        ),
+      );
+    const summaries = new Map<
+      string,
+      { name: string | null; address: string | null }
+    >();
     if (this.google.enabled && lowGoogle.length > 0) {
       const results = await Promise.allSettled(
-        lowGoogle.map((placeId) => withTimeout(this.google.summary(placeId), SUMMARY_TIMEOUT_MS)),
+        lowGoogle.map((placeId) =>
+          withTimeout(this.google.summary(placeId), SUMMARY_TIMEOUT_MS),
+        ),
       );
       results.forEach((result, i) => {
-        if (result.status === 'fulfilled' && result.value) summaries.set(lowGoogle[i], result.value);
+        if (result.status === 'fulfilled' && result.value)
+          summaries.set(lowGoogle[i], result.value);
       });
     }
     const present = (o: StoredOption): ShareImportOption => {
@@ -359,7 +486,10 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async findOwned(userId: string, id: string): Promise<JobRow> {
-    const [row] = await this.rows(`WHERE si.id = $1 AND si.user_id = $2`, [id, userId]);
+    const [row] = await this.rows(`WHERE si.id = $1 AND si.user_id = $2`, [
+      id,
+      userId,
+    ]);
     if (!row) {
       throw new NotFoundException({
         statusCode: 404,
@@ -379,20 +509,38 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-/** Dòng `places` nguồn Google: tên từ nội dung người dùng, tọa độ Google hạn 30 ngày. Dùng chung theo place_id. */
+/**
+ * Dòng `places` nguồn Google: tên từ nội dung người dùng. Tọa độ lấy lúc job
+ * chạy nên hạn 30 ngày tính từ lúc đó (PRD 7.4), không phải lúc lưu. Dùng
+ * chung theo place_id; dòng đã có tọa độ mới hơn thì giữ nguyên.
+ */
 async function upsertGooglePlace(
   m: Pick<DataSource, 'query'>,
   candidate: StoredCandidate,
   option: Extract<StoredOption, { kind: 'google' }>,
+  fetchedAt: Date,
 ): Promise<string> {
   const [row] = (await m.query(
     `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
      VALUES ('google', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326),
-             now() + make_interval(days => $6::int), 0)
+             $7::timestamptz + make_interval(days => $6::int), 0)
      ON CONFLICT (google_place_id) WHERE source = 'google'
-     DO UPDATE SET location = EXCLUDED.location, location_expires_at = EXCLUDED.location_expires_at, updated_at = now()
+     DO UPDATE SET
+       location = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at
+                       THEN EXCLUDED.location ELSE places.location END,
+       location_expires_at = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at
+                                  THEN EXCLUDED.location_expires_at ELSE places.location_expires_at END,
+       updated_at = now()
      RETURNING id`,
-    [option.googlePlaceId, candidate.name, candidate.category, option.lng, option.lat, GOOGLE_LOCATION_TTL_DAYS],
+    [
+      option.googlePlaceId,
+      candidate.name,
+      candidate.category,
+      option.lng,
+      option.lat,
+      GOOGLE_LOCATION_TTL_DAYS,
+      fetchedAt,
+    ],
   )) as Array<{ id: string }>;
   return row.id;
 }

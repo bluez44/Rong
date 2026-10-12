@@ -4,14 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { PlaceCategory, SavedPlace, SharePlatform } from '@rong/shared-types';
+import type {
+  PlaceCategory,
+  SavedPlace,
+  SharePlatform,
+} from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
 /** Đủ cho mọi chuyến đi; chặn danh sách phình vô hạn. */
 export const MAX_SAVED_PLACES = 500;
 
 /** Lượt lưu đến từ đâu: người dùng tự thả tim, hay chọn từ một lượt chia sẻ (F4). */
-export type SaveOrigin = { source: 'manual' | 'share'; shareImportId: string | null };
+export type SaveOrigin = {
+  source: 'manual' | 'share';
+  shareImportId: string | null;
+};
 const MANUAL: SaveOrigin = { source: 'manual', shareImportId: null };
 
 interface SavedRow {
