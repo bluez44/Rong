@@ -1,0 +1,10 @@
+[
+  {
+    "url": "https://en.wikivoyage.org/wiki/Da_Lat",
+    "expect": ["Xuan Huong", "Crazy House", "Langbiang", "Datanla"]
+  },
+  {
+    "url": "https://vi.wikipedia.org/wiki/%C4%90%C3%A0_L%E1%BA%A1t",
+    "expect": ["Hồ Xuân Hương", "Langbiang", "Thung lũng Tình Yêu", "Thác Datanla"]
+  }
+]

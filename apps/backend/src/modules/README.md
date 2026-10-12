@@ -113,3 +113,78 @@ Quy trình AI (`itineraries/`):
    theo đối tượng. Không vừa → "Chưa xếp được" kèm lý do.
 
 Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, giờ thông thường: `planning/rules.ts`.
+
+## Chia sẻ vào app (F4)
+
+`share-import/` nhận link (hoặc đoạn văn bản chia sẻ) từ TikTok, YouTube, Facebook, Instagram hay bài báo,
+nhận diện địa điểm trong đó và cho người dùng chọn lưu vào "Muốn đi".
+
+```
+POST /api/share-imports            tạo job, trả 202 { id }; nhận diện chạy nền
+GET  /api/share-imports            lượt gần đây (20 lượt / 7 ngày)
+GET  /api/share-imports/:id        trạng thái + ứng viên (client hỏi lại tới khi done | failed)
+POST /api/share-imports/:id/save   lưu các lựa chọn vào saved_places
+```
+
+Luồng của một job (`share-imports.service.ts`):
+
+1. **Nhận vào** — `share-url.ts` rút URL từ văn bản, chỉ http/https, `url` ≤ 2 048 ký tự, `shared_text` cắt ở
+   5 000 ký tự. Hạn mức `SHARE_IMPORT_DAILY_LIMIT` (mặc định 30 lượt / người / 24 giờ).
+2. **Metadata** — `LinkMetadataService` lấy oEmbed / Open Graph của link (tiêu đề, tác giả, ảnh đại diện).
+   Chỉ lưu metadata công khai để ghi nguồn, không sao chép nội dung (FR-4.5).
+3. **Trích xuất** — một lần gọi Gemini có cấu trúc (`place-extraction.ts`), tối đa 15 địa điểm mỗi lượt.
+4. **Khớp** — `place-resolver.ts` khớp từng ứng viên với danh mục OSM theo độ giống tên (trong vùng gợi ý,
+   hoặc toàn quốc với ngưỡng cao hơn), không khớp thì hỏi Google qua `GooglePlacesService`, tối đa 3 lựa chọn
+   Google mỗi ứng viên.
+5. **Kết thúc** — `done`, hoặc `failed` với `error_code`: `METADATA_UNAVAILABLE`, `AI_UNAVAILABLE`, `TIMEOUT`
+   (job quá 30 giây), `INTERRUPTED`.
+
+`share_imports` (migration `1759100000000-AddShareImports`): `id`, `user_id`, `url`, `shared_text`, `status`
+(`pending | done | failed`), `platform`, `metadata` (jsonb), `candidates` (jsonb), `error_code`, `created_at`,
+`finished_at`. `saved_places` thêm `source` (`manual | share`) và `share_import_id`.
+
+Độ bền của job:
+- Tắt server: `onModuleDestroy` đánh các job đang chạy là `failed` / `INTERRUPTED`.
+- Tiến trình chết đột ngột: một vòng quét mỗi 60 giây đánh `INTERRUPTED` cho job `pending` quá 2 phút.
+- `candidates` có tọa độ Google quá 30 ngày bị xóa: vòng quét chạy 60 giây sau khi khởi động rồi mỗi 6 giờ
+  (deploy thường xuyên thì chu kỳ 6 giờ có thể không bao giờ tới).
+
+### Cổng `LinkMetadataService`
+
+Cổng duy nhất tải link do người dùng đưa vào, nên là bề mặt SSRF; các giới hạn:
+- Chỉ http/https, cổng 80/443 (hoặc mặc định); chặn IP không công khai ở **mọi** redirect; tối đa 5 redirect,
+  timeout 5 giây, đọc tối đa 1 MB.
+- Kết nối được ghim vào IP công khai đã kiểm tra bằng `undici` `Agent` (`lookup` ghim), nên không bị DNS
+  rebinding giữa lúc kiểm tra và lúc kết nối.
+- `META_OEMBED_TOKEN` (tùy chọn) bật oEmbed của Facebook / Instagram.
+
+## `places.source` và dòng Google
+
+Từ F4, `places` có hai loại dòng, phân biệt bằng cột `source`:
+
+- `osm` — danh mục như trước; chỉ loại này được liệt kê, xếp hạng, gợi ý hay chấm điểm. **Mọi truy vấn danh
+  mục để liệt kê / xếp hạng / gợi ý phải có `p.source = 'osm'`.**
+- `google` — chỉ tạo khi người dùng chọn một địa điểm Google từ kết quả chia sẻ. Lưu `google_place_id` (vô
+  thời hạn), tên và loại lấy từ nội dung người dùng chia sẻ, và tọa độ Google có hạn `location_expires_at`.
+  Không bao giờ được xếp hạng (PRD 7.4).
+
+Tọa độ Google hết hạn đúng 30 ngày sau `created_at` của job (không phải lúc lưu), và dữ liệu cũ không bao giờ
+kéo dài hạn đó. Hai thành phần giữ quy tắc này:
+
+- `places/google-location-janitor.ts` — `GoogleLocationJanitor` đặt `location` và `location_expires_at` về
+  NULL cho dòng Google quá hạn, 60 giây sau khi khởi động rồi mỗi 6 giờ (chạy cả khi tắt `PLACES_WARMUP`).
+- `places/place-location.service.ts` — `PlaceLocationService.ensure(ids)` lấy lại tọa độ qua Google cho dòng
+  đã hết hạn trước khi lập lịch trình hay mở chi tiết; trả các id vẫn không lấy được.
+
+Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` (cũng như
+`GET /places/:id`) trả 503 `PLACE_LOCATION_UNAVAILABLE`.
+
+## Khác với PRD (F4)
+
+Xem spec `docs/superpowers/specs/2026-10-12-share-to-app-design.md` §1.2. Tóm tắt:
+- Dòng `places` nguồn Google được lưu (kèm tọa độ 30 ngày) để lịch trình tham chiếu được, trong khi PRD
+  7.4 chỉ cho cache tọa độ; ràng buộc 30 ngày và không-xếp-hạng được giữ nguyên bằng janitor và `ensure`.
+- Update lịch trình không lấy được tọa độ cho địa điểm Google thì trả 503 `PLACE_LOCATION_UNAVAILABLE`
+  thay vì lưu một lịch trình thiếu vị trí.
+- Bộ link kiểm thử nhận diện (`test/fixtures/share-links.json`, chạy bằng `pnpm bench:share`, tốn tiền) mới có
+  2 link mẫu công khai về Đà Lạt; bộ đủ 200 link của PRD (mục tiêu ≥ 70% nhận diện đúng) được bổ sung dần.
