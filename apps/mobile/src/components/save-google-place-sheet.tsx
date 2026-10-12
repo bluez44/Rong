@@ -19,7 +19,7 @@ type Props = {
   preview: GooglePlacePreview;
   regionId: string;
   regionName?: string;
-  /** Tên người dùng đã gõ khi tìm; dùng làm tên ban đầu. */
+  /** Tên người dùng đã gõ khi tìm; dùng làm tên ban đầu (không lấy tên Google — tên Google chỉ là gợi ý). */
   initialName?: string;
 };
 
@@ -27,7 +27,7 @@ type Props = {
 export function SaveGooglePlaceSheet({ visible, onClose, preview, regionId, regionName, initialName }: Props) {
   const { authFetch } = useAuth();
   const saved = useSavedPlaces();
-  const [name, setName] = useState(initialName?.trim() || preview.name || '');
+  const [name, setName] = useState(initialName?.trim() || '');
   const [category, setCategory] = useState<PlaceCategory>(preview.suggestedCategory);
   const [saving, setSaving] = useState(false);
 

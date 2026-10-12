@@ -48,8 +48,10 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
   }
 
   const loading = status === 'loading';
-  const noResults = searchedOnline && status === 'done' && inRong.length === 0 && (google?.length ?? 0) === 0;
-  const showGoogleButton = !(searchedOnline && status === 'done');
+  // Đã hỏi Google nhưng Google không trả lời được (`google: null`): không phải "không tìm thấy".
+  const googleUnavailable = searchedOnline && status === 'done' && google === null;
+  const noResults = searchedOnline && status === 'done' && !googleUnavailable && inRong.length === 0 && (google?.length ?? 0) === 0;
+  const showGoogleButton = !(searchedOnline && status === 'done') || googleUnavailable;
 
   const openPlace = (place: PlaceSearchHit) =>
     router.push({ pathname: '/place/[id]', params: { id: place.id, name: place.name, category: place.category, regionId, regionName } });
@@ -114,6 +116,13 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
               action={<Button label="Thử lại" variant="plain" size="sm" onPress={search.retry} style={styles.inlineAction} />}>
               {error.message}
             </Notice>
+          ) : null}
+          {googleUnavailable && !loading ? (
+            <Notice
+              tone="warning"
+              title="Chưa tìm được trên Google Maps lúc này."
+              action={<Button label="Thử lại" variant="plain" size="sm" onPress={search.submit} style={styles.inlineAction} />}
+            />
           ) : null}
           {loading ? <ActivityIndicator color={Colors.light.primary} /> : null}
           {noResults ? <Text style={styles.hint}>{`Không tìm thấy “${q}” ở ${regionName}`}</Text> : null}
