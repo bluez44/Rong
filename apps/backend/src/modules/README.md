@@ -43,6 +43,13 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
 ```
 
 - **Tỉnh cũ/mới** được seed từ Nghị quyết 202/2025/QH15 (`regions/seed/vietnam-admin.ts`).
+  Cùng file có danh sách **điểm đến** (tâm + bán kính + bí danh), gồm cả những địa danh
+  không còn là đơn vị hành chính sau sáp nhập (huyện cũ như Cần Giờ, Củ Chi) để tìm ra ngay
+  không cần Nominatim.
+- **Từ khóa không ra kết quả** được đếm trong `region_search_misses` (không lưu người tìm):
+  `catalog_misses` khi tìm trong danh mục, `online_misses` khi đã hỏi cả Nominatim. Xem
+  `SELECT * FROM region_search_misses ORDER BY online_misses DESC, catalog_misses DESC`
+  để chọn điểm đến cần seed thêm. Lỗi ghi không làm hỏng lượt tìm.
 - **Khu vực của một vùng là một khung bao (bbox)**, không phải polygon
   (`regions/region-area.service.ts`), tính lần đầu khi lấy địa điểm của vùng:
   - tỉnh cũ, thành phố cấp huyện đã bị bỏ (Đà Lạt, Vũng Tàu…): khung bao của relation

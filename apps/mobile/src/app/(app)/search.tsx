@@ -104,8 +104,15 @@ function SearchStatus({ search }: { search: ReturnType<typeof useRegionSearch> }
     return (
       <View style={styles.status}>
         {empty ? <Text style={styles.emptyTitle}>Chưa có “{query}” trong danh mục</Text> : null}
-        <Text style={styles.hint}>{empty ? 'Có thể nơi này chưa được thêm vào Rong.' : 'Không thấy nơi bạn cần?'}</Text>
-        <Button label="Tìm thêm trên OpenStreetMap" variant="plain" size="sm" onPress={submit} style={styles.inlineAction} />
+        <Text style={styles.hint}>
+          {empty ? 'Rong chưa có nơi này. Tìm thêm trên bản đồ mở nhé?' : 'Không thấy nơi bạn cần?'}
+        </Text>
+        {/* Không có kết quả nào thì đây là bước tiếp theo duy nhất: làm nút chính cho dễ thấy. */}
+        {empty ? (
+          <Button label="Tìm thêm trên OpenStreetMap" size="sm" onPress={submit} style={styles.emptyAction} />
+        ) : (
+          <Button label="Tìm thêm trên OpenStreetMap" variant="plain" size="sm" onPress={submit} style={styles.inlineAction} />
+        )}
       </View>
     );
   }
@@ -120,4 +127,5 @@ const styles = StyleSheet.create({
   emptyTitle: { ...Type.headline, color: Colors.light.text },
   hint: { ...Type.callout, color: Colors.light.textSecondary },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
+  emptyAction: { alignSelf: 'flex-start', marginTop: Spacing.two },
 });

@@ -86,7 +86,35 @@ export class RegionsService {
     const regions = await this.loadWithRelatives(
       matches.map((m) => m.regionId),
     );
-    return arrangeRegionResults(matches, regions);
+    const results = arrangeRegionResults(matches, regions);
+    if (results.length === 0) await this.recordMiss(key, query, online);
+    return results;
+  }
+
+  /**
+   * Đếm từ khóa không ra kết quả để biết cần seed thêm gì. Lỗi ghi thì bỏ qua:
+   * không bao giờ làm hỏng lượt tìm của người dùng.
+   */
+  private async recordMiss(
+    key: string,
+    query: string,
+    online: boolean,
+  ): Promise<void> {
+    try {
+      await this.db.query(
+        `INSERT INTO region_search_misses (search_key, sample_query, catalog_misses, online_misses)
+         VALUES ($1, $2, $3::int, $4::int)
+         ON CONFLICT (search_key) DO UPDATE
+           SET catalog_misses = region_search_misses.catalog_misses + EXCLUDED.catalog_misses,
+               online_misses = region_search_misses.online_misses + EXCLUDED.online_misses,
+               last_seen_at = now()`,
+        [key, query.trim().slice(0, 100), online ? 0 : 1, online ? 1 : 0],
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Không ghi được từ khóa tìm không ra "${key}": ${(error as Error).message}`,
+      );
+    }
   }
 
   /**
