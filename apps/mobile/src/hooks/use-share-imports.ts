@@ -1,4 +1,5 @@
 import type { ShareImportSummary } from '@rong/shared-types';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '@/auth/auth-context';
@@ -15,8 +16,7 @@ export function useShareImports() {
       if (!alive.current) return;
       setItems(data.filter((s) => s.status === 'pending' || (s.status === 'done' && s.candidateCount > 0 && s.savedCount === 0)));
     } catch {
-      // Phần phụ của màn "Muốn đi": lỗi thì ẩn đi, không chặn danh sách chính.
-      if (alive.current) setItems([]);
+      // Phần phụ của màn "Muốn đi": lỗi thì giữ danh sách cũ, không chặn danh sách chính.
     }
   }, [authFetch]);
 
@@ -28,6 +28,15 @@ export function useShareImports() {
       alive.current = false;
     };
   }, [reload]);
+
+  // Tải lại khi quay về màn (vừa lưu xong ở màn chia sẻ), trừ lần đầu vì hook đã tự tải.
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) reload();
+      focused.current = true;
+    }, [reload]),
+  );
 
   return { items, reload };
 }

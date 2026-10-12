@@ -23,6 +23,10 @@ export default function SavedScreen() {
   const shares = useShareImports();
   const insets = useSafeAreaInsets();
   const groups = groupByRegion(saved.items);
+  const refresh = () => {
+    saved.reload();
+    shares.reload();
+  };
 
   return (
     // Chỉ chừa cạnh trên: danh sách cuộn xuống dưới thanh home.
@@ -58,10 +62,7 @@ export default function SavedScreen() {
         )}
         ListEmptyComponent={<EmptyState saved={saved} />}
         refreshControl={
-          <RefreshControl refreshing={saved.status === 'refreshing'} onRefresh={() => {
-              saved.reload();
-              shares.reload();
-            }} tintColor={Colors.light.primary} />
+          <RefreshControl refreshing={saved.status === 'refreshing'} onRefresh={refresh} tintColor={Colors.light.primary} />
         }
       />
     </Screen>
