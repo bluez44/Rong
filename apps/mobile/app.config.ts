@@ -63,6 +63,15 @@ const config: ExpoConfig = {
         locationWhenInUsePermission: 'Rong dùng vị trí của bạn để hiện bạn đang ở đâu trên bản đồ.',
       },
     ],
+    // Nhận link/văn bản chia sẻ từ app khác (F4): iOS Share Extension, Android intent SEND.
+    [
+      'expo-share-intent',
+      {
+        iosActivationRules: { NSExtensionActivationSupportsWebURLWithMaxCount: 1, NSExtensionActivationSupportsText: true },
+        iosAppGroupIdentifier: 'group.vn.rong.app',
+        androidIntentFilters: ['text/*'],
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

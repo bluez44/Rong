@@ -7,6 +7,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/be-vietnam-pro';
 import { DefaultTheme, Stack, ThemeProvider, type Theme } from 'expo-router';
+import { ShareIntentProvider } from 'expo-share-intent';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -32,11 +33,14 @@ const navigationTheme: Theme = {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </GestureHandlerRootView>
+    // Giữ nội dung chia sẻ tới khi đăng nhập xong (F4).
+    <ShareIntentProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </GestureHandlerRootView>
+    </ShareIntentProvider>
   );
 }
 
