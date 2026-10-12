@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { KeyboardAvoider } from '@/components/screen';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 
@@ -31,6 +32,8 @@ export function ActionSheet({ visible, title, message, actions = [], children, o
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      {/* Bàn phím mở thì đẩy cả bảng lên, để ô nhập trong `children` không bị che. */}
+      <KeyboardAvoider>
       <Pressable style={styles.backdrop} accessibilityRole="button" accessibilityLabel="Đóng" onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.three }]} accessibilityViewIsModal>
         <View style={styles.grabber} />
@@ -65,6 +68,7 @@ export function ActionSheet({ visible, title, message, actions = [], children, o
           <Text style={styles.cancelLabel}>Đóng</Text>
         </Pressable>
       </View>
+      </KeyboardAvoider>
     </Modal>
   );
 }

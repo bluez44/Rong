@@ -136,6 +136,16 @@ function Candidates({ id, candidates }: { id: string; candidates: ShareImportCan
   );
 }
 
+/** Mở tìm theo tên trong vùng của gợi ý đầu tiên; không có vùng nào thì về tìm kiếm chung. */
+function selfSearch(candidate: ShareImportCandidate) {
+  const first = candidate.options[0];
+  if (!first) {
+    router.push('/search');
+    return;
+  }
+  router.push({ pathname: '/region/[id]', params: { id: first.regionId, name: first.regionName, q: candidate.name } });
+}
+
 function CandidateCard({
   candidate,
   choice,
@@ -182,7 +192,7 @@ function CandidateCard({
       ) : (
         <View style={styles.noneRow}>
           <Text style={styles.hint}>Chưa tìm được địa điểm khớp.</Text>
-          <Button label="Tự tìm" variant="plain" size="sm" onPress={() => router.push('/search')} style={styles.inlineAction} />
+          <Button label="Tự tìm" variant="plain" size="sm" onPress={() => selfSearch(candidate)} style={styles.inlineAction} />
         </View>
       )}
     </View>

@@ -19,6 +19,7 @@ export default function AppLayout() {
         <Stack.Screen name="search" options={{ animation: 'fade' }} />
         <Stack.Screen name="region/[id]" />
         <Stack.Screen name="place/[id]" />
+        <Stack.Screen name="place/google/[googlePlaceId]" />
         <Stack.Screen name="itinerary/new" />
         <Stack.Screen name="itinerary/[id]" />
         <Stack.Screen name="saved" />
