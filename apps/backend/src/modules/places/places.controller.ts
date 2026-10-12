@@ -67,9 +67,10 @@ export class PlaceDetailController {
    */
   @Get('google/:googlePlaceId')
   preview(
+    @CurrentUser() user: AuthUser,
     @Param('googlePlaceId') googlePlaceId: string,
   ): Promise<GooglePlacePreviewResponse> {
-    return this.placeSearch.preview(googlePlaceId);
+    return this.placeSearch.preview(user.userId, googlePlaceId);
   }
 
   /** Lưu một kết quả Google vào "Muốn đi" với tên và loại người dùng xác nhận. */

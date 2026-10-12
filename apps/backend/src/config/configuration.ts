@@ -72,6 +72,8 @@ export interface ShareImportConfig {
 export interface PlaceSearchConfig {
   /** Số lượt tìm Google Maps tối đa mỗi người trong 24 giờ. */
   dailyLimit: number;
+  /** Số lượt xem trước/lưu địa điểm Google (gọi Google thật) mỗi người trong 24 giờ. */
+  detailsDailyLimit: number;
 }
 
 export interface AppConfig {
@@ -119,6 +121,17 @@ function requireStrongSecret(value: string): string {
 function toInt(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+/** Số nguyên ≥ 1; để trống thì dùng mặc định, sai thì dừng khi khởi động. */
+function positiveInt(key: string, fallback: number): number {
+  const raw = process.env[key]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!/^\d+$/.test(raw) || value < 1) {
+    throw new Error(`${key} phải là số nguyên ≥ 1 (đang là "${raw}").`);
+  }
+  return value;
 }
 
 export function loadConfig(): AppConfig {
@@ -195,7 +208,8 @@ export function loadConfig(): AppConfig {
       metaOembedToken: process.env.META_OEMBED_TOKEN || null,
     },
     placeSearch: {
-      dailyLimit: toInt(process.env.PLACE_SEARCH_DAILY_LIMIT, 60),
+      dailyLimit: positiveInt('PLACE_SEARCH_DAILY_LIMIT', 60),
+      detailsDailyLimit: positiveInt('PLACE_DETAILS_DAILY_LIMIT', 150),
     },
   };
 }

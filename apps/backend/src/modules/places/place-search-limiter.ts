@@ -1,7 +1,7 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Giới hạn số lượt tìm Google theo người dùng (cửa sổ trượt). Đếm trong bộ nhớ
+ * Giới hạn số lượt gọi Google theo người dùng (cửa sổ trượt). Đếm trong bộ nhớ
  * process — đủ khi chạy một instance (spec §1.1).
  */
 export class PlaceSearchLimiter {
@@ -25,5 +25,10 @@ export class PlaceSearchLimiter {
     recent.push(now);
     this.hits.set(userId, recent);
     return true;
+  }
+
+  /** Trả lại lượt gần nhất (gọi Google lỗi thì không tính lượt). */
+  refund(userId: string): void {
+    this.hits.get(userId)?.pop();
   }
 }
