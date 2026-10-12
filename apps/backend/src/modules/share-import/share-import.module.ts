@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import type { AppConfig } from '../../config/configuration.js';
 import { GoogleModule } from '../google/google.module.js';
+import { PlacesModule } from '../places/places.module.js';
 import { SavedPlacesModule } from '../saved-places/saved-places.module.js';
 import {
   createLinkMetadataService,
@@ -15,7 +16,7 @@ import { ShareImportsController } from './share-imports.controller.js';
 import { ShareImportsService } from './share-imports.service.js';
 
 @Module({
-  imports: [GoogleModule, SavedPlacesModule],
+  imports: [GoogleModule, PlacesModule, SavedPlacesModule],
   controllers: [ShareImportsController],
   providers: [
     ShareImportsService,
