@@ -11,6 +11,7 @@ import { ItinerariesModule } from './modules/itineraries/itineraries.module.js';
 import { PlacesModule } from './modules/places/places.module.js';
 import { RegionsModule } from './modules/regions/regions.module.js';
 import { SavedPlacesModule } from './modules/saved-places/saved-places.module.js';
+import { ShareImportModule } from './modules/share-import/share-import.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -28,6 +29,7 @@ import { UsersModule } from './modules/users/users.module.js';
     PlacesModule,
     ItinerariesModule,
     SavedPlacesModule,
+    ShareImportModule,
     GroupsModule,
     HealthModule,
     LangchainModule,
