@@ -24,6 +24,7 @@ export const PLACE_CATEGORIES: PlaceCategory[] = [
 /**
  * Địa điểm trong danh mục riêng. Tên và tọa độ lấy từ OpenStreetMap, mô tả và
  * độ phổ biến từ Wikidata — không có trường nào đến từ Google (PRD 7.4).
+ * Dòng `source = 'google'` (F4) chỉ có `googlePlaceId`, tên từ nội dung người dùng chia sẻ và tọa độ Google hạn 30 ngày.
  */
 @Entity('places')
 @Unique('uq_place_osm', ['osmType', 'osmId'])
@@ -33,11 +34,11 @@ export class Place {
   id!: string;
 
   /** 'node' | 'way' | 'relation' */
-  @Column({ name: 'osm_type', type: 'text' })
-  osmType!: string;
+  @Column({ name: 'osm_type', type: 'text', nullable: true })
+  osmType!: string | null;
 
-  @Column({ name: 'osm_id', type: 'bigint' })
-  osmId!: string;
+  @Column({ name: 'osm_id', type: 'bigint', nullable: true })
+  osmId!: string | null;
 
   @Column({ name: 'name', type: 'text' })
   name!: string;
@@ -56,8 +57,17 @@ export class Place {
     type: 'geometry',
     spatialFeatureType: 'Point',
     srid: 4326,
+    nullable: true,
   })
-  location!: Point;
+  location!: Point | null;
+
+  /** 'osm' | 'google'. Dòng Google không bao giờ được liệt kê hay xếp hạng (PRD 7.4). */
+  @Column({ name: 'source', type: 'text', default: 'osm' })
+  source!: 'osm' | 'google';
+
+  /** Chỉ dòng Google: tọa độ Google hết hạn lúc này (tối đa 30 ngày). */
+  @Column({ name: 'location_expires_at', type: 'timestamptz', nullable: true })
+  locationExpiresAt!: Date | null;
 
   /** Một phần tag OSM hữu ích để hiển thị (opening_hours, website, name:en…). */
   @Column({ name: 'tags', type: 'jsonb', default: {} })
