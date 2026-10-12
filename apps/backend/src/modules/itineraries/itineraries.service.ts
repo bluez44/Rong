@@ -42,6 +42,7 @@ import {
 import type { CreateItineraryDto } from './dto/create-itinerary.dto.js';
 import type { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { Itinerary } from './entities/itinerary.entity.js';
+import { withGoogleCoordinates } from './google-coordinates.js';
 import { itinerarySummaries } from './itinerary-summaries.js';
 import {
   assignToDays,
@@ -75,6 +76,7 @@ interface PlaceRow {
   id: string;
   name: string;
   category: PlaceCategory;
+  source: 'osm' | 'google';
   lat: number;
   lng: number;
   composite_score: number;
@@ -552,6 +554,7 @@ export class ItinerariesService {
     }
     return toResponse(
       it,
+      await withGoogleCoordinates(this.db, it.days),
       groupName,
       access.isCreator ? 'creator' : access.groupRole!,
     );
@@ -637,7 +640,7 @@ export class ItinerariesService {
 }
 
 const PLACE_SELECT = `
-  SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
+  SELECT p.id, p.name, p.category, p.source, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
          p.composite_score, p.description, p.tags->>'opening_hours' AS opening_hours
     FROM places p`;
 
@@ -652,6 +655,7 @@ function toCandidate(row: PlaceRow, mandatory: boolean): Candidate {
     description: row.description,
     openingHours: row.opening_hours,
     mandatory,
+    isGoogle: row.source === 'google',
   };
 }
 
@@ -720,6 +724,7 @@ function bad(
 
 function toResponse(
   it: Itinerary,
+  days: ItineraryDay[],
   groupName: string | null,
   myRole: ItineraryRole,
 ): ItineraryResponse {
@@ -731,7 +736,7 @@ function toResponse(
     myRole,
     regionId: it.regionId,
     input: it.input,
-    days: it.days,
+    days,
     unscheduled: it.unscheduled,
     warnings: it.warnings,
     planner: it.planner,

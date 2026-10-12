@@ -13,6 +13,7 @@ import { DataSource } from 'typeorm';
 
 import { notFound } from '../groups/errors.js';
 import { hashToken, isTokenShape, newToken } from '../groups/tokens.js';
+import { withGoogleCoordinates } from './google-coordinates.js';
 import { ItinerariesService } from './itineraries.service.js';
 
 /**
@@ -93,7 +94,7 @@ export class ShareLinksService {
       adults: row.input.adults,
       children: row.input.children,
       planner: row.planner,
-      days: row.days,
+      days: await withGoogleCoordinates(this.db, row.days),
       unscheduled: row.unscheduled,
       warnings: row.warnings,
       tips: row.tips,
