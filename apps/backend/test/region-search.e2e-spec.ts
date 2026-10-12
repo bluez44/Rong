@@ -43,7 +43,7 @@ describe('Tìm vùng (e2e)', () => {
 
   afterAll(async () => {
     await db?.query(
-      `DELETE FROM region_search_misses WHERE search_key LIKE 'e2e miss%'`,
+      `DELETE FROM region_search_misses WHERE search_key LIKE 'e2e miss%' OR search_key = 'da latt'`,
     );
     await db?.query(
       `DELETE FROM users WHERE display_name = 'e2e-region-search'`,
@@ -100,7 +100,34 @@ describe('Tìm vùng (e2e)', () => {
     });
   });
 
-  it('có kết quả thì không ghi', async () => {
+  it('chỉ khớp gần đúng (dưới ngưỡng) thì ghi lượt khớp yếu kèm kết quả đứng đầu', async () => {
+    await db.query(
+      `DELETE FROM region_search_misses WHERE search_key = 'da latt'`,
+    );
+    const res = await search('Đà Lạtt');
+    expect(res.body.map((r: { name: string }) => r.name)).toContain('Đà Lạt');
+
+    const [row] = (await db.query(
+      `SELECT catalog_misses, online_misses, weak_matches, best_match_name, best_score
+         FROM region_search_misses WHERE search_key = 'da latt'`,
+    )) as Array<{
+      catalog_misses: number;
+      online_misses: number;
+      weak_matches: number;
+      best_match_name: string;
+      best_score: number;
+    }>;
+    expect(row).toMatchObject({
+      catalog_misses: 0,
+      online_misses: 0,
+      weak_matches: 1,
+      best_match_name: 'Đà Lạt',
+    });
+    expect(row.best_score).toBeGreaterThan(0);
+    expect(row.best_score).toBeLessThan(0.8);
+  });
+
+  it('có kết quả khớp tốt thì không ghi', async () => {
     await search('da lat');
     const [{ n }] = (await db.query(
       `SELECT count(*)::int AS n FROM region_search_misses WHERE search_key = 'da lat'`,
