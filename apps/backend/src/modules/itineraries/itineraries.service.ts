@@ -3,6 +3,7 @@ import {
   HttpException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -29,6 +30,7 @@ import {
 import { AccessService } from '../groups/access.service.js';
 import { ActivityService } from '../groups/activity.service.js';
 import { forbiddenRole, itineraryNotFound } from '../groups/errors.js';
+import { PlaceLocationService } from '../places/place-location.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
 import {
@@ -92,6 +94,7 @@ export class ItinerariesService {
     private readonly langchain: LangchainService,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
+    private readonly locations: PlaceLocationService,
   ) {}
 
   async create(
@@ -125,8 +128,18 @@ export class ItinerariesService {
     if (groupId) await this.access.requireGroupRole(ownerId, groupId, 'editor');
 
     // FR-6.3: mọi địa điểm phải có trong cơ sở dữ liệu.
-    const selected = await this.loadPlaces(input.selectedPlaceIds, true);
-    const missing = input.selectedPlaceIds.filter(
+    // Địa điểm Google người dùng tự chọn: lấy lại tọa độ nếu đã quá 30 ngày; không được thì bỏ và cảnh báo.
+    const unlocated = new Set(
+      await this.locations.ensure([
+        ...input.selectedPlaceIds,
+        ...(input.accommodationPlaceId ? [input.accommodationPlaceId] : []),
+      ]),
+    );
+    const selectedIds = input.selectedPlaceIds.filter(
+      (pid) => !unlocated.has(pid),
+    );
+    const selected = await this.loadPlaces(selectedIds, true);
+    const missing = selectedIds.filter(
       (id) => !selected.some((c) => c.id === id),
     );
     if (missing.length > 0) {
@@ -136,10 +149,9 @@ export class ItinerariesService {
     }
     let accommodation: Candidate | null = null;
     if (input.accommodationPlaceId) {
-      [accommodation] = await this.loadPlaces(
-        [input.accommodationPlaceId],
-        false,
-      );
+      [accommodation] = unlocated.has(input.accommodationPlaceId)
+        ? []
+        : await this.loadPlaces([input.accommodationPlaceId], false);
       if (!accommodation || accommodation.category !== 'stay') {
         throw bad(
           'INVALID_ACCOMMODATION',
@@ -266,6 +278,12 @@ export class ItinerariesService {
 
     const usedFood = new Set<string>();
     const warnings: ItineraryWarning[] = [];
+    if (unlocated.size > 0) {
+      warnings.push({
+        type: 'place_location_unavailable',
+        message: `${unlocated.size} địa điểm tạm thời không lấy được vị trí nên chưa được xếp vào lịch.`,
+      });
+    }
     const outDays: ItineraryDay[] = days.map((day, i) => {
       // Tự sắp xếp: ngày để trống cho người dùng kéo điểm vào, không chèn bữa hay giờ nghỉ.
       const result =
@@ -367,6 +385,14 @@ export class ItinerariesService {
         ...dto.unscheduledPlaceIds,
       ]),
     ];
+    if ((await this.locations.ensure(placeIds)).length > 0) {
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        code: 'PLACE_LOCATION_UNAVAILABLE',
+        message:
+          'Tạm thời không lấy được vị trí của một địa điểm. Hãy thử lưu lại sau.',
+      });
+    }
     const found = await this.loadPlaces(placeIds, true);
     const missing = placeIds.filter((pid) => !found.some((c) => c.id === pid));
     if (missing.length > 0) {

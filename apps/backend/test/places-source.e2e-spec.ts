@@ -8,6 +8,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { LangchainService } from '../src/langchain/langchain.service.js';
+import { GooglePlacesService } from '../src/modules/google/google-places.service.js';
+import { GoogleLocationJanitor } from '../src/modules/places/google-location-janitor.js';
 
 /** Ràng buộc nguồn của bảng places (F4): dòng OSM như cũ, dòng Google chỉ cần place_id. */
 describe('places.source (e2e)', () => {
@@ -15,6 +17,12 @@ describe('places.source (e2e)', () => {
   let db: DataSource;
   let token: string;
   let userId: string;
+  const google = {
+    enabled: true,
+    locate: vi.fn(),
+    details: vi.fn(async () => null),
+    matchPlaceId: vi.fn(async () => null),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -23,6 +31,8 @@ describe('places.source (e2e)', () => {
         planItinerary: vi.fn().mockRejectedValue(new Error('AI giả lỗi')),
         findPlaces: vi.fn(),
       })
+      .overrideProvider(GooglePlacesService)
+      .useValue(google)
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -191,6 +201,121 @@ describe('places.source (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       expect(alt.body.map((a: { id: string }) => a.id)).not.toContain(googleId);
+    });
+  });
+
+  describe('tọa độ Google hết hạn', () => {
+    let regionId: string;
+    let staleId: string;
+    let anchorId: string;
+
+    const createItinerary = (ids: string[]) =>
+      request(app.getHttpServer())
+        .post('/api/itineraries')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          regionId,
+          planningMode: 'ai',
+          startsAt: '2026-12-01T08:00:00+07:00',
+          endsAt: '2026-12-02T20:00:00+07:00',
+          travelParty: 'friends',
+          adults: 2,
+          children: 0,
+          selectedPlaceIds: ids,
+        });
+
+    beforeAll(async () => {
+      [{ id: regionId }] = (await db.query(
+        `SELECT id FROM regions WHERE source_key = 'vn:destination:da-lat'`,
+      )) as Array<{ id: string }>;
+      [{ id: staleId }] = (await db.query(
+        `INSERT INTO places (source, google_place_id, name, category, composite_score)
+         VALUES ('google', 'e2e-src-stale', 'E2E src quán hết hạn', 'food', 0) RETURNING id`,
+      )) as Array<{ id: string }>;
+      [{ id: anchorId }] = (await db.query(
+        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
+         VALUES ('node', -9320, 'E2E src điểm neo', 'cafe', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326), 5)
+         RETURNING id`,
+      )) as Array<{ id: string }>;
+    });
+
+    it('janitor xóa tọa độ quá hạn', async () => {
+      await db.query(
+        `UPDATE places SET location = ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
+                location_expires_at = now() - interval '1 day' WHERE id = $1`,
+        [staleId],
+      );
+      const count = await app.get(GoogleLocationJanitor).sweep();
+      expect(count).toBeGreaterThanOrEqual(1);
+      const [row] = (await db.query(
+        `SELECT location FROM places WHERE id = $1`,
+        [staleId],
+      )) as Array<{ location: unknown }>;
+      expect(row.location).toBeNull();
+    });
+
+    it('lập lịch trình lấy lại tọa độ qua Google rồi dùng địa điểm', async () => {
+      google.locate.mockResolvedValueOnce({ lat: 11.941, lng: 108.441 });
+      const res = await createItinerary([staleId, anchorId]).expect(201);
+      expect(google.locate).toHaveBeenCalledWith('e2e-src-stale');
+      const used = res.body.days.flatMap(
+        (d: { items: Array<{ placeId: string | null }> }) =>
+          d.items.map((i) => i.placeId),
+      );
+      expect([
+        ...used,
+        ...res.body.unscheduled.map((u: { placeId: string }) => u.placeId),
+      ]).toContain(staleId);
+      const [row] = (await db.query(
+        `SELECT location_expires_at > now() + interval '29 days' AS fresh FROM places WHERE id = $1`,
+        [staleId],
+      )) as Array<{ fresh: boolean }>;
+      expect(row.fresh).toBe(true);
+    });
+
+    it('Google không trả tọa độ: bỏ địa điểm và cảnh báo', async () => {
+      await db.query(
+        `UPDATE places SET location = NULL, location_expires_at = NULL WHERE id = $1`,
+        [staleId],
+      );
+      google.locate.mockResolvedValueOnce(null);
+      const res = await createItinerary([staleId, anchorId]).expect(201);
+      expect(res.body.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'place_location_unavailable' }),
+        ]),
+      );
+    });
+
+    it('chi tiết địa điểm Google không có tọa độ và Google lỗi → 503', async () => {
+      await db.query(
+        `UPDATE places SET location = NULL, location_expires_at = NULL WHERE id = $1`,
+        [staleId],
+      );
+      google.locate.mockResolvedValueOnce(null);
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${staleId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(503);
+      expect(res.body.code).toBe('PLACE_LOCATION_UNAVAILABLE');
+    });
+
+    it('chi tiết địa điểm Google: không gỡ google_place_id khi Google báo không còn', async () => {
+      await db.query(
+        `UPDATE places SET location = ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
+                location_expires_at = now() + interval '30 days' WHERE id = $1`,
+        [staleId],
+      );
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${staleId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.googleStatus).toBe('not_found');
+      const [row] = (await db.query(
+        `SELECT google_place_id FROM places WHERE id = $1`,
+        [staleId],
+      )) as Array<{ google_place_id: string }>;
+      expect(row.google_place_id).toBe('e2e-src-stale');
     });
   });
 });
