@@ -143,6 +143,7 @@ function selfSearch(candidate: ShareImportCandidate) {
     router.push('/search');
     return;
   }
+  // Nhánh này hiện chưa chạy tới ("Tự tìm" chỉ hiện khi ứng viên không có lựa chọn); giữ cho khi ứng viên có gợi ý vùng.
   router.push({ pathname: '/region/[id]', params: { id: first.regionId, name: first.regionName, q: candidate.name } });
 }
 

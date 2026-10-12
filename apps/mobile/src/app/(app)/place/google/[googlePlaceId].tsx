@@ -34,6 +34,8 @@ export default function GooglePlacePreviewScreen() {
   }, [existingId, params.regionId, params.regionName]);
 
   const notFound = preview.status === 'error' && preview.error?.code === 'PLACE_NOT_FOUND';
+  // Hết lượt xem (429 PLACE_DETAILS_LIMIT): báo như lỗi khác, vẫn cho thử lại.
+  const overLimit = preview.status === 'error' && preview.error?.code === 'PLACE_DETAILS_LIMIT';
 
   return (
     // Chỉ chừa cạnh trên: nội dung cuộn xuống dưới thanh home.
@@ -58,7 +60,7 @@ export default function GooglePlacePreviewScreen() {
         {preview.status === 'error' && preview.error ? (
           <Notice
             tone="danger"
-            title={notFound ? 'Không tìm thấy địa điểm' : 'Chưa tải được địa điểm'}
+            title={notFound ? 'Không tìm thấy địa điểm' : overLimit ? 'Hết lượt xem trên Google Maps' : 'Chưa tải được địa điểm'}
             action={
               notFound ? null : <Button label="Thử lại" variant="plain" size="sm" onPress={preview.reload} style={styles.inlineAction} />
             }>
