@@ -1,5 +1,18 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import type { SaveShareImportResponse, ShareImport, ShareImportSummary } from '@rong/shared-types';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
+import type {
+  SaveShareImportResponse,
+  ShareImport,
+  ShareImportSummary,
+} from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -14,7 +27,10 @@ export class ShareImportsController {
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateShareImportDto): Promise<{ id: string }> {
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateShareImportDto,
+  ): Promise<{ id: string }> {
     return this.imports.create(user.userId, dto);
   }
 
@@ -24,7 +40,10 @@ export class ShareImportsController {
   }
 
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string): Promise<ShareImport> {
+  get(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<ShareImport> {
     return this.imports.get(user.userId, id);
   }
 
