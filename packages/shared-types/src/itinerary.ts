@@ -56,7 +56,11 @@ export interface ItineraryInput {
 export interface ItineraryPlaceSnapshot {
   name: string;
   category: string;
-  coordinates: { lat: number; lng: number };
+  /**
+   * Địa điểm nguồn Google: không lưu trong lịch trình (PRD 7.4) — server điền
+   * tọa độ hiện tại khi trả về, null khi tọa độ đã hết hạn hoặc chưa lấy lại.
+   */
+  coordinates: { lat: number; lng: number } | null;
 }
 
 export interface ItineraryItem {

@@ -11,6 +11,7 @@ import { parseOpeningHours } from '../../places/opening-hours.js';
 import { vietnamIso, type DayWindow } from './days.js';
 import type { Candidate } from './planning.types.js';
 import { MEALS } from './rules.js';
+import { snapshotCoordinates } from './snapshot.js';
 import { estimateLeg, type LatLng } from './travel.js';
 
 /** FR-8.6: chặng di chuyển dài hơn thì cảnh báo. */
@@ -98,7 +99,7 @@ export function retimeDay(
         ? {
             name: place.name,
             category: place.category,
-            coordinates: { lat: place.lat, lng: place.lng },
+            coordinates: snapshotCoordinates(place),
           }
         : null,
       mealType: edit.kind === 'meal' ? (edit.mealType ?? null) : null,

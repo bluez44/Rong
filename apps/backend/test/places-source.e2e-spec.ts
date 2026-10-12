@@ -204,6 +204,128 @@ describe('places.source (e2e)', () => {
     });
   });
 
+  describe('lịch trình không lưu tọa độ Google', () => {
+    let regionId: string;
+    let googleId: string;
+    let anchorId: string;
+
+    beforeAll(async () => {
+      [{ id: regionId }] = (await db.query(
+        `SELECT id FROM regions WHERE source_key = 'vn:destination:da-lat'`,
+      )) as Array<{ id: string }>;
+      [{ id: googleId }] = (await db.query(
+        `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
+         VALUES ('google', 'e2e-src-snap', 'E2E src quán snapshot', 'cafe',
+                 ST_SetSRID(ST_MakePoint(108.442, 11.942), 4326), now() + interval '30 days', 0)
+         RETURNING id`,
+      )) as Array<{ id: string }>;
+      [{ id: anchorId }] = (await db.query(
+        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
+         VALUES ('node', -9330, 'E2E src neo snapshot', 'culture', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326), 5)
+         RETURNING id`,
+      )) as Array<{ id: string }>;
+    });
+
+    type Item = {
+      placeId: string | null;
+      place: { coordinates: { lat: number; lng: number } | null } | null;
+    };
+    const itemOf = (days: Array<{ items: Item[] }>, placeId: string) =>
+      days.flatMap((d) => d.items).find((i) => i.placeId === placeId);
+
+    it('JSONB không có tọa độ Google; GET điền tọa độ hiện tại, hết thì null', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/api/itineraries')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          regionId,
+          planningMode: 'ai',
+          startsAt: '2026-12-01T08:00:00+07:00',
+          endsAt: '2026-12-01T20:00:00+07:00',
+          travelParty: 'friends',
+          adults: 2,
+          children: 0,
+          allowAiSuggestions: false,
+          selectedPlaceIds: [googleId, anchorId],
+        })
+        .expect(201);
+      const id = created.body.id as string;
+      expect(itemOf(created.body.days, googleId)?.place?.coordinates).toEqual({
+        lat: 11.942,
+        lng: 108.442,
+      });
+
+      const [stored] = (await db.query(
+        `SELECT days FROM itineraries WHERE id = $1`,
+        [id],
+      )) as Array<{ days: Array<{ items: Item[] }> }>;
+      expect(itemOf(stored.days, googleId)?.place?.coordinates).toBeNull();
+      expect(itemOf(stored.days, anchorId)?.place?.coordinates).toEqual({
+        lat: 11.94,
+        lng: 108.44,
+      });
+
+      // Sửa lịch trình: bản lưu sau PUT cũng không có tọa độ Google.
+      const put = await request(app.getHttpServer())
+        .put(`/api/itineraries/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          days: created.body.days.map((d: { id: string }, index: number) => ({
+            id: d.id,
+            items:
+              index === 0
+                ? [googleId, anchorId].map((placeId) => ({
+                    kind: 'visit',
+                    placeId,
+                    durationMinutes: 60,
+                  }))
+                : [],
+          })),
+          unscheduledPlaceIds: [],
+        })
+        .expect(200);
+      expect(itemOf(put.body.days, googleId)?.place?.coordinates).toEqual({
+        lat: 11.942,
+        lng: 108.442,
+      });
+      const [afterPut] = (await db.query(
+        `SELECT days FROM itineraries WHERE id = $1`,
+        [id],
+      )) as Array<{ days: Array<{ items: Item[] }> }>;
+      expect(itemOf(afterPut.days, googleId)?.place?.coordinates).toBeNull();
+
+      const share = await request(app.getHttpServer())
+        .post(`/api/itineraries/${id}/share-link`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+      const pub = await request(app.getHttpServer())
+        .get(`/api/public/itineraries/${share.body.token}`)
+        .expect(200);
+      expect(itemOf(pub.body.days, googleId)?.place?.coordinates).toEqual({
+        lat: 11.942,
+        lng: 108.442,
+      });
+
+      await db.query(
+        `UPDATE places SET location = NULL, location_expires_at = NULL WHERE id = $1`,
+        [googleId],
+      );
+      const got = await request(app.getHttpServer())
+        .get(`/api/itineraries/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(itemOf(got.body.days, googleId)?.place?.coordinates).toBeNull();
+      expect(itemOf(got.body.days, anchorId)?.place?.coordinates).toEqual({
+        lat: 11.94,
+        lng: 108.44,
+      });
+      const pub2 = await request(app.getHttpServer())
+        .get(`/api/public/itineraries/${share.body.token}`)
+        .expect(200);
+      expect(itemOf(pub2.body.days, googleId)?.place?.coordinates).toBeNull();
+    });
+  });
+
   describe('tọa độ Google hết hạn', () => {
     let regionId: string;
     let staleId: string;

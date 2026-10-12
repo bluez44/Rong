@@ -13,6 +13,7 @@ import { parseOpeningHours } from '../../places/opening-hours.js';
 import { vietnamIso, type DayWindow } from './days.js';
 import type { Candidate, PlannedStop } from './planning.types.js';
 import { MEALS, TYPICAL_HOURS, type PartyRules } from './rules.js';
+import { snapshotCoordinates } from './snapshot.js';
 import { estimateLeg, type LatLng } from './travel.js';
 
 /** Quán người dùng đã chọn được ưu tiên cho bữa ăn nếu cách không quá chừng này. */
@@ -305,7 +306,7 @@ function snapshot(c: Candidate): ItineraryItem['place'] {
   return {
     name: c.name,
     category: c.category,
-    coordinates: { lat: c.lat, lng: c.lng },
+    coordinates: snapshotCoordinates(c),
   };
 }
 

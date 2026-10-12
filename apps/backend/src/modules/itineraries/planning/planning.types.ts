@@ -13,6 +13,8 @@ export interface Candidate extends LatLng {
   openingHours: string | null;
   /** Người dùng đã chọn — bắt buộc phải có trong lịch trình hoặc "Chưa xếp được". */
   mandatory: boolean;
+  /** Dòng nguồn Google: tọa độ không được lưu vào lịch trình (PRD 7.4). */
+  isGoogle?: boolean;
 }
 
 /** Một điểm dừng đã được chọn và xếp thứ tự cho một ngày (trước khi tính giờ). */
