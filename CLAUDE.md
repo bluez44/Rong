@@ -73,6 +73,7 @@ Keep each external service behind its single gateway:
 | --- | --- | --- |
 | `modules/open-data/OpenDataService` | Nominatim, Overpass, Wikidata | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`, failover across the comma-separated `OVERPASS_URL` mirrors. |
 | `modules/google/` | Google Places (New), Geocoding | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days (Geocoding results are cached in memory only), never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
+| `modules/share-import/LinkMetadataService` | oEmbed, Open Graph of user-shared links | Blocks non-public IPs on every redirect, at most 5 redirects / 5 s / 1 MB. |
 | `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, the `findPlaces` fallback, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) power the v2 places API. Gemini models are created in `src/chat-models/`. |
 
 ### Places: two pipelines
@@ -111,7 +112,12 @@ Other behavior:
 
 **All permission rules live in `groups/access.ts`** as pure functions; `AccessService` loads the roles and calls into it. Use it for any itinerary or group authorization; don't write ad-hoc ownership checks. A caller who can't view the resource gets 404, not 403, so its existence isn't leaked.
 
-`modules/saved-places` is the per-user "Muốn đi" list. `ranking/`, `realtime/` and `share-import/` are placeholders for later PRD features.
+`modules/saved-places` is the per-user "Muốn đi" list. `ranking/` and `realtime/` are placeholders for later PRD features.
+
+### Share-to-app (F4)
+`modules/share-import`: `POST /share-imports` takes a shared link or text and returns 202; a background job fetches metadata (`LinkMetadataService`), extracts places with Gemini, and matches each one to the catalog or Google. The client polls `GET /share-imports/:id` and saves the user's picks with `POST /share-imports/:id/save`. Jobs cap at 30 s; interrupted ones are marked `INTERRUPTED`.
+
+`places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days). They are never ranked: every catalog query that lists, ranks or suggests must filter `p.source = 'osm'`. Call `PlaceLocationService.ensure` before using a Google place's coordinates.
 
 ## Deploy
 - `apps/backend/Dockerfile` builds from the repo root.

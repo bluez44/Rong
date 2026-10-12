@@ -22,6 +22,7 @@
     "test:e2e": "pnpm build:deps && vitest run --config ./vitest.config.e2e.ts",
     "test:speed": "pnpm build:deps && vitest run --config ./vitest.config.e2e.ts test/places-speed.e2e-spec.ts",
     "bench:places": "pnpm build:deps && vitest run --config ./vitest.config.live.ts",
+    "bench:share": "pnpm build:deps && vitest run --config ./vitest.config.live.ts test/share-import.live-spec.ts",
     "typecheck": "pnpm build:deps && tsc --noEmit",
     "migration:run": "pnpm build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "pnpm build && typeorm migration:revert -d dist/database/data-source.js",
