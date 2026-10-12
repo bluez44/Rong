@@ -439,6 +439,7 @@ export class ItinerariesService {
          JOIN places p ON p.category = t.category
           AND ST_DWithin(p.location::geography, t.location::geography, $3)
         WHERE t.id = $1
+          AND p.source = 'osm'
           AND p.id <> ALL($2::uuid[])
           AND NOT (p.category = ANY($4::place_category[]))
         ORDER BY p.composite_score DESC, km
@@ -596,6 +597,7 @@ export class ItinerariesService {
     const rows = (await this.db.query(
       `${PLACE_SELECT}
         WHERE p.location && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+          AND p.source = 'osm'
           AND ($5::place_category[] IS NULL OR p.category = ANY($5::place_category[]))
         ORDER BY p.composite_score DESC, p.id
         LIMIT $6`,
