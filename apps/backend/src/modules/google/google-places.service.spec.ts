@@ -342,3 +342,82 @@ describe('GooglePlacesService.geocode', () => {
     }
   });
 });
+
+describe('GooglePlacesService.searchText', () => {
+  it('chỉ xin id + location, ưu tiên khung vùng, tối đa 3', async () => {
+    const calls = mockFetch(() => ({
+      body: {
+        places: [
+          { id: 'A', location: { latitude: 11.94, longitude: 108.44 } },
+          { id: 'B', location: { latitude: 11.95, longitude: 108.45 } },
+        ],
+      },
+    }));
+    await expect(
+      service().searchText(
+        'Bánh căn Nhà Chung, Đà Lạt',
+        [11.8, 108.3, 12.0, 108.6],
+      ),
+    ).resolves.toEqual([
+      { placeId: 'A', lat: 11.94, lng: 108.44 },
+      { placeId: 'B', lat: 11.95, lng: 108.45 },
+    ]);
+    const [call] = calls;
+    expect(call.url).toBe(`${BASE}/places:searchText`);
+    expect(header(call, 'X-Goog-FieldMask')).toBe('places.id,places.location');
+    const body = JSON.parse(call.init.body as string);
+    expect(body).toMatchObject({
+      textQuery: 'Bánh căn Nhà Chung, Đà Lạt',
+      regionCode: 'VN',
+      pageSize: 3,
+    });
+    expect(body.locationBias.rectangle).toEqual({
+      low: { latitude: 11.8, longitude: 108.3 },
+      high: { latitude: 12.0, longitude: 108.6 },
+    });
+  });
+
+  it('không có khung thì không gửi locationBias; bỏ kết quả thiếu tọa độ', async () => {
+    const calls = mockFetch(() => ({ body: { places: [{ id: 'A' }] } }));
+    await expect(service().searchText('x', null)).resolves.toEqual([]);
+    expect(
+      JSON.parse(calls[0].init.body as string).locationBias,
+    ).toBeUndefined();
+  });
+});
+
+describe('GooglePlacesService.locate / summary', () => {
+  it('locate chỉ xin location', async () => {
+    const calls = mockFetch(() => ({
+      body: { location: { latitude: 1, longitude: 2 } },
+    }));
+    await expect(service().locate('ChIJ1')).resolves.toEqual({
+      lat: 1,
+      lng: 2,
+    });
+    expect(calls[0].url).toBe(`${BASE}/places/ChIJ1`);
+    expect(header(calls[0], 'X-Goog-FieldMask')).toBe('location');
+  });
+
+  it('summary xin displayName + formattedAddress; 404 → null', async () => {
+    const calls = mockFetch((url) =>
+      url.includes('/gone')
+        ? { status: 404, body: {} }
+        : {
+            body: {
+              displayName: { text: 'Bánh căn Nhà Chung' },
+              formattedAddress: '1 Nhà Chung',
+            },
+          },
+    );
+    await expect(service().summary('ChIJ1')).resolves.toEqual({
+      name: 'Bánh căn Nhà Chung',
+      address: '1 Nhà Chung',
+    });
+    expect(calls[0].url).toContain(`${BASE}/places/ChIJ1`);
+    expect(header(calls[0], 'X-Goog-FieldMask')).toBe(
+      'displayName,formattedAddress',
+    );
+    await expect(service().summary('gone')).resolves.toBeNull();
+  });
+});
