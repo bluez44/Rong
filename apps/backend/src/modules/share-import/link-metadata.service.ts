@@ -1,8 +1,9 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
-import { BlockList, isIP } from 'node:net';
+import { BlockList, isIP, type LookupFunction } from 'node:net';
 
 import { Logger } from '@nestjs/common';
 import type { SharePlatform } from '@rong/shared-types';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 import { detectPlatform } from './share-url.js';
 
@@ -50,10 +51,13 @@ for (const [net, prefix] of [
   PRIVATE.addSubnet(net, prefix, 'ipv4');
 }
 for (const [net, prefix] of [
-  ['::', 128],
-  ['::1', 128],
+  ['::', 96], // gồm ::, ::1 và IPv4-compatible (::a.b.c.d)
+  ['::ffff:0:0:0', 96], // SIIT
+  ['64:ff9b:1::', 48], // NAT64 cục bộ
+  ['2002::', 16], // 6to4
   ['fc00::', 7],
   ['fe80::', 10],
+  ['fec0::', 10], // site-local (đã bỏ)
   ['ff00::', 8],
 ] as const) {
   PRIVATE.addSubnet(net, prefix, 'ipv6');
@@ -130,8 +134,11 @@ function decodeEntities(text: string): string {
  * khai: oEmbed khi nền tảng có, còn lại Open Graph. Mọi host (kể cả sau mỗi
  * redirect) phải phân giải ra IP công khai trước khi được gọi.
  *
- * Giới hạn đã biết: kiểm tra DNS rồi mới fetch nên còn khe DNS rebinding rất
- * hẹp; chấp nhận được vì chỉ đọc <head> và không trả nội dung thô cho client.
+ * Chống DNS rebinding: assertSafe chỉ là kiểm tra sớm. Ở production,
+ * createLinkMetadataService gắn vào undici một `lookup` đã ghim
+ * (createPinnedLookup): chính lần phân giải mà kết nối TCP dùng được kiểm tra
+ * và từ chối nếu có địa chỉ không công khai, nên không có lần phân giải thứ
+ * hai để kẻ tấn công đổi đáp án.
  */
 export class LinkMetadataService {
   private readonly logger = new Logger(LinkMetadataService.name);
@@ -273,22 +280,49 @@ async function readLimited(response: Response): Promise<string> {
     while (bytes < MAX_BYTES) {
       const { done, value } = await reader.read();
       if (done) break;
-      bytes += value.byteLength;
-      html += decoder.decode(value, { stream: true });
+      const chunk = value.byteLength > MAX_BYTES - bytes ? value.subarray(0, MAX_BYTES - bytes) : value;
+      bytes += chunk.byteLength;
+      html += decoder.decode(chunk, { stream: true });
     }
+    html += decoder.decode();
   } finally {
     void reader.cancel().catch(() => undefined);
   }
   return html;
 }
 
+/**
+ * `lookup` cho kết nối TCP: phân giải một lần, từ chối nếu có địa chỉ không
+ * công khai, còn lại kết nối thẳng tới địa chỉ vừa kiểm tra.
+ */
+export function createPinnedLookup(resolve: (hostname: string) => Promise<string[]>): LookupFunction {
+  return (hostname, options, callback) => {
+    resolve(hostname).then(
+      (addresses) => {
+        if (addresses.length === 0 || addresses.some((ip) => !isPublicAddress(ip))) {
+          callback(new UnsafeUrlError(`Host ${hostname} không phải địa chỉ công khai`), '', 4);
+          return;
+        }
+        const entries = addresses.map((address) => ({ address, family: isIP(address) }));
+        if (options?.all) callback(null, entries);
+        else callback(null, entries[0].address, entries[0].family);
+      },
+      (error: unknown) => callback(error instanceof Error ? error : new Error(String(error)), '', 4),
+    );
+  };
+}
+
 export function createLinkMetadataService(config: {
   metaOembedToken: string | null;
   contactEmail: string;
 }): LinkMetadataService {
+  const lookup = async (host: string) =>
+    (await dnsLookup(host, { all: true })).map((a) => a.address);
+  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(lookup) } });
   return new LinkMetadataService({
-    fetch,
-    lookup: async (host) => (await dnsLookup(host, { all: true })).map((a) => a.address),
+    fetch: ((input: unknown, init?: unknown) =>
+      undiciFetch(input as string, { ...(init as object), dispatcher })) as unknown as typeof fetch,
+    lookup,
     ...config,
   });
 }
