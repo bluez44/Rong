@@ -385,8 +385,9 @@ export const DESTINATIONS: SeedDestination[] = [
     name: 'Cần Giờ',
     province: 'ho-chi-minh',
     formerProvince: 'ho-chi-minh',
-    center: [10.411, 106.954],
-    radiusKm: 18,
+    // Bán kính 13 km: lớn hơn thì khung vuông phủ sang thành phố Vũng Tàu.
+    center: [10.5, 106.88],
+    radiusKm: 13,
     aliases: ['Rừng Sác'],
   },
   {

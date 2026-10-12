@@ -91,12 +91,13 @@ export class RegionsService {
       (top, m) => (top === null || m.score > top.score ? m : top),
       null,
     );
+    // Ghi lượt trượt ở nền: không bao giờ làm chậm lượt tìm (recordMiss tự bắt lỗi).
     if (results.length === 0) {
-      await this.recordMiss(key, query, online ? 'online' : 'catalog');
+      void this.recordMiss(key, query, online ? 'online' : 'catalog');
     } else if (best && best.score < GOOD_ENOUGH) {
       // Có kết quả nhưng chỉ gần đúng ("can gio" → "Cần Thơ"): có thể người
       // dùng vẫn không thấy nơi cần, nên cũng đếm, kèm kết quả đứng đầu.
-      await this.recordMiss(key, query, 'weak', {
+      void this.recordMiss(key, query, 'weak', {
         name: regions.get(best.regionId)?.name ?? null,
         score: best.score,
       });

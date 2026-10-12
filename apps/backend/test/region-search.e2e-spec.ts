@@ -58,6 +58,10 @@ describe('Tìm vùng (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
+  /** Lượt trượt được ghi ở nền sau khi trả kết quả: đợi một chút cho tới khi thấy. */
+  const eventually = <T>(check: () => Promise<T>) =>
+    vi.waitFor(check, { timeout: 5000, interval: 100 });
+
   const misses = async () => {
     const [row] = (await db.query(
       `SELECT sample_query, catalog_misses, online_misses
@@ -85,19 +89,23 @@ describe('Tìm vùng (e2e)', () => {
   it('từ khóa không ra kết quả được đếm riêng cho danh mục và cho tìm online', async () => {
     let res = await search(missQuery);
     expect(res.body).toEqual([]);
-    expect(await misses()).toMatchObject({
-      sample_query: missQuery,
-      catalog_misses: 1,
-      online_misses: 0,
-    });
+    await eventually(async () =>
+      expect(await misses()).toMatchObject({
+        sample_query: missQuery,
+        catalog_misses: 1,
+        online_misses: 0,
+      }),
+    );
 
     await search(missQuery);
     res = await search(missQuery, true);
     expect(res.body).toEqual([]);
-    expect(await misses()).toMatchObject({
-      catalog_misses: 2,
-      online_misses: 1,
-    });
+    await eventually(async () =>
+      expect(await misses()).toMatchObject({
+        catalog_misses: 2,
+        online_misses: 1,
+      }),
+    );
   });
 
   it('chỉ khớp gần đúng (dưới ngưỡng) thì ghi lượt khớp yếu kèm kết quả đứng đầu', async () => {
@@ -107,16 +115,20 @@ describe('Tìm vùng (e2e)', () => {
     const res = await search('Đà Lạtt');
     expect(res.body.map((r: { name: string }) => r.name)).toContain('Đà Lạt');
 
-    const [row] = (await db.query(
-      `SELECT catalog_misses, online_misses, weak_matches, best_match_name, best_score
-         FROM region_search_misses WHERE search_key = 'da latt'`,
-    )) as Array<{
-      catalog_misses: number;
-      online_misses: number;
-      weak_matches: number;
-      best_match_name: string;
-      best_score: number;
-    }>;
+    const row = await eventually(async () => {
+      const [found] = (await db.query(
+        `SELECT catalog_misses, online_misses, weak_matches, best_match_name, best_score
+           FROM region_search_misses WHERE search_key = 'da latt'`,
+      )) as Array<{
+        catalog_misses: number;
+        online_misses: number;
+        weak_matches: number;
+        best_match_name: string;
+        best_score: number;
+      }>;
+      expect(found).toBeDefined();
+      return found;
+    });
     expect(row).toMatchObject({
       catalog_misses: 0,
       online_misses: 0,
@@ -129,6 +141,8 @@ describe('Tìm vùng (e2e)', () => {
 
   it('có kết quả khớp tốt thì không ghi', async () => {
     await search('da lat');
+    // Cho một lượt ghi nền (nếu có, do lỗi) kịp chạy trước khi kiểm tra.
+    await new Promise((resolve) => setTimeout(resolve, 300));
     const [{ n }] = (await db.query(
       `SELECT count(*)::int AS n FROM region_search_misses WHERE search_key = 'da lat'`,
     )) as Array<{ n: number }>;
