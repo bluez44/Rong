@@ -179,6 +179,15 @@ kéo dài hạn đó. Hai thành phần giữ quy tắc này:
 Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` (cũng như
 `GET /places/:id`) trả 503 `PLACE_LOCATION_UNAVAILABLE`.
 
+Lịch trình (`itineraries.days` JSONB) không lưu tọa độ Google: ảnh chụp địa điểm nguồn Google ghi
+`coordinates: null` (`itineraries/planning/snapshot.ts`), và mọi đường đọc (GET/POST/PUT lịch trình, trang xem
+công khai) điền tọa độ hiện tại từ `places.location` qua `itineraries/google-coordinates.ts` — null khi đã hết hạn.
+
+Dòng Google dùng chung theo `google_place_id`, nên `places.name` là tên của người chia sẻ đầu tiên. Mỗi lượt lưu
+từ chia sẻ ghi tên theo nội dung của chính người đó vào `saved_places.display_name`; "Muốn đi" trả
+`COALESCE(display_name, places.name)`. `GET /places/:id` của dòng Google hiện tên Google trực tiếp (không lưu)
+khi có nội dung Google.
+
 ## Khác với PRD (F4)
 
 Xem spec `docs/superpowers/specs/2026-10-12-share-to-app-design.md` §1.2. Tóm tắt:
