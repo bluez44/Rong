@@ -7,7 +7,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, JWT guard toàn cục (`@Public()` để mở route). Sẵn chỗ cho Google / Apple qua `auth_identities` |
 | `users/` | F11 | Hồ sơ, hạn mức lượt AI hằng tháng (FR-6.5), xóa tài khoản |
 | `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, khung bao (bbox) lấy từ OSM, seed sáp nhập 1/7/2025 |
-| `places/` | F2, F5 | Danh mục địa điểm riêng từ OSM + Wikidata, lọc theo khung bao của vùng, điểm tổng hợp, phân trang con trỏ |
+| `places/` | F2, F5 | Danh mục địa điểm riêng từ OSM + Wikidata, lọc theo khung bao của vùng, điểm tổng hợp, phân trang con trỏ; tìm địa điểm theo tên (xem "Tìm địa điểm theo tên") |
 | `open-data/` | 7.1 | **Cổng duy nhất** gọi OSM Nominatim, Overpass, Wikidata (giãn cách request, User-Agent) |
 | `ranking/` | F3 | Điểm tổng hợp 0–100, nhãn "Đang hot" |
 | `google/` | 7.4 | **Cổng duy nhất** gọi Google Places + Routes |
@@ -85,6 +85,42 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
 
+## Tìm địa điểm theo tên
+
+```
+GET  /api/regions/:id/places/search?q=…            gõ tới đâu khớp danh mục tới đó — chỉ đọc database
+GET  /api/regions/:id/places/search?q=…&online=1   khi bấm tìm — thêm Google Places Text Search
+GET  /api/places/google/:googlePlaceId             xem trước một kết quả Google (nội dung Google trực tiếp)
+POST /api/places/google                            lưu kết quả Google vào "Muốn đi"
+```
+
+`places/place-search.service.ts` (`PlaceSearchService`):
+
+- **Danh mục chỉ có OSM.** `catalog` là dòng `source = 'osm'` trong khung bao của vùng, khớp theo tên
+  (bỏ dấu, pg_trgm), tối đa 10. Dòng Google không bao giờ vào `catalog`.
+- **Google chỉ khi bấm tìm** (`online=1` và Google đã bật), tối đa 5 kết quả trong khung bao của vùng. `q` sau
+  khi cắt khoảng trắng phải có 1-100 ký tự, rỗng thì 400. Google lỗi thì `google: null` (danh mục vẫn trả).
+- **Hạn mức** `PLACE_SEARCH_DAILY_LIMIT` (mặc định 60 lượt / người / 24 giờ, `place-search-limiter.ts`, trong
+  bộ nhớ). Chỉ tính khi thật sự gọi Google: gõ tìm trong danh mục hay Google chưa bật không tốn lượt. Hết hạn
+  mức thì 429 `PLACE_SEARCH_LIMIT`.
+- **Kết quả Google trùng `place_id` đã có trong `places`** được trả ở `existing` (là địa điểm có sẵn, có `id`),
+  không nằm trong `google`: dòng OSM đã ghép thì hiện tên OSM; dòng nguồn Google thì hiện tên Google trực tiếp
+  (tên trong DB do người khác đặt nên không lộ ra). Dòng nguồn Google mà Google không trả tên thì để lại trong
+  `google`, không kèm id.
+- **Xem trước** (`GET /places/google/:googlePlaceId`): `place_id` đã khớp một dòng OSM (hoặc đã có dòng Google)
+  thì chỉ trả `{ placeId }` để client mở chi tiết thường. Chưa có thì trả nội dung Google lấy trực tiếp
+  (tên, địa chỉ, tọa độ, loại gợi ý, rating/ảnh…), không ghi database (PRD 7.4). 400 `INVALID_GOOGLE_PLACE_ID`,
+  404 `PLACE_NOT_FOUND`, 503 `GOOGLE_UNAVAILABLE`.
+- **Lưu** (`POST /places/google`, body `googlePlaceId`, `name`, `category`, `regionId`): `place_id` đã khớp
+  dòng OSM thì dùng dòng OSM đó, không tạo dòng mới. Chưa có thì tạo dòng `source = 'google'` qua
+  `GooglePlaceRowsService.upsert` (cùng một transaction với lượt lưu). **Tên lưu là tên người dùng xác nhận**
+  (`saved_places.display_name`), không bao giờ là tên Google; `places.name` của dòng Google là tên của người
+  đầu tiên lưu.
+- `places/google-place-rows.service.ts` (`GooglePlaceRowsService`) là nơi duy nhất ghi dòng Google, dùng chung
+  với chia sẻ vào app (F4): tên do người dùng đặt, tọa độ Google hạn 30 ngày.
+- **"Muốn đi"** (`saved_places.source`: `manual | share | search`): lưu từ tìm kiếm ghi `search`. Khi một địa
+  điểm được lưu lại bằng nguồn khác, nguồn ưu tiên là **share > search > manual** (không bị hạ cấp).
+
 ## Dự phòng khi nguồn dữ liệu mở lỗi
 
 `GET /regions/:id/places` khi OSM (Overpass/Nominatim) không dùng được:
@@ -150,7 +186,7 @@ Luồng của một job (`share-imports.service.ts`):
 
 `share_imports` (migration `1759100000000-AddShareImports`): `id`, `user_id`, `url`, `shared_text`, `status`
 (`pending | done | failed`), `platform`, `metadata` (jsonb), `candidates` (jsonb), `error_code`, `created_at`,
-`finished_at`. `saved_places` thêm `source` (`manual | share`) và `share_import_id`.
+`finished_at`. `saved_places` thêm `source` (`manual | share`, về sau thêm `search`) và `share_import_id`.
 
 Độ bền của job:
 - Tắt server: `onModuleDestroy` đánh các job đang chạy là `failed` / `INTERRUPTED`.
