@@ -8,6 +8,7 @@ import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
+import { PlaceSearchResults } from '@/components/place-search-results';
 import { PlaceSheet, type SheetDetent } from '@/components/place-sheet';
 import { RegionMap } from '@/components/region-map';
 import { placeKey, type Bbox } from '@/components/region-map-shared';
@@ -16,14 +17,16 @@ import { Chip } from '@/components/ui/chip';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { PlaceRow } from '@/components/ui/place-row';
+import { SearchField } from '@/components/ui/search-field';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
+import { usePlaceSearch } from '@/hooks/use-place-search';
 import { useRegionPlaces, type PlacesApi } from '@/hooks/use-region-places';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 import { formatFullDate } from '@/lib/trip-format';
 
-type Params = { id: string; name?: string; bbox?: string; lat?: string; lng?: string };
+type Params = { id: string; name?: string; bbox?: string; lat?: string; lng?: string; q?: string };
 
 export default function RegionScreen() {
   const params = useLocalSearchParams<Params>();
@@ -46,6 +49,10 @@ export default function RegionScreen() {
   const draft = useTripDraft(params.id);
   const saved = useSavedPlaces();
   const regionName = params.name ?? 'Vùng đã chọn';
+  // `q` có sẵn khi mở từ màn xem trước địa điểm Google.
+  const [placeQuery, setPlaceQuery] = useState(params.q ?? '');
+  const search = usePlaceSearch(params.id, placeQuery);
+  const searching = placeQuery.trim() !== '';
 
   const toggle = (category: PlaceCategory) =>
     setCategories((prev) =>
@@ -156,42 +163,59 @@ export default function RegionScreen() {
               </Text>
               <Text style={styles.count}>{count}</Text>
             </View>
-            <View style={styles.sources}>
-              <Chip label="Danh mục" icon="layers" selected={api === 'v1'} onPress={() => switchApi('v1')} />
-              <Chip label="Từ bài viết" icon="sparkles" selected={api === 'v2'} onPress={() => switchApi('v2')} />
+            <View style={styles.searchRow}>
+              <SearchField
+                value={placeQuery}
+                onChangeText={setPlaceQuery}
+                placeholder={`Tìm quán, điểm tham quan ở ${regionName}`}
+                onSubmitEditing={search.submit}
+                onFocus={() => setDetent('full')}
+              />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
-              {CATEGORIES.map((c) => (
-                <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={categories.includes(c)} onPress={() => toggle(c)} />
-              ))}
-            </ScrollView>
+            {searching ? null : (
+              <>
+              <View style={styles.sources}>
+                <Chip label="Danh mục" icon="layers" selected={api === 'v1'} onPress={() => switchApi('v1')} />
+                <Chip label="Từ bài viết" icon="sparkles" selected={api === 'v2'} onPress={() => switchApi('v2')} />
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
+                {CATEGORIES.map((c) => (
+                  <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={categories.includes(c)} onPress={() => toggle(c)} />
+                ))}
+              </ScrollView>
+              </>
+            )}
           </View>
         }>
-        <FlatList
-          ref={list}
-          data={places.items}
-          keyExtractor={placeKey}
-          // Dòng phụ thuộc cả dòng đang chọn lẫn bản nháp lịch trình, không chỉ `data`.
-          extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}|${saved.items.length}`}
-          renderItem={({ item }) => (
-            <PlaceRow
-              place={item}
-              selected={placeKey(item) === selectedKey}
-              onPress={() => selectFromList(item)}
-              // Mục AI không khớp danh mục thì không có màn chi tiết.
-              onOpenDetail={item.id ? () => openDetail(item) : undefined}
-              tripAction={tripAction(item)}
-              saveAction={saveAction(item)}
-            />
-          )}
-          onEndReached={places.loadMore}
-          onEndReachedThreshold={0.5}
-          onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<ListStatus places={places} api={api} />}
-          ListFooterComponent={places.items.length > 0 ? <ListFooter places={places} /> : null}
-        />
+        {searching ? (
+          <PlaceSearchResults search={search} regionId={params.id} regionName={regionName} query={placeQuery} />
+        ) : (
+          <FlatList
+            ref={list}
+            data={places.items}
+            keyExtractor={placeKey}
+            // Dòng phụ thuộc cả dòng đang chọn lẫn bản nháp lịch trình, không chỉ `data`.
+            extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}|${saved.items.length}`}
+            renderItem={({ item }) => (
+              <PlaceRow
+                place={item}
+                selected={placeKey(item) === selectedKey}
+                onPress={() => selectFromList(item)}
+                // Mục AI không khớp danh mục thì không có màn chi tiết.
+                onOpenDetail={item.id ? () => openDetail(item) : undefined}
+                tripAction={tripAction(item)}
+                saveAction={saveAction(item)}
+              />
+            )}
+            onEndReached={places.loadMore}
+            onEndReachedThreshold={0.5}
+            onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={<ListStatus places={places} api={api} />}
+            ListFooterComponent={places.items.length > 0 ? <ListFooter places={places} /> : null}
+          />
+        )}
       </PlaceSheet>
     </View>
   );
@@ -281,6 +305,7 @@ const styles = StyleSheet.create({
   titleRow: { paddingHorizontal: Spacing.five, gap: 2 },
   title: { ...Type.title2, color: Colors.light.text },
   count: { ...Type.subhead, color: Colors.light.textSecondary },
+  searchRow: { paddingHorizontal: Spacing.five },
   sources: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.five },
   chips: { gap: Spacing.two, paddingHorizontal: Spacing.five },
   listContent: { padding: Spacing.two, paddingBottom: Spacing.eight },
