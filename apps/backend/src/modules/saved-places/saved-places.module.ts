@@ -6,5 +6,6 @@ import { SavedPlacesService } from './saved-places.service.js';
 @Module({
   controllers: [SavedPlacesController],
   providers: [SavedPlacesService],
+  exports: [SavedPlacesService],
 })
 export class SavedPlacesModule {}

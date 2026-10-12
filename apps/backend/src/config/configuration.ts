@@ -60,6 +60,14 @@ export interface GoogleConfig {
   geocodingUrl: string;
 }
 
+/** Chia sẻ vào app (F4). */
+export interface ShareImportConfig {
+  /** Số lượt chia sẻ tối đa mỗi người trong 24 giờ: giữ chi phí Gemini và Google. */
+  dailyLimit: number;
+  /** Token Meta (app|client) cho oEmbed Facebook/Instagram; trống thì đọc Open Graph. */
+  metaOembedToken: string | null;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -69,6 +77,7 @@ export interface AppConfig {
   mail: MailConfig;
   openData: OpenDataConfig;
   google: GoogleConfig;
+  shareImport: ShareImportConfig;
 }
 
 class MissingEnvError extends Error {
@@ -173,6 +182,10 @@ export function loadConfig(): AppConfig {
       geocodingUrl:
         process.env.GOOGLE_GEOCODING_URL ||
         'https://maps.googleapis.com/maps/api/geocode/json',
+    },
+    shareImport: {
+      dailyLimit: toInt(process.env.SHARE_IMPORT_DAILY_LIMIT, 30),
+      metaOembedToken: process.env.META_OEMBED_TOKEN || null,
     },
   };
 }
