@@ -289,6 +289,97 @@ describe('Chia sẻ vào app (e2e)', () => {
     });
   });
 
+  it('hai người chia sẻ cùng một địa điểm Google với tên khác nhau: mỗi người thấy tên của mình', async () => {
+    const shareAs = async (as: string, name: string) => {
+      metadata.fetch.mockReset();
+      extract.mockResolvedValueOnce({
+        places: [
+          {
+            name,
+            category: 'cafe',
+            regionHint: 'Đà Lạt',
+            address: '',
+            quote: name,
+          },
+        ],
+      });
+      google.searchText.mockResolvedValueOnce([
+        { placeId: 'e2e-share-name', lat: 11.95, lng: 108.44 },
+      ]);
+      const created = await api(as)
+        .create({ text: `Đi ${name} ở Đà Lạt nè` })
+        .expect(202);
+      const job = await waitDone(created.body.id, as);
+      expect(job.status).toBe('done');
+      const [candidate] = job.candidates;
+      await api(as)
+        .save(created.body.id, [
+          {
+            candidateKey: candidate.key,
+            kind: 'google',
+            googlePlaceId: 'e2e-share-name',
+          },
+        ])
+        .expect(200);
+    };
+    const savedName = async (as: string) => {
+      const list = await request(app.getHttpServer())
+        .get('/api/saved-places')
+        .set('Authorization', `Bearer ${as}`)
+        .expect(200);
+      const [{ id }] = (await db.query(
+        `SELECT id FROM places WHERE google_place_id = 'e2e-share-name'`,
+      )) as Array<{ id: string }>;
+      return list.body.find((s: { placeId: string }) => s.placeId === id)
+        ?.name as string | undefined;
+    };
+
+    await shareAs(token, 'Cà phê E2E Sương Sớm');
+    await shareAs(otherToken, 'Quán E2E Sương');
+    expect(await savedName(token)).toBe('Cà phê E2E Sương Sớm');
+    expect(await savedName(otherToken)).toBe('Quán E2E Sương');
+
+    // Thả tim thủ công lại không xóa tên của lượt chia sẻ.
+    const [{ id: placeId }] = (await db.query(
+      `SELECT id FROM places WHERE google_place_id = 'e2e-share-name'`,
+    )) as Array<{ id: string }>;
+    await request(app.getHttpServer())
+      .put(`/api/saved-places/${placeId}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ regionId: daLat })
+      .expect(204);
+    expect(await savedName(otherToken)).toBe('Quán E2E Sương');
+
+    // Chi tiết: có nội dung Google thì dùng tên Google trực tiếp (không lưu); không thì tên trong places.
+    google.details.mockResolvedValueOnce({
+      placeId: 'e2e-share-name',
+      name: 'Google Sương Sớm Coffee',
+      googleMapsUri: null,
+      address: null,
+      rating: null,
+      ratingCount: null,
+      openNow: null,
+      weekdayHours: [],
+      reviews: [],
+      photos: [],
+    } as never);
+    const live = await request(app.getHttpServer())
+      .get(`/api/places/${placeId}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(200);
+    expect(live.body.name).toBe('Google Sương Sớm Coffee');
+    const [{ name: stored }] = (await db.query(
+      `SELECT name FROM places WHERE id = $1`,
+      [placeId],
+    )) as Array<{ name: string }>;
+    expect(stored).not.toBe('Google Sương Sớm Coffee');
+    const fallback = await request(app.getHttpServer())
+      .get(`/api/places/${placeId}`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(200);
+    expect(fallback.body.name).toBe(stored);
+  });
+
   it('ứng viên tin cậy thấp có tối đa 3 lựa chọn kèm tên Google lấy trực tiếp', async () => {
     metadata.fetch.mockResolvedValueOnce(null);
     extract.mockResolvedValueOnce({

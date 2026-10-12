@@ -14,10 +14,15 @@ import { DataSource } from 'typeorm';
 /** Đủ cho mọi chuyến đi; chặn danh sách phình vô hạn. */
 export const MAX_SAVED_PLACES = 500;
 
-/** Lượt lưu đến từ đâu: người dùng tự thả tim, hay chọn từ một lượt chia sẻ (F4). */
+/**
+ * Lượt lưu đến từ đâu: người dùng tự thả tim, hay chọn từ một lượt chia sẻ (F4).
+ * `displayName`: tên theo nội dung chính người này chia sẻ (dòng Google dùng
+ * chung giữa mọi người); null thì giữ tên đã có.
+ */
 export type SaveOrigin = {
   source: 'manual' | 'share';
   shareImportId: string | null;
+  displayName?: string | null;
 };
 const MANUAL: SaveOrigin = { source: 'manual', shareImportId: null };
 
@@ -42,7 +47,7 @@ export class SavedPlacesService {
   /** Mới lưu trước. Client tự nhóm theo `regionId`. */
   async list(userId: string): Promise<SavedPlace[]> {
     const rows = (await this.db.query(
-      `SELECT s.place_id, p.name, p.category, s.region_id, r.name AS region_name,
+      `SELECT s.place_id, COALESCE(s.display_name, p.name) AS name, p.category, s.region_id, r.name AS region_name,
               pr.name AS parent_name, s.created_at, s.source, si.platform,
               si.metadata->>'title' AS share_title, si.url AS share_url
          FROM saved_places s
@@ -113,13 +118,21 @@ export class SavedPlacesService {
     }
     // Thả tim thủ công lại một địa điểm đã lưu từ share không xóa nguồn share.
     await runner.query(
-      `INSERT INTO saved_places (user_id, place_id, region_id, source, share_import_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO saved_places (user_id, place_id, region_id, source, share_import_id, display_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (user_id, place_id) DO UPDATE
          SET region_id = EXCLUDED.region_id,
              source = CASE WHEN EXCLUDED.source = 'share' THEN 'share' ELSE saved_places.source END,
-             share_import_id = COALESCE(EXCLUDED.share_import_id, saved_places.share_import_id)`,
-      [userId, placeId, regionId, origin.source, origin.shareImportId],
+             share_import_id = COALESCE(EXCLUDED.share_import_id, saved_places.share_import_id),
+             display_name = COALESCE(EXCLUDED.display_name, saved_places.display_name)`,
+      [
+        userId,
+        placeId,
+        regionId,
+        origin.source,
+        origin.shareImportId,
+        origin.displayName ?? null,
+      ],
     );
   }
 

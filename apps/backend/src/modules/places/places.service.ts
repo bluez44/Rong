@@ -286,6 +286,8 @@ export class PlacesService {
     const { status, content } = await this.googleContent(row);
     const item = toListItem(row);
     if (row.source === 'google') {
+      // Tên trong places là của người chia sẻ đầu tiên: có tên Google thì hiện tên đó (trực tiếp, không lưu).
+      if (content?.name) item.name = content.name;
       item.sourceUrl =
         content?.googleMapsUri ??
         `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.name)}&query_place_id=${row.google_place_id}`;

@@ -88,6 +88,7 @@ describe('GooglePlacesService.details', () => {
       return {
         body: {
           id: 'ChIJabc',
+          displayName: { text: 'Chợ Đà Lạt' },
           formattedAddress: 'Đà Lạt, Lâm Đồng',
           googleMapsUri: 'https://maps.google.com/?cid=1',
           rating: 4.6,
@@ -135,6 +136,7 @@ describe('GooglePlacesService.details', () => {
 
     expect(content).toMatchObject({
       placeId: 'ChIJabc',
+      name: 'Chợ Đà Lạt',
       rating: 4.6,
       ratingCount: 12345,
       openNow: true,
@@ -165,6 +167,7 @@ describe('GooglePlacesService.details', () => {
       `${BASE}/places/ChIJabc?languageCode=vi&regionCode=VN`,
     );
     expect(header(detailsCall, 'X-Goog-FieldMask')).toContain('rating');
+    expect(header(detailsCall, 'X-Goog-FieldMask')).toContain('displayName');
     expect(calls.filter((c) => c.url.includes('/media'))).toHaveLength(3);
     expect(
       calls.every(
