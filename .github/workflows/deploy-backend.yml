@@ -1,3 +1,29 @@
+# Placeholder while the real deploy below is disabled: an all-comment workflow file
+# is invalid and shows up as a failed run, so this job only prints a message.
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/backend/**
+      - packages/shared-types/**
+      - infra/prod/**
+      - pnpm-lock.yaml
+      - .github/workflows/deploy-backend.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploy backend"
+
+# --- Real deploy (disabled). To restore: delete the placeholder above and uncomment. ---
+
 # # Push lên `main` có đổi backend → test → build image, đẩy lên Docker Hub → deploy
 # # lên EC2 qua SSM Run Command. Cấu hình một lần: xem infra/prod/README.md.
 # #
