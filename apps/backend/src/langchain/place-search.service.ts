@@ -17,8 +17,8 @@ import {
   type WebSource,
 } from './web-search.js';
 
-/** Số địa điểm tối đa mỗi vùng. Mỗi địa điểm là thêm vài chục token Gemini phải sinh. */
-const MAX_PLACES = 15;
+/** Số địa điểm tối đa mỗi vùng, gồm cả quán ăn và nơi lưu trú (lập lịch cần đủ quán cho bữa). */
+const MAX_PLACES = 40;
 
 /**
  * Truy vấn cố định, chạy song song: với vùng phổ biến, Gemini tự quyết định
@@ -28,13 +28,14 @@ const queries = (regionName: string) => [
   `địa điểm tham quan nổi tiếng ${regionName}`,
   `quán ăn ngon ${regionName}`,
   `quán cà phê đẹp ${regionName}`,
+  `khách sạn homestay đẹp ${regionName}`,
 ];
 
 const SYSTEM_PROMPT = `Bạn là trợ lý du lịch tìm địa điểm ở Việt Nam.
 Đọc các bài viết được cung cấp, chọn tối đa ${MAX_PLACES} địa điểm cụ thể (có tên riêng) được nhắc tới và nằm trong khu vực được hỏi. Ưu tiên nơi được nhiều bài nhắc tới. Đa dạng loại hình. Sắp xếp từ nổi bật nhất.
 Quy tắc:
 - CHỈ dùng địa điểm có tên xuất hiện trong nội dung bài viết. Không thêm địa điểm từ hiểu biết riêng, kể cả nơi rất nổi tiếng — hệ thống sẽ đối chiếu từng tên với bài viết và loại mọi địa điểm không có trong bài.
-- Bỏ khách sạn, homestay.
+- Có ít nhất 6 quán ăn và 3 nơi lưu trú nếu bài viết có nhắc.
 - title: tên riêng của địa điểm, viết đúng như trong bài viết (không dịch, không thêm tên thành phố hay mô tả).
 - description: một câu ngắn tiếng Việt, chỉ dựa trên điều bài viết nói về địa điểm đó.
 - address: địa chỉ (số nhà, đường, phường/xã) đúng như bài viết ghi; bài không ghi thì để chuỗi rỗng, không tự đoán.
@@ -95,7 +96,7 @@ export async function findPlacesFromWeb(
   }
   const searchMs = Date.now() - started;
   const request = (articles: WebSource[]) =>
-    `Khu vực: ${regionName}, Việt Nam. Tìm các địa điểm nên ghé: điểm tham quan, check-in, thiên nhiên, văn hóa - lịch sử, ăn uống, cà phê, vui chơi, về đêm.\n\nCác bài viết:\n\n${articles.length > 0 ? formatArticles(articles) : '(chưa có bài nào)'}`;
+    `Khu vực: ${regionName}, Việt Nam. Tìm các địa điểm nên ghé: điểm tham quan, check-in, thiên nhiên, văn hóa - lịch sử, ăn uống, cà phê, vui chơi, về đêm, lưu trú.\n\nCác bài viết:\n\n${articles.length > 0 ? formatArticles(articles) : '(chưa có bài nào)'}`;
 
   if (sources.size < MIN_SOURCES) {
     const found = await agent(request([...sources.values()]));

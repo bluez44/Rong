@@ -16,15 +16,13 @@ import {
   PLACE_SEARCH_CONFIG,
   PlaceSearchService,
 } from './place-search.service.js';
-import { PlacesV2Controller } from './places-v2.controller.js';
-import { PlacesV2Service } from './places-v2.service.js';
 import {
   PlaceDetailController,
   PlacesController,
 } from './places.controller.js';
-import { PlacesWarmer } from './places-warmer.js';
 import { PlacesService } from './places.service.js';
 import { RegionPlaceStore } from './region-place-store.js';
+import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
 
 @Module({
   imports: [
@@ -35,11 +33,10 @@ import { RegionPlaceStore } from './region-place-store.js';
     LangchainModule,
     SavedPlacesModule,
   ],
-  controllers: [PlacesController, PlaceDetailController, PlacesV2Controller],
+  controllers: [PlacesController, PlaceDetailController],
   providers: [
     PlacesService,
-    PlacesV2Service,
-    PlacesWarmer,
+    WebPlacesService,
     PlaceLocationService,
     GoogleLocationJanitor,
     GooglePlaceRowsService,
@@ -50,6 +47,12 @@ import { RegionPlaceStore } from './region-place-store.js';
       inject: [ConfigService],
       useFactory: (config: ConfigService) =>
         config.getOrThrow<AppConfig['placeSearch']>('placeSearch'),
+    },
+    {
+      provide: WEB_PLACES_CONFIG,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        config.getOrThrow<AppConfig['webPlaces']>('webPlaces'),
     },
   ],
   exports: [PlaceLocationService, GooglePlaceRowsService, RegionPlaceStore],
