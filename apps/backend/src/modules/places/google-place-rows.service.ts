@@ -20,7 +20,7 @@ export interface GooglePlaceRowInput {
  * Dòng `places` nguồn Google (F4, tìm địa điểm): chỉ `google_place_id`, tên do
  * người dùng đặt và tọa độ hạn 30 ngày tính từ lúc lấy (PRD 7.4). Dùng chung
  * theo place_id; dòng đã có tọa độ hạn lâu hơn thì giữ nguyên; không đổi tên
- * hay loại của dòng đã có.
+ * hay loại của dòng đã có. Trùng place_id với một dòng `web` thì dùng lại dòng đó.
  */
 @Injectable()
 export class GooglePlaceRowsService {
@@ -31,10 +31,10 @@ export class GooglePlaceRowsService {
     runner: Pick<DataSource, 'query'> = this.db,
   ): Promise<string> {
     const [row] = (await runner.query(
-      `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
-       VALUES ('google', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326),
+      `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
+       VALUES ('google', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326), 'google',
                $7::timestamptz + make_interval(days => $6::int), 0)
-       ON CONFLICT (google_place_id) WHERE source = 'google'
+       ON CONFLICT (google_place_id) WHERE source IN ('google', 'web')
        DO UPDATE SET
          location = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at
                          THEN EXCLUDED.location ELSE places.location END,

@@ -61,9 +61,13 @@ export class Place {
   })
   location!: Point | null;
 
-  /** 'osm' | 'google'. Dòng Google không bao giờ được liệt kê hay xếp hạng (PRD 7.4). */
+  /** 'osm' (cũ, không còn liệt kê) | 'google' (người dùng lưu) | 'web' (từ bài viết). */
   @Column({ name: 'source', type: 'text', default: 'osm' })
-  source!: 'osm' | 'google';
+  source!: 'osm' | 'google' | 'web';
+
+  /** Tọa độ từ đâu: Google (hạn `location_expires_at`), AI ước đoán, hay OSM. */
+  @Column({ name: 'location_source', type: 'text', default: 'osm' })
+  locationSource!: 'osm' | 'google' | 'ai';
 
   /** Chỉ dòng Google: tọa độ Google hết hạn lúc này (tối đa 30 ngày). */
   @Column({ name: 'location_expires_at', type: 'timestamptz', nullable: true })
