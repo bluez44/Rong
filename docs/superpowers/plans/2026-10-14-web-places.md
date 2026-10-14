@@ -2584,7 +2584,8 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | Task | Trạng thái | Commit | Ghi chú |
 | --- | --- | --- | --- |
 | 1 | xong | 7dbe731 | |
-| 2 | đang làm | | |
+| 2 | xong | a7cdb69 | migration đã chạy trên DB dev |
+| 3 | đang làm | | |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
