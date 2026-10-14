@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -31,8 +30,6 @@ import { AccessService } from '../groups/access.service.js';
 import { ActivityService } from '../groups/activity.service.js';
 import { forbiddenRole, itineraryNotFound } from '../groups/errors.js';
 import { PlaceLocationService } from '../places/place-location.service.js';
-import type { Bbox } from '../regions/bbox.js';
-import { RegionAreaService } from '../regions/region-area.service.js';
 import {
   buildPlannerRequest,
   defaultStop,
@@ -93,7 +90,6 @@ export class ItinerariesService {
     @InjectDataSource() private readonly db: DataSource,
     @InjectRepository(Itinerary)
     private readonly itineraries: Repository<Itinerary>,
-    private readonly areas: RegionAreaService,
     private readonly langchain: LangchainService,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
@@ -175,7 +171,6 @@ export class ItinerariesService {
         reason: 'Điểm lưu trú — chọn làm nơi ở thay vì xếp như điểm tham quan',
       }));
 
-    const bbox = await this.searchArea(input.regionId, selected, accommodation);
     const exclude = new Set(
       [...selected.map((c) => c.id), accommodation?.id].filter(
         Boolean,
@@ -183,7 +178,7 @@ export class ItinerariesService {
     );
     const foodPool = [
       ...selectedFood,
-      ...(await this.poolInArea(bbox, ['food'], 200)).filter(
+      ...(await this.poolInArea(input.regionId, ['food'], 200)).filter(
         (c) => !exclude.has(c.id),
       ),
     ];
@@ -206,7 +201,7 @@ export class ItinerariesService {
       const target = targetStopsPerDay(rules, input.pace);
       const capacities = days.map((d) => dayCapacity(d, rules, target));
       const pool = input.allowAiSuggestions
-        ? (await this.poolInArea(bbox, null, 300)).filter(
+        ? (await this.poolInArea(input.regionId, null, 300)).filter(
             (c) => !exclude.has(c.id),
           )
         : [];
@@ -447,8 +442,8 @@ export class ItinerariesService {
   }
 
   /**
-   * "Đổi điểm tương tự" (FR-8.3): điểm cùng loại quanh điểm đang thay, chưa có
-   * trong lịch trình, điểm tổng hợp cao trước.
+   * "Đổi điểm tương tự" (FR-8.3): điểm cùng loại quanh điểm đang thay, trong
+   * danh sách của vùng, chưa có trong lịch trình, thứ hạng cao trước.
    */
   async alternatives(
     ownerId: string,
@@ -468,15 +463,17 @@ export class ItinerariesService {
       `SELECT p.id, p.name, p.category, p.description,
               ST_Distance(p.location::geography, t.location::geography) / 1000 AS km
          FROM places t
-         JOIN places p ON p.category = t.category
+         JOIN itineraries it ON it.id = $6
+         JOIN region_places rp ON rp.region_id = it.region_id
+         JOIN places p ON p.id = rp.place_id AND p.category = t.category
+          AND p.location IS NOT NULL
           AND ST_DWithin(p.location::geography, t.location::geography, $3)
         WHERE t.id = $1
-          AND p.source = 'osm'
           AND p.id <> ALL($2::uuid[])
           AND NOT (p.category = ANY($4::place_category[]))
-        ORDER BY p.composite_score DESC, km
+        ORDER BY rp.rank, km
         LIMIT $5`,
-      [placeId, used, ALTERNATIVES_RADIUS_M, avoid, ALTERNATIVES],
+      [placeId, used, ALTERNATIVES_RADIUS_M, avoid, ALTERNATIVES, id],
     )) as Array<{
       id: string;
       name: string;
@@ -584,31 +581,6 @@ export class ItinerariesService {
     return row.parent ? `${row.name}, ${row.parent}` : row.name;
   }
 
-  /**
-   * Khung tìm địa điểm bổ sung và quán ăn: khung bao của vùng; không có (nguồn
-   * dữ liệu mở lỗi) thì khung quanh các địa điểm đã chọn, nới thêm ~5 km.
-   */
-  private async searchArea(
-    regionId: string,
-    selected: Candidate[],
-    accommodation: Candidate | null,
-  ): Promise<Bbox | null> {
-    try {
-      return await this.areas.ensure(regionId);
-    } catch (error) {
-      if (!(error instanceof HttpException)) throw error;
-      const points = [...selected, ...(accommodation ? [accommodation] : [])];
-      if (points.length === 0) return null;
-      const pad = 0.05;
-      return [
-        Math.min(...points.map((p) => p.lat)) - pad,
-        Math.min(...points.map((p) => p.lng)) - pad,
-        Math.max(...points.map((p) => p.lat)) + pad,
-        Math.max(...points.map((p) => p.lng)) + pad,
-      ];
-    }
-  }
-
   private async loadPlaces(
     ids: string[],
     mandatory: boolean,
@@ -621,22 +593,28 @@ export class ItinerariesService {
     return rows.map((r) => toCandidate(r, mandatory));
   }
 
+  /**
+   * Địa điểm bổ sung / quán ăn: danh sách đã tổng hợp của vùng (spec
+   * 2026-10-14-web-places), theo thứ hạng. Điểm suy từ thứ hạng để pickExtras
+   * và kMeans vẫn so được: hạng 0 → 100, mỗi hạng sau trừ 2, không âm.
+   */
   private async poolInArea(
-    bbox: Bbox | null,
+    regionId: string,
     categories: PlaceCategory[] | null,
     limit: number,
   ): Promise<Candidate[]> {
-    if (bbox === null) return [];
     const rows = (await this.db.query(
       `${PLACE_SELECT}
-        WHERE p.location && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-          AND p.source = 'osm'
-          AND ($5::place_category[] IS NULL OR p.category = ANY($5::place_category[]))
-        ORDER BY p.composite_score DESC, p.id
-        LIMIT $6`,
-      [bbox[1], bbox[0], bbox[3], bbox[2], categories, limit],
+         JOIN region_places rp ON rp.place_id = p.id AND rp.region_id = $1
+        WHERE ($2::place_category[] IS NULL OR p.category = ANY($2::place_category[]))
+          AND p.location IS NOT NULL
+        ORDER BY rp.rank
+        LIMIT $3`,
+      [regionId, categories, limit],
     )) as PlaceRow[];
-    return rows.map((r) => toCandidate(r, false));
+    return rows.map((r, i) =>
+      toCandidate({ ...r, composite_score: Math.max(0, 100 - i * 2) }, false),
+    );
   }
 }
 
@@ -657,6 +635,7 @@ function toCandidate(row: PlaceRow, mandatory: boolean): Candidate {
     openingHours: row.opening_hours,
     mandatory,
     isGoogle: row.location_source === 'google',
+    locationSource: row.location_source,
   };
 }
 

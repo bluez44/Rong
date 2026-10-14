@@ -100,6 +100,7 @@ export function retimeDay(
             name: place.name,
             category: place.category,
             coordinates: snapshotCoordinates(place),
+            locationSource: place.locationSource,
           }
         : null,
       mealType: edit.kind === 'meal' ? (edit.mealType ?? null) : null,

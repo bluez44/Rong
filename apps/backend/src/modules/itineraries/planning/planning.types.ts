@@ -15,6 +15,8 @@ export interface Candidate extends LatLng {
   mandatory: boolean;
   /** Dòng nguồn Google: tọa độ không được lưu vào lịch trình (PRD 7.4). */
   isGoogle?: boolean;
+  /** Tọa độ từ đâu; `ai` là gần đúng (thời gian di chuyển chỉ là ước tính). */
+  locationSource?: 'osm' | 'google' | 'ai';
 }
 
 /** Một điểm dừng đã được chọn và xếp thứ tự cho một ngày (trước khi tính giờ). */

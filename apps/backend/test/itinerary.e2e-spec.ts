@@ -69,26 +69,32 @@ describe('Lịch trình (e2e)', () => {
       `SELECT id FROM regions WHERE source_key = 'vn:destination:da-lat'`,
     )) as Array<{ id: string }>;
 
-    for (const [
-      i,
-      [key, category, lat, lng, hours, score],
-    ] of places.entries()) {
+    await db.query(
+      `INSERT INTO region_place_lists (region_id, status, fetched_at, expires_at)
+       VALUES ($1, 'ready', now(), now() + interval '30 days')
+       ON CONFLICT (region_id) DO NOTHING`,
+      [regionId],
+    );
+    // Thứ hạng theo điểm cũ: điểm cao trước. Dòng `web` + tọa độ AI không cần google_place_id.
+    const ranked = [...places].sort((a, b) => b[5] - a[5]);
+    for (const [rank, [key, category, lat, lng, hours]] of ranked.entries()) {
       const [row] = (await db.query(
-        `INSERT INTO places (osm_type, osm_id, name, category, location, tags, composite_score)
-         VALUES ('node', $1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326), $6, $7)
-         ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+        `INSERT INTO places (source, name, category, location, location_source, tags, composite_score)
+         VALUES ('web', $1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), 'ai', $5, 0)
          RETURNING id`,
         [
-          -9000 - i,
-          `E2E ${key}`,
+          `E2E it ${key}`,
           category,
           lng,
           lat,
           hours ? { opening_hours: hours } : {},
-          score,
         ],
       )) as Array<{ id: string }>;
       ids[key] = row.id;
+      await db.query(
+        `INSERT INTO region_places (region_id, place_id, rank) VALUES ($1, $2, $3)`,
+        [regionId, row.id, rank],
+      );
     }
   });
 
@@ -97,8 +103,10 @@ describe('Lịch trình (e2e)', () => {
       `DELETE FROM users WHERE display_name IN ('e2e', 'e2e-other')`,
     );
     await db?.query(
-      `DELETE FROM places WHERE osm_id <= -9000 AND osm_id > -9100`,
+      `DELETE FROM region_places rp USING places p
+        WHERE rp.place_id = p.id AND p.name LIKE 'E2E it %'`,
     );
+    await db?.query(`DELETE FROM places WHERE name LIKE 'E2E it %'`);
     await app?.close();
   });
 
@@ -319,9 +327,9 @@ describe('Lịch trình (e2e)', () => {
     expect(first.items[1].startsAt).toMatch(/T12:00:00\+07:00$/);
     expect(first.items[1].fixedStart).toBe(true);
     expect(first.items[1].travelMinutesFromPrevious).toBeGreaterThan(0);
-    expect(first.items[0].place.name).toBe('E2E datanla');
+    expect(first.items[0].place.name).toBe('E2E it datanla');
     expect(res.body.unscheduled).toEqual([
-      { placeId: ids.ga, name: 'E2E ga', reason: 'Chờ bạn xếp vào lịch' },
+      { placeId: ids.ga, name: 'E2E it ga', reason: 'Chờ bạn xếp vào lịch' },
     ]);
 
     const again = await request(app.getHttpServer())
@@ -375,5 +383,30 @@ describe('Lịch trình (e2e)', () => {
     if ('accommodationPlaceId' in patch) body.accommodationPlaceId = ids.ga; // không phải "stay"
     const res = await create(body).expect(400);
     expect(res.body.code).toBe(code ?? 'INVALID_ACCOMMODATION');
+  });
+
+  it('ảnh chụp lịch trình ghi locationSource để app hiện "Vị trí gần đúng"', async () => {
+    planItinerary.mockRejectedValueOnce(new Error('AI lỗi'));
+    const res = await create({
+      ...baseBody(),
+      selectedPlaceIds: [ids.ga],
+    }).expect(201);
+    const visits = res.body.days
+      .flatMap(
+        (d: {
+          items: Array<{
+            kind: string;
+            place: { locationSource?: string } | null;
+          }>;
+        }) => d.items,
+      )
+      .filter((i: { kind: string }) => i.kind === 'visit');
+    expect(visits.length).toBeGreaterThan(0);
+    expect(
+      visits.every(
+        (i: { place: { locationSource?: string } }) =>
+          i.place.locationSource === 'ai',
+      ),
+    ).toBe(true);
   });
 });
