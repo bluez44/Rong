@@ -77,6 +77,7 @@ interface PlaceRow {
   name: string;
   category: PlaceCategory;
   source: 'osm' | 'google';
+  location_source: 'osm' | 'google' | 'ai';
   lat: number;
   lng: number;
   composite_score: number;
@@ -640,7 +641,7 @@ export class ItinerariesService {
 }
 
 const PLACE_SELECT = `
-  SELECT p.id, p.name, p.category, p.source, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
+  SELECT p.id, p.name, p.category, p.source, p.location_source, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
          p.composite_score, p.description, p.tags->>'opening_hours' AS opening_hours
     FROM places p`;
 
@@ -655,7 +656,7 @@ function toCandidate(row: PlaceRow, mandatory: boolean): Candidate {
     description: row.description,
     openingHours: row.opening_hours,
     mandatory,
-    isGoogle: row.source === 'google',
+    isGoogle: row.location_source === 'google',
   };
 }
 

@@ -23,7 +23,7 @@ export async function withGoogleCoordinates(
             CASE WHEN location_expires_at > now() THEN ST_Y(location) END AS lat,
             CASE WHEN location_expires_at > now() THEN ST_X(location) END AS lng
        FROM places
-      WHERE id = ANY($1::uuid[]) AND source = 'google'`,
+      WHERE id = ANY($1::uuid[]) AND location_source = 'google'`,
     [ids],
   )) as Array<{ id: string; lat: number | null; lng: number | null }>;
   if (rows.length === 0) return days;

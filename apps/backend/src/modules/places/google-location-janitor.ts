@@ -37,7 +37,7 @@ export class GoogleLocationJanitor implements OnModuleInit, OnModuleDestroy {
     // Với UPDATE, DataSource.query (driver pg) trả [rows, rowCount].
     const [, count] = (await this.db.query(
       `UPDATE places SET location = NULL, location_expires_at = NULL
-        WHERE source = 'google' AND location_expires_at <= now()`,
+        WHERE location_source = 'google' AND location_expires_at <= now()`,
     )) as [unknown[], number];
     if (count > 0)
       this.logger.log(`Đã xóa tọa độ Google quá hạn của ${count} địa điểm`);

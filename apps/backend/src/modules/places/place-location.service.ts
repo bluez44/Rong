@@ -11,7 +11,7 @@ import {
 export const GOOGLE_LOCATION_TTL_DAYS = 30;
 
 /**
- * Dòng `places` nguồn Google mất tọa độ sau 30 ngày. Ai cần tọa độ (lập lịch
+ * Dòng có tọa độ Google (nguồn `google` hoặc `web`) mất tọa độ sau 30 ngày. Ai cần tọa độ (lập lịch
  * trình, chi tiết) gọi `ensure` trước: lấy lại qua Google, ghi hạn mới.
  */
 @Injectable()
@@ -28,7 +28,7 @@ export class PlaceLocationService {
     if (ids.length === 0) return [];
     const stale = (await this.db.query(
       `SELECT id, google_place_id FROM places
-        WHERE id = ANY($1::uuid[]) AND source = 'google'
+        WHERE id = ANY($1::uuid[]) AND location_source = 'google'
           AND (location IS NULL OR location_expires_at <= now())`,
       [ids],
     )) as Array<{ id: string; google_place_id: string }>;

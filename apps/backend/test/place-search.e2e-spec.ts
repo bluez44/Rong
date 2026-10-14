@@ -116,10 +116,10 @@ describe('Tìm địa điểm (e2e)', () => {
       name: string,
     ): Promise<string> => {
       const [row] = (await db.query(
-        `INSERT INTO places (source, google_place_id, name, category, location, location_expires_at, composite_score)
+        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
          VALUES ('google', $1, $2, 'food',
-                 ST_SetSRID(ST_MakePoint(108.441, 11.946), 4326), now() + interval '20 days', 0)
-         ON CONFLICT (google_place_id) WHERE source = 'google' DO UPDATE
+                 ST_SetSRID(ST_MakePoint(108.441, 11.946), 4326), 'google', now() + interval '20 days', 0)
+         ON CONFLICT (google_place_id) WHERE source IN ('google', 'web') DO UPDATE
            SET name = EXCLUDED.name, location = EXCLUDED.location,
                location_expires_at = EXCLUDED.location_expires_at
          RETURNING id`,
