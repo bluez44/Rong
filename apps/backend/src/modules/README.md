@@ -6,11 +6,11 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | --- | --- | --- |
 | `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, JWT guard toàn cục (`@Public()` để mở route). Sẵn chỗ cho Google / Apple qua `auth_identities` |
 | `users/` | F11 | Hồ sơ, hạn mức lượt AI hằng tháng (FR-6.5), xóa tài khoản |
-| `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, khung bao (bbox) lấy từ OSM, seed sáp nhập 1/7/2025 |
-| `places/` | F2, F5 | Danh mục địa điểm riêng từ OSM + Wikidata, lọc theo khung bao của vùng, điểm tổng hợp, phân trang con trỏ; tìm địa điểm theo tên (xem "Tìm địa điểm theo tên") |
-| `open-data/` | 7.1 | **Cổng duy nhất** gọi OSM Nominatim, Overpass, Wikidata (giãn cách request, User-Agent) |
+| `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, khung bao (bbox) seed sẵn, seed sáp nhập 1/7/2025 |
+| `places/` | F2, F5 | Danh sách địa điểm từ bài viết (Tavily + Gemini), ghép Google Places, lưu `places.source = 'web'`; chi tiết; tìm theo tên (xem "Danh sách địa điểm của vùng", "Tìm địa điểm theo tên") |
+| `open-data/` | 7.1 | **Cổng duy nhất** gọi Nominatim (giãn cách request, User-Agent) |
 | `ranking/` | F3 | Điểm tổng hợp 0–100, nhãn "Đang hot" |
-| `google/` | 7.4 | **Cổng duy nhất** gọi Google Places + Routes |
+| `google/` | 7.4 | **Cổng duy nhất** gọi Google Places (Routes để sau) |
 | `share-import/` | F4 | Nhận link mạng xã hội, trích xuất và khớp địa điểm |
 | `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình (AI hoặc tự sắp xếp), lưu và xem lại. Chi phí (F7), chỉnh sửa (F8) để sau |
 | `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động |
@@ -38,7 +38,7 @@ endpoint của Google. Các module khác đi qua service mà `google/` cung cấ
 ```
 GET /api/regions/search?q=da lat            gợi ý khi gõ — chỉ đọc database
 GET /api/regions/search?q=tam dao&online=1  khi bấm tìm — thiếu thì hỏi Nominatim rồi lưu lại
-GET /api/regions/:id/places?categories=food,cafe&cursor=…   địa điểm trong khung bao (kèm giờ mở cửa hôm nay)
+GET /api/regions/:id/places?categories=food,cafe   danh sách địa điểm của vùng (xem "Danh sách địa điểm của vùng")
 GET /api/places/:id                         chi tiết (F5) + nội dung Google Maps theo thời gian thực
 ```
 
@@ -53,36 +53,57 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
   "can gio" ra "Cần Thơ"), kèm `best_match_name`/`best_score` của lượt gần nhất. Xem
   `SELECT * FROM region_search_misses ORDER BY online_misses DESC, weak_matches DESC, catalog_misses DESC`
   để chọn điểm đến cần seed thêm. Lỗi ghi không làm hỏng lượt tìm.
-- **Khu vực của một vùng là một khung bao (bbox)**, không phải polygon
-  (`regions/region-area.service.ts`), tính lần đầu khi lấy địa điểm của vùng:
-  - tỉnh cũ, thành phố cấp huyện đã bị bỏ (Đà Lạt, Vũng Tàu…): khung bao của relation
-    OSM *tại ngày 30/6/2025* (Overpass `[date:…]`, `out tags bb`);
-  - tỉnh mới sau sáp nhập: khung bao trọn các tỉnh cũ;
+- **Khu vực của một vùng là một khung bao (bbox)**, không phải polygon. Dùng để giới hạn tìm Google
+  và loại tọa độ AI đoán sai:
+  - tỉnh cũ và tỉnh mới không sáp nhập: sinh sẵn trong `regions/seed/province-bboxes.ts` bằng
+    `scripts/generate-province-bboxes.ts` (chạy một lần, commit kết quả). Tỉnh cũ lấy từ relation OSM
+    `boundary=historic` (`was:admin_level=4`, tên "X", "X cũ" hay "X (cũ)"); seeder ghi khi khởi động;
+  - tỉnh mới sau sáp nhập: khung bao trọn các tỉnh cũ (seeder tính);
+  - điểm đến seed: khung vuông quanh tâm theo bán kính;
   - vùng nhập từ Nominatim: `boundingbox` Nominatim trả về, lưu ngay lúc nhập;
-  - chỉ có một điểm: khung vuông quanh điểm theo bán kính (phương án dự phòng).
-  Khung bao lấn sang vùng lân cận một chút ở rìa — chấp nhận được cho danh sách gợi ý.
-- **Địa điểm** lấy từ Overpass theo khung bao của vùng, phân loại bằng tag OSM
-  (`places/osm-place-mapping.ts`), chấm điểm tất định (`places/place-scoring.ts`), lưu
-  lại và làm mới sau `PLACES_REFRESH_DAYS` ngày. Địa điểm thuộc vùng nào tính bằng
-  khung bao lúc truy vấn, nên dùng chung cho vùng cũ và mới.
-- Chỉ vùng **chưa từng tải** mới bắt request chờ Overpass; vùng đã quá hạn thì trả dữ
-  liệu đã lưu và làm mới ở nền. Bật `PLACES_WARMUP=true` thì `places/places-warmer.ts`
-  dựng sẵn danh mục cho các điểm đến và tỉnh đã seed (30 giây sau khi khởi động, rồi
-  mỗi 6 giờ), đúng tinh thần FR-1.10 "danh mục tổng hợp sẵn".
+  - còn thiếu (`regions/region-area.service.ts`): khung vuông quanh tâm, không có tâm thì hỏi Nominatim.
+  Khung bao lấn sang vùng lân cận một chút ở rìa — chấp nhận được. Khung Khánh Hòa cũ gồm cả quần đảo
+  Trường Sa nên rất rộng.
 - Nominatim công cộng **cấm dùng cho autocomplete** và giới hạn 1 request/giây, vì vậy
   `online` chỉ bật khi người dùng bấm tìm. Production nên tự host hoặc dùng nhà cung cấp
-  trả phí (đổi `NOMINATIM_URL`, `OVERPASS_URL`).
-- Luôn hiển thị dòng `attribution` trả về (ODbL bắt buộc ghi công OpenStreetMap).
+  trả phí (đổi `NOMINATIM_URL`).
+
+## Danh sách địa điểm của vùng (F2)
+
+Spec `docs/superpowers/specs/2026-10-14-web-places-design.md`. `GET /api/regions/:id/places?categories=…`
+(`places/web-places.service.ts`, `WebPlacesService`):
+
+1. **Đã có danh sách còn hạn** (`region_place_lists.status = 'ready'`, `expires_at` chưa tới) → đọc
+   `region_places` của vùng theo `rank`, lọc danh mục ("Tất cả" bỏ Lưu trú). Không phân trang.
+2. **Quá hạn** (`WEB_PLACES_REFRESH_DAYS`, mặc định 30) → trả bản đang có, làm mới ở nền. Làm mới lỗi thì giữ
+   `ready` và bản cũ.
+3. **Chưa có** → chạy pipeline, chờ tối đa `WEB_PLACES_WAIT_MS` (mặc định 25 s); quá giờ trả
+   `{ status: 'building', items: [] }`, pipeline chạy tiếp và client hỏi lại sau 3 s. Pipeline lỗi mà chưa có
+   gì → 503 `PLACES_UNAVAILABLE` (thiếu `TAVILY_API_KEY` cũng vậy). Hai request cùng lúc cho một vùng dùng chung
+   một lượt chạy (khóa trong bộ nhớ).
+
+Pipeline (`refresh`): Tavily (4 truy vấn cố định: tham quan, ăn uống, cà phê, lưu trú) + một lượt Gemini có cấu
+trúc (`langchain/place-search.service.ts`, ít bài quá thì agent tự tìm thêm) → chỉ giữ địa điểm có tên trong bài
+(`web-grounding.ts`) → ghép Google bằng `GooglePlacesService.findPlace` trong khung bao vùng (`web-place-match.ts`:
+tên giống ≥ `MATCH_MIN_SIMILARITY` và loại không mâu thuẫn) → không ghép được thì giữ tọa độ AI nếu nằm trong
+vùng (nới ~2 km), không thì bỏ → lưu bằng `RegionPlaceStore`.
+
+Dữ liệu:
+- `region_place_lists` (`status`, `fetched_at`, `expires_at`, `error_code`, `sources` = các bài viết) và
+  `region_places` (`rank`, `articles` của từng địa điểm).
+- Dòng `places.source = 'web'`: tên, loại, mô tả lấy từ bài viết (nội dung của mình). `location_source`:
+  `google` (tọa độ Google, hạn 30 ngày như dòng `google`) hoặc `ai` (ước đoán, không hết hạn). Mỗi
+  `google_place_id` chỉ một dòng: trùng với dòng người dùng đã lưu thì dùng lại, không đổi tên; làm mới thì dòng
+  AI cùng tên được dùng lại (và nâng cấp nếu lần này ghép được).
+- Mục `locationSource: 'ai'` được app đánh dấu **"Vị trí gần đúng"**; thời gian di chuyển tới đó chỉ là ước tính.
 
 ## Chi tiết địa điểm và Google (F5)
 
-- Danh sách chỉ dùng dữ liệu riêng. Giờ mở cửa trong danh sách tính từ tag
-  `opening_hours` của OSM theo giờ Việt Nam (`places/opening-hours.ts`).
 - Rating, đánh giá, giờ mở cửa và ảnh của Google **chỉ** có ở `GET /places/:id`,
   gọi Places API (New) mỗi lần mở, không lưu, không cache (PRD 7.4, FR-2.9).
-- `place_id` được ghép một lần bằng Text Search dạng IDs Only (miễn phí) trong khung
-  ~250 m quanh tọa độ OSM, rồi lưu lại — trường Google duy nhất được lưu. Không ghép
-  được thì 30 ngày sau mới thử lại.
+- Chỉ dòng có `google_place_id` mới gọi Google; dòng tọa độ AI và dòng OSM cũ trả `googleStatus: 'not_found'`.
+  Không còn ghép `place_id` theo tên.
+- Dòng `web`/`google` có `sourceUrl` là link Google Maps; `locationSource` cho biết tọa độ từ đâu.
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
 
@@ -97,7 +118,7 @@ POST /api/places/google                            lưu kết quả Google vào 
 
 `places/place-search.service.ts` (`PlaceSearchService`):
 
-- **Danh mục chỉ có OSM.** `catalog` là dòng `source = 'osm'` trong khung bao của vùng, khớp theo tên
+- **`catalog` chỉ có dòng `web`** (danh sách tổng hợp của các vùng) trong khung bao của vùng, khớp theo tên
   (bỏ dấu, pg_trgm), tối đa 10. Dòng Google không bao giờ vào `catalog`.
 - **Google chỉ khi bấm tìm** (`online=1` và Google đã bật), tối đa 5 kết quả trong khung bao của vùng. `q` sau
   khi cắt khoảng trắng phải có 1-100 ký tự, rỗng thì 400. Google lỗi thì `google: null` (danh mục vẫn trả).
@@ -108,15 +129,16 @@ POST /api/places/google                            lưu kết quả Google vào 
   khi phải gọi Google: xem trước một `place_id` chưa có trong DB, hoặc lưu khi phải lấy tọa độ (`locate`).
   Hết hạn mức thì 429 `PLACE_DETAILS_LIMIT`. Hai hạn mức phải là số nguyên ≥ 1, sai thì app dừng khi khởi động.
 - **Kết quả Google trùng `place_id` đã có trong `places`** được trả ở `existing` (là địa điểm có sẵn, có `id`),
-  không nằm trong `google`: dòng OSM đã ghép thì hiện tên OSM; dòng nguồn Google thì hiện tên Google trực tiếp
+  không nằm trong `google`: dòng `web` thì hiện tên trong danh sách; dòng nguồn Google thì hiện tên Google trực tiếp
   (tên trong DB do người khác đặt nên không lộ ra). Dòng nguồn Google mà Google không trả tên thì để lại trong
   `google`, không kèm id.
-- **Xem trước** (`GET /places/google/:googlePlaceId`): `place_id` đã khớp một dòng OSM (hoặc đã có dòng Google)
+- **Xem trước** (`GET /places/google/:googlePlaceId`): `place_id` đã có dòng `web` (hoặc dòng Google)
   thì chỉ trả `{ placeId }` để client mở chi tiết thường. Chưa có thì trả nội dung Google lấy trực tiếp
   (tên, địa chỉ, tọa độ, loại gợi ý, rating/ảnh…), không ghi database (PRD 7.4). 400 `INVALID_GOOGLE_PLACE_ID`,
   404 `PLACE_NOT_FOUND`, 429 `PLACE_DETAILS_LIMIT`, 503 `GOOGLE_UNAVAILABLE`.
-- **Lưu** (`POST /places/google`, body `googlePlaceId`, `name`, `category`, `regionId`): `place_id` đã khớp
-  dòng OSM thì dùng dòng OSM đó, không tạo dòng mới. Chưa có thì tạo dòng `source = 'google'` qua
+- **Lưu** (`POST /places/google`, body `googlePlaceId`, `name`, `category`, `regionId`, `addToSaved?`): `place_id`
+  đã có dòng `web` thì dùng dòng đó, không tạo dòng mới. `addToSaved: false` chỉ trả id (để đưa vào lịch trình
+  khi lập lịch), không thêm vào "Muốn đi". Chưa có thì tạo dòng `source = 'google'` qua
   `GooglePlaceRowsService.upsert` (cùng một transaction với lượt lưu). **Tên lưu là tên người dùng xác nhận**
   (`saved_places.display_name`), không bao giờ là tên Google; `places.name` của dòng Google là tên của người
   đầu tiên lưu. Vùng được kiểm tra trước khi gọi Google (404 `REGION_NOT_FOUND`).
@@ -124,19 +146,6 @@ POST /api/places/google                            lưu kết quả Google vào 
   với chia sẻ vào app (F4): tên do người dùng đặt, tọa độ Google hạn 30 ngày.
 - **"Muốn đi"** (`saved_places.source`: `manual | share | search`): lưu từ tìm kiếm ghi `search`. Khi một địa
   điểm được lưu lại bằng nguồn khác, nguồn ưu tiên là **share > search > manual** (không bị hạ cấp).
-
-## Dự phòng khi nguồn dữ liệu mở lỗi
-
-`GET /regions/:id/places` khi OSM (Overpass/Nominatim) không dùng được:
-
-1. Đã có địa điểm lưu cho khu vực đó → trả dữ liệu lưu (`source: "catalog"`), bỏ qua lần làm mới.
-2. Chưa có gì → hỏi Gemini có công cụ Google Maps (`LangchainService.findPlaces`) và trả
-   `source: "ai_google_maps"`: một trang, `id: null` (không có màn hình chi tiết), không
-   lưu vào danh mục, kèm `groundingSources`. Client phải hiển thị "Google Maps" và các nguồn.
-3. Gemini cũng lỗi → 503 `PLACES_UNAVAILABLE`.
-
-Lưu ý: bước 2 lệch với PRD 7.4 nguyên tắc 5 (dữ liệu Google chỉ đưa vào AI để sắp xếp
-lịch trình) — là quyết định có chủ ý, chỉ dùng khi dữ liệu mở không có.
 
 ## Lịch trình (F6)
 
@@ -149,16 +158,16 @@ DELETE /api/itineraries/:id
 
 Quy trình AI (`itineraries/`):
 
-1. **Ứng viên** — điểm người dùng chọn (bắt buộc) + điểm bổ sung từ danh mục của vùng
-   nếu bật `allowAiSuggestions` (`planning/clustering.ts#pickExtras`: hợp đối tượng, sở
+1. **Ứng viên** — điểm người dùng chọn (bắt buộc) + điểm bổ sung từ danh sách của vùng
+   (`region_places`, điểm suy từ thứ hạng) nếu bật `allowAiSuggestions` (`planning/clustering.ts#pickExtras`: hợp đối tượng, sở
    thích, ≤ 90 phút từ nơi ở, không để một danh mục áp đảo).
 2. **Gom cụm theo ngày** — k-means theo tọa độ, theo sức chứa mỗi ngày (đối tượng × nhịp độ).
 3. **Gemini + Google Maps** sắp thứ tự, thời lượng, lý do, tra giờ mở cửa còn thiếu
    (`ai-planner.ts`). Chỉ được dùng id được gửi; kết quả được kiểm tra lại toàn bộ. Gemini
    lỗi → xếp bằng thuật toán (`planner: "heuristic"`).
 4. **Xếp giờ bằng code** (`planning/scheduler.ts`) — thời gian di chuyển ước tính
-   (`planning/travel.ts`, chưa dùng Google Routes), giờ mở cửa (OSM → AI → giờ thông
-   thường theo danh mục), bữa ăn theo khung giờ từ quán "Ăn uống" gần lộ trình, nghỉ trưa
+   (`planning/travel.ts`, chưa dùng Google Routes), giờ mở cửa (giờ trong bài viết →
+   AI → giờ thông thường theo danh mục), bữa ăn theo khung giờ từ quán "Ăn uống" gần lộ trình, nghỉ trưa
    theo đối tượng. Không vừa → "Chưa xếp được" kèm lý do.
 
 Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, giờ thông thường: `planning/rules.ts`.
@@ -182,7 +191,7 @@ Luồng của một job (`share-imports.service.ts`):
 2. **Metadata** — `LinkMetadataService` lấy oEmbed / Open Graph của link (tiêu đề, tác giả, ảnh đại diện).
    Chỉ lưu metadata công khai để ghi nguồn, không sao chép nội dung (FR-4.5).
 3. **Trích xuất** — một lần gọi Gemini có cấu trúc (`place-extraction.ts`), tối đa 15 địa điểm mỗi lượt.
-4. **Khớp** — `place-resolver.ts` khớp từng ứng viên với danh mục OSM theo độ giống tên (trong vùng gợi ý,
+4. **Khớp** — `place-resolver.ts` khớp từng ứng viên với dòng `web` theo độ giống tên (trong vùng gợi ý,
    hoặc toàn quốc với ngưỡng cao hơn), không khớp thì hỏi Google qua `GooglePlacesService`, tối đa 3 lựa chọn
    Google mỗi ứng viên.
 5. **Kết thúc** — `done`, hoặc `failed` với `error_code`: `METADATA_UNAVAILABLE`, `AI_UNAVAILABLE`, `TIMEOUT`
@@ -209,19 +218,22 @@ Cổng duy nhất tải link do người dùng đưa vào, nên là bề mặt S
 
 ## `places.source` và dòng Google
 
-Từ F4, `places` có hai loại dòng, phân biệt bằng cột `source`:
+`places` có ba loại dòng, phân biệt bằng cột `source`:
 
-- `osm` — danh mục như trước; chỉ loại này được liệt kê, xếp hạng, gợi ý hay chấm điểm. **Mọi truy vấn danh
-  mục để liệt kê / xếp hạng / gợi ý phải có `p.source = 'osm'`.**
-- `google` — chỉ tạo khi người dùng chọn một địa điểm Google từ kết quả chia sẻ. Lưu `google_place_id` (vô
-  thời hạn), tên và loại lấy từ nội dung người dùng chia sẻ, và tọa độ Google có hạn `location_expires_at`.
-  Không bao giờ được xếp hạng (PRD 7.4).
+- `web` — danh sách địa điểm tổng hợp từ bài viết (xem "Danh sách địa điểm của vùng"). Chỉ loại này được liệt
+  kê, gợi ý hay dùng làm điểm bổ sung khi lập lịch, **qua `region_places` của vùng**; không truy vấn danh sách
+  nào được lọc theo khung bao trên `places` nữa.
+- `google` — chỉ tạo khi người dùng chọn một địa điểm Google (chia sẻ vào app, tìm kiếm). Lưu `google_place_id`
+  (vô thời hạn), tên do người dùng đặt, và tọa độ Google có hạn `location_expires_at`. Không bao giờ được xếp
+  hạng (PRD 7.4).
+- `osm` — danh mục OSM cũ, không còn được tạo hay liệt kê; giữ lại vì "Muốn đi" và lịch trình cũ tham chiếu.
 
-Tọa độ Google hết hạn đúng 30 ngày sau `created_at` của job (không phải lúc lưu), và dữ liệu cũ không bao giờ
-kéo dài hạn đó. Hai thành phần giữ quy tắc này:
+Mỗi `google_place_id` chỉ có một dòng `web` hoặc `google` (`uq_place_google`). Tọa độ Google (dòng `google`, và
+dòng `web` có `location_source = 'google'`) hết hạn sau 30 ngày; với dòng từ chia sẻ là 30 ngày sau `created_at`
+của job (không phải lúc lưu), và dữ liệu cũ không bao giờ kéo dài hạn đó. Hai thành phần giữ quy tắc này:
 
 - `places/google-location-janitor.ts` — `GoogleLocationJanitor` đặt `location` và `location_expires_at` về
-  NULL cho dòng Google quá hạn, 60 giây sau khi khởi động rồi mỗi 6 giờ (chạy cả khi tắt `PLACES_WARMUP`).
+  NULL cho tọa độ Google quá hạn, 60 giây sau khi khởi động rồi mỗi 6 giờ.
 - `places/place-location.service.ts` — `PlaceLocationService.ensure(ids)` lấy lại tọa độ qua Google cho dòng
   đã hết hạn trước khi lập lịch trình hay mở chi tiết; trả các id vẫn không lấy được.
 

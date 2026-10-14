@@ -95,7 +95,7 @@ export class Place {
   @Column({ name: 'google_matched_at', type: 'timestamptz', nullable: true })
   googleMatchedAt!: Date | null;
 
-  /** Điểm tổng hợp 0–100 — xem place-scoring.ts. */
+  /** Điểm tổng hợp 0–100 của dòng OSM cũ; dòng `web`/`google` là 0. */
   @Column({ name: 'composite_score', type: 'smallint' })
   compositeScore!: number;
 

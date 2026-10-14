@@ -28,11 +28,6 @@ const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
   web: 'Tổng hợp từ bài viết (AI) · Google Maps',
 };
 
-interface Cursor {
-  s: number;
-  id: string;
-}
-
 interface PlaceRow {
   id: string;
   name: string;
@@ -162,22 +157,4 @@ function toListItem(row: PlaceRow): PlaceListItem {
     hours: hoursToday(row.opening_hours),
     sourceUrl: `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}`,
   };
-}
-
-export function encodeCursor(cursor: Cursor): string {
-  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
-}
-
-export function decodeCursor(raw: string | undefined): Cursor | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(raw, 'base64url').toString(),
-    ) as Cursor;
-    const uuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return Number.isInteger(parsed.s) && uuid.test(parsed.id) ? parsed : null;
-  } catch {
-    return null;
-  }
 }

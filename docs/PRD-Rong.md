@@ -178,7 +178,7 @@ Lý do: chất lượng gợi ý là yếu tố giữ chân người dùng. Dữ
 1. Người dùng nhập tên tỉnh/thành, điểm đến du lịch hoặc xã/phường (ví dụ "Lâm Đồng", "Đà Lạt").
 2. App hiển thị kết quả theo nhóm: tỉnh/thành (mới, cũ) → điểm đến du lịch trực thuộc → xã/phường, kèm ghi chú sáp nhập.
 3. Người dùng chọn một kết quả, hoặc quay lại bước 1.
-4. App truy vấn danh mục địa điểm riêng đã được tổng hợp sẵn (mục 7.5), lọc theo polygon của vùng đã chọn bằng tọa độ riêng.
+4. App truy vấn danh sách địa điểm riêng của vùng đã chọn (mục 7.5): tổng hợp lần đầu khi có người mở vùng, lưu lại và làm mới sau 30 ngày.
 5. Bản đồ hiển thị tối đa 5 marker có điểm cao nhất trong khung nhìn hiện tại; bottom sheet liệt kê toàn bộ địa điểm theo điểm giảm dần, mỗi lần tải 10, cuộn vô hạn. Thông tin Google (ảnh, rating, giờ mở cửa) lấy theo thời gian thực qua place_id.
 6. Người dùng thêm địa điểm vào lịch trình hoặc danh sách "Muốn đi", rồi tự sắp xếp hoặc dùng công cụ sắp xếp của app (F6, F9).
 
@@ -205,7 +205,7 @@ Lý do: chất lượng gợi ý là yếu tố giữ chân người dùng. Dữ
   - Hai phiên bản dùng chung danh mục địa điểm; mỗi địa điểm được gán đồng thời vào vùng cũ và vùng mới chứa nó.
   - Nhãn "(cũ)" / "(mới)" luôn hiển thị trên tiêu đề bản đồ, bottom sheet và lịch trình để tránh nhầm lẫn.
   - Với vùng rộng như Lâm Đồng (mới), lịch trình nhiều ngày vẫn tuân theo bước gom cụm địa lý của F6, để mỗi ngày chỉ ở 1–2 khu vực.
-- **FR-1.10** Sau khi người dùng chọn vùng, app truy vấn danh mục địa điểm riêng đã tổng hợp sẵn (mục 7.5); không đi tổng hợp dữ liệu từ internet hay mạng xã hội tại thời điểm tìm kiếm. Việc xác định địa điểm thuộc vùng nào (cũ, mới, xã/phường) chỉ dùng tọa độ riêng, không dùng tọa độ từ Google (mục 7.4).
+- **FR-1.10** Sau khi người dùng chọn vùng, app truy vấn danh sách địa điểm riêng của vùng (mục 7.5): tổng hợp lần đầu khi có người mở vùng, lưu lại và làm mới sau 30 ngày (quyết định 14/10/2026, thay cho "danh mục tổng hợp sẵn"). Người mở vùng đầu tiên chờ lượt tổng hợp (tối đa khoảng 25 giây, quá thì app báo "đang tổng hợp" và hỏi lại); người sau đọc bản đã lưu. Việc xác định địa điểm thuộc vùng nào (cũ, mới, xã/phường) chỉ dùng tọa độ riêng, không dùng tọa độ từ Google (mục 7.4).
 
 **Tiêu chí chấp nhận:**
 
@@ -493,16 +493,15 @@ Ràng buộc: thời gian kết thúc phải sau thời gian bắt đầu; độ
 
 | Nguồn | Dùng cho | Lưu ý / ràng buộc |
 |---|---|---|
-| OpenStreetMap | Ranh giới hành chính hiện hành; tên và tọa độ độc lập cho danh mục địa điểm | Giấy phép ODbL, bắt buộc ghi công; cần kiểm tra dữ liệu đã cập nhật địa giới sau sáp nhập chưa |
-| Ranh giới trước sáp nhập | Phiên bản "(cũ)" ở FR-1.9 | Lấy từ bản dữ liệu OSM trước 7/2025 (ODbL) hoặc nguồn chính thức. Lưu ý: GADM không cho dùng thương mại nếu chưa xin phép |
+| OpenStreetMap | Ranh giới hành chính (khung bao tỉnh, sinh sẵn một lần); tìm vùng qua Nominatim. Từ 14/10/2026 không còn là nguồn địa điểm | Giấy phép ODbL, bắt buộc ghi công |
+| Ranh giới trước sáp nhập | Phiên bản "(cũ)" ở FR-1.9 | Lấy từ relation tỉnh cũ OSM giữ lại sau sáp nhập (`boundary=historic`, ODbL) hoặc nguồn chính thức. Lưu ý: GADM không cho dùng thương mại nếu chưa xin phép |
 | Polygon "điểm đến du lịch" tự xây | Vùng điểm đến theo cách hiểu của người dùng | Đội ngũ tự vẽ và duy trì |
-| Google Places API (New) | Nguồn hiển thị chính: ảnh, rating, đánh giá, giờ mở cửa, địa chỉ; tìm địa điểm cho share-to-app | Gọi theo thời gian thực qua backend; chỉ lưu place_id; tuân thủ mục 7.4 |
+| Google Places API (New) | Nguồn hiển thị chính: ảnh, rating, đánh giá, giờ mở cửa, địa chỉ; định vị địa điểm trích từ bài viết (place_id + tọa độ); tìm địa điểm cho share-to-app và khi lập lịch | Gọi theo thời gian thực qua backend; chỉ lưu place_id; tuân thủ mục 7.4 |
 | Google Routes API | Thời gian di chuyển giữa các điểm trong lịch trình | Gọi theo thời gian thực; không cache ngoài phạm vi điều khoản cho phép |
 | Foursquare Places | Dữ liệu địa điểm bổ sung | Tuân theo điều khoản giấy phép |
 | Cổng du lịch của Cục Du lịch Quốc gia và sở du lịch/văn hóa các tỉnh | Điểm du lịch được công nhận, lễ hội, sự kiện, giá vé | Dùng dữ kiện, không chép nguyên văn; kiểm tra điều khoản từng trang |
-| Wikidata | Danh thắng, di tích, bảo tàng kèm tọa độ | CC0, dùng tự do |
 | Wikivoyage, Wikipedia | Gợi ý điểm đến, mô tả, mẹo du lịch | CC BY-SA: dùng dữ kiện; nếu dùng lại câu chữ phải ghi nguồn và chia sẻ lại theo cùng giấy phép |
-| Báo và blog du lịch (qua API tìm kiếm web có giấy phép thương mại) | Địa điểm mới, xu hướng | AI trích xuất tên địa điểm và dẫn link; không chép nội dung |
+| Báo và blog du lịch (qua API tìm kiếm web có giấy phép thương mại — Tavily) | Nguồn chính của danh sách địa điểm mỗi vùng (từ 14/10/2026); địa điểm mới, xu hướng | AI trích xuất tên địa điểm và dẫn link; chỉ giữ địa điểm có tên trong bài; không chép nội dung |
 | YouTube Data API | Video review gắn với địa điểm, tín hiệu độ hot | Có giới hạn thời gian lưu dữ liệu, phải làm mới định kỳ |
 | Curate thủ công | Nhãn đối tượng, thời lượng, thời điểm đẹp, giá | Nguồn chất lượng cao nhất cho 5 điểm đến đầu tiên |
 | Share-to-app (người dùng) | Liên kết nội dung mạng xã hội, tín hiệu cộng đồng | Chỉ lưu metadata và thẻ nhúng, luôn ghi nguồn |
@@ -544,7 +543,7 @@ Nguyên tắc bắt buộc (tóm tắt theo bản đọc ngày 18/09/2026):
 |---|---|---|
 | 1 | Nội dung Google chỉ hiển thị trên bản đồ Google: app dùng Google Maps SDK, web dùng Maps JavaScript API. Không dùng bản đồ khác trong sản phẩm. | ToS 3.2.3(e); Service Specific Terms (Places) |
 | 2 | Không lưu nội dung Google, trừ place_id (lưu vô thời hạn) và tọa độ (cache tối đa 30 ngày). Nội dung được gọi theo thời gian thực qua backend NestJS. | ToS 3.2.3(a), (b); Service Specific Terms |
-| 3 | Danh mục địa điểm riêng có tên và tọa độ lấy từ nguồn không phải Google (OSM, curate). Việc lọc điểm trong polygon (FR-1) chỉ dùng tọa độ này. | ToS 3.2.3(c)(iv) |
+| 3 | Danh mục riêng có tên lấy từ bài viết trên web (AI trích, đối chiếu với bài); tọa độ là tọa độ Google (cache ≤ 30 ngày) hoặc AI ước đoán (ghi rõ là gần đúng). Tên, loại, giờ, rating của Google không được lưu. | ToS 3.2.3(c)(iv) |
 | 4 | Điểm tổng hợp chỉ dùng tín hiệu riêng của app (FR-3). | ToS 3.2.3(a) |
 | 5 | Dữ liệu Google chỉ được đưa vào AI cho **một mục đích duy nhất: sắp xếp lịch trình di chuyển phù hợp** (F6, F8, F9) — quyết định Q9-c. Điều kiện: chỉ gửi các trường tối thiểu (place_id, giờ mở cửa, thời gian di chuyển từ Routes API) theo từng yêu cầu; không lưu vào log hay cơ sở dữ liệu; không dùng để huấn luyện, kiểm thử, đánh giá hay tinh chỉnh mô hình; nhà cung cấp AI là **Gemini API, gói trả phí** (với dịch vụ trả phí, Google cam kết không dùng câu lệnh và câu trả lời để cải thiện sản phẩm). Bước kiểm tra ràng buộc bằng code (F6) vẫn giữ làm lớp an toàn. Có thể cân nhắc thêm Grounding with Google Maps của Gemini nếu cần. | ToS 3.2.3(a), (c)(vii) |
 | 6 | Không dùng AI của app để tóm tắt đánh giá Google; dùng tóm tắt do Google cung cấp, kèm nội dung công bố và link bắt buộc. | ToS 3.2.3(c); Places API policies |
@@ -558,24 +557,23 @@ Nguyên tắc bắt buộc (tóm tắt theo bản đọc ngày 18/09/2026):
 - *Quyết định:* tạm không xin ý kiến luật sư; giảm rủi ro bằng thiết kế.
 - *Các biện pháp đã áp dụng:* danh sách địa điểm dựng từ dữ liệu riêng; không dùng API tìm kiếm của Google để tự tìm địa điểm (FR-1.8, FR-2.8); ảnh và rating Google chỉ ở màn hình chi tiết; địa điểm tài trợ và affiliate chuyển sang MVP 2.
 - Rủi ro còn lại được theo dõi ở mục 12.
+- *Cập nhật 14/10/2026:* danh sách địa điểm của mỗi vùng lấy từ bài viết trên web (tên, loại, mô tả của mình), dùng Google Text Search có giới hạn trong khung vùng để lấy place_id + tọa độ cho từng tên đã có. Danh sách vẫn do app dựng và xếp hạng bằng tín hiệu riêng (thứ tự từ bài viết), không phải danh sách kết quả tìm kiếm của Google. Người dùng chủ động tìm thêm theo tên trên Google (có hạn mức) khi lưu "Muốn đi" hay lập lịch.
 
 **(b) Thay đổi kết quả tìm kiếm của Google — ToS 3.2.3(g).** Đã xử lý: app không hiển thị danh sách lấy từ API tìm kiếm của Google, và không sắp xếp theo rating Google; mọi cách sắp xếp dùng dữ liệu riêng (FR-2.6).
 
 **(c) Dữ liệu Google trong AI.** Đã chốt: dùng Gemini API gói trả phí; dữ liệu Google chỉ dùng để sắp xếp lịch trình (nguyên tắc 5).
 
-**Không dùng trong MVP:** Places Aggregate API, Nearby Search và Text Search ở dạng tìm kiếm tự do. Text Search chỉ dùng dạng lấy place_id để ghép địa điểm trong pipeline nền (mục 7.5).
+**Không dùng trong MVP:** Places Aggregate API, Nearby Search. Text Search chỉ dùng để định vị địa điểm đã có tên từ bài viết (mục 7.5) và khi người dùng chủ động bấm tìm theo tên (có hạn mức).
 
-### 7.5 Pipeline tổng hợp dữ liệu (chạy nền)
+### 7.5 Pipeline tổng hợp danh sách địa điểm
 
-Dữ liệu địa điểm được tổng hợp trước và cập nhật định kỳ theo từng điểm đến; lúc người dùng tìm kiếm, app chỉ truy vấn danh mục riêng (FR-1.10).
+Từ 14/10/2026 (spec `docs/superpowers/specs/2026-10-14-web-places-design.md`), danh sách địa điểm của mỗi vùng được tổng hợp lần đầu khi có người mở vùng, lưu lại và làm mới sau 30 ngày (FR-1.10). OSM, Overpass và Wikidata không còn là nguồn địa điểm.
 
-1. **Thu thập** từ các nguồn ở mục 7.1. Tần suất đề xuất: bộ dữ liệu mở hằng tháng; bài viết và video hằng tuần; share-to-app và đề xuất của người dùng theo thời gian thực.
-2. **Trích xuất** tên địa điểm, danh mục và dữ kiện liên quan từ nội dung văn bản bằng AI.
-3. **Gộp trùng** các bản ghi cùng một địa điểm từ nhiều nguồn (entity resolution).
-4. **Ghép place_id** bằng Google Text Search dạng chỉ lấy ID (miễn phí); chỉ lưu place_id.
-5. **Gán vùng** bằng tọa độ riêng (nguồn mở, curate) hoặc ngữ cảnh nguồn; không dùng tọa độ Google.
-6. **Kiểm duyệt** bởi đội curate: nhãn phù hợp, thời lượng, thời điểm đẹp, giá, điểm biên tập.
-7. **Tính điểm tổng hợp** (FR-3) và cập nhật danh mục.
+1. **Thu thập** bài viết về vùng qua API tìm kiếm web (truy vấn cố định: tham quan, ăn uống, cà phê, lưu trú).
+2. **Trích xuất** tên địa điểm, danh mục, mô tả và vị trí ước đoán bằng AI; chỉ giữ địa điểm có tên xuất hiện trong bài đã đọc.
+3. **Định vị** bằng Google Places Text Search trong khung bao của vùng: lấy place_id + tọa độ (cache ≤ 30 ngày) khi tên và loại khớp; không khớp thì giữ tọa độ AI nếu nằm trong vùng, ghi rõ "Vị trí gần đúng".
+4. **Lưu** địa điểm và thứ hạng trong vùng (theo bài viết), kèm các bài viết nguồn để ghi công.
+5. **Kiểm duyệt** bởi đội curate và điểm tổng hợp (FR-3): chưa làm, để sau.
 
 ---
 

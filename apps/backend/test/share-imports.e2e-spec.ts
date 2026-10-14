@@ -44,7 +44,6 @@ describe('Chia sẻ vào app (e2e)', () => {
     })),
     locate: vi.fn(),
     details: vi.fn(async () => null),
-    matchPlaceId: vi.fn(async () => null),
   };
 
   beforeAll(async () => {

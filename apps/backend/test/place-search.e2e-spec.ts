@@ -41,10 +41,8 @@ describe('Tìm địa điểm (e2e)', () => {
     preview: vi.fn(),
     locate: vi.fn(),
     details: vi.fn(async () => null),
-    matchPlaceId: vi.fn(async () => null),
     searchText: vi.fn(async () => []),
     summary: vi.fn(async () => null),
-    geocode: vi.fn(async () => null),
   };
 
   beforeAll(async () => {
