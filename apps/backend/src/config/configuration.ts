@@ -40,15 +40,8 @@ export interface MailConfig {
 /** Nguồn dữ liệu mở (OSM, Wikidata) — mục 7.1 PRD. */
 export interface OpenDataConfig {
   nominatimUrl: string;
-  /** Thử lần lượt: instance công cộng hay quá tải (HTTP 429/504). */
-  overpassUrls: string[];
-  wikidataUrl: string;
-  /** Nominatim và Overpass bắt buộc User-Agent có thông tin liên hệ. */
+  /** Nominatim bắt buộc User-Agent có thông tin liên hệ. */
   contactEmail: string;
-  /** Sau bao nhiêu ngày thì lấy lại địa điểm của một vùng từ OSM. */
-  placesRefreshDays: number;
-  /** Dựng sẵn danh mục địa điểm cho các tỉnh, điểm đến đã seed ở nền (PlacesWarmer). */
-  placesWarmup: boolean;
 }
 
 /** Google Maps Platform — chỉ module `google/` được dùng (PRD 7.4). */
@@ -191,18 +184,7 @@ export function loadConfig(): AppConfig {
     openData: {
       nominatimUrl:
         process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org',
-      overpassUrls: (
-        process.env.OVERPASS_URL ||
-        'https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter,https://maps.mail.ru/osm/tools/overpass/api/interpreter'
-      )
-        .split(',')
-        .map((url) => url.trim())
-        .filter(Boolean),
-      wikidataUrl:
-        process.env.WIKIDATA_URL || 'https://www.wikidata.org/w/api.php',
       contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
-      placesRefreshDays: toInt(process.env.PLACES_REFRESH_DAYS, 30),
-      placesWarmup: process.env.PLACES_WARMUP === 'true',
     },
     google: {
       mapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,

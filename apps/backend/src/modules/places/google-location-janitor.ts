@@ -10,7 +10,7 @@ import { DataSource } from 'typeorm';
 const EVERY_MS = 6 * 60 * 60 * 1000;
 const FIRST_RUN_MS = 60 * 1000;
 
-/** Xóa tọa độ Google đã quá 30 ngày khỏi `places` (PRD 7.4). Chạy kể cả khi tắt PLACES_WARMUP. */
+/** Xóa tọa độ Google đã quá 30 ngày khỏi `places` (PRD 7.4). */
 @Injectable()
 export class GoogleLocationJanitor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(GoogleLocationJanitor.name);
