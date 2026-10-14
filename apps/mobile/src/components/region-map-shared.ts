@@ -15,7 +15,7 @@ export type RegionMapProps = {
   topInset: number;
 };
 
-/** Khóa ổn định cho cả kết quả dự phòng từ AI (không có id). */
+/** Khóa của một địa điểm trên bản đồ và trong danh sách. */
 export function placeKey(place: PlaceListItem): string {
-  return place.id ?? `${place.name}@${place.coordinates.lat},${place.coordinates.lng}`;
+  return place.id;
 }

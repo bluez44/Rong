@@ -432,7 +432,7 @@ function AddPlace({ itinerary, regionName, onPick }: { itinerary: Itinerary; reg
 
 function RegionOptions({ regionId, exclude, onPick }: { regionId: string; exclude: Set<string>; onPick: (place: EditPlace) => void }) {
   const places = useRegionPlaces(regionId, NO_FILTER);
-  const items = places.items.filter((p): p is typeof p & { id: string } => !!p.id && !exclude.has(p.id));
+  const items = places.items.filter((p) => !exclude.has(p.id));
 
   if (places.status === 'loading' || places.status === 'building') return <ActivityIndicator color={Colors.light.primary} style={styles.loading} />;
   if (places.status === 'error' && places.error && items.length === 0) return <Text style={styles.hint}>{places.error.message}</Text>;

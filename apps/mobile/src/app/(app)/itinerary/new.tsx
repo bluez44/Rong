@@ -339,7 +339,7 @@ const STAY_LIMIT = 8;
 function StayPicker({ regionId, selected }: { regionId: string; selected: DraftPlace | null }) {
   const stays = useRegionPlaces(regionId, STAY_ONLY);
   const [expanded, setExpanded] = useState(false);
-  const options = stays.items.filter((p): p is typeof p & { id: string } => !!p.id);
+  const options = stays.items;
   const visible = expanded ? options : options.slice(0, STAY_LIMIT);
   // Nơi ở chọn từ "Muốn đi" hay tìm kiếm có thể không nằm trong danh sách.
   const extra = selected && !options.some((p) => p.id === selected.id) ? [selected] : [];

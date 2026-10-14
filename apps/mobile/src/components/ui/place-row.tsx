@@ -26,8 +26,7 @@ type PlaceRowProps = {
  * Một địa điểm trong bottom sheet (FR-2.9). Luôn trên nền đặc. Thumbnail là
  * glyph danh mục, không dùng ảnh Google (PRD 7.4).
  *
- * Mục từ API v2 (AI đọc bài viết, có `articles`) không có điểm tổng hợp; thay
- * vào đó là số bài viết nhắc tới, và danh sách bài kèm ngày đăng khi chọn dòng.
+ * Mỗi mục kèm số bài viết nhắc tới, và danh sách bài kèm ngày đăng khi chọn dòng.
  */
 export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, saveAction }: PlaceRowProps) {
   const isStay = place.category === 'stay';
@@ -42,12 +41,10 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
     ...(saveAction && saveLabel ? [{ name: 'save', label: saveLabel }] : []),
     ...(tripAction && tripLabel ? [{ name: 'trip', label: tripLabel }] : []),
   ];
-  const articles = place.articles;
+  const articles = place.articles.length > 0 ? place.articles : null;
   const approximate = place.locationSource === 'ai';
   const meta = [CATEGORY_LABELS[place.category], hoursLabel(place.hours)].filter(Boolean).join(' · ');
-  const score = articles ? null : Math.round(place.compositeScore);
   const extras = [
-    score !== null ? `điểm ${score} trên 100` : null,
     articles ? `theo ${articles.length} bài viết` : null,
     approximate ? 'vị trí gần đúng' : null,
     saveAction?.active ? 'đã lưu vào Muốn đi' : null,
@@ -121,11 +118,6 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
         ) : null}
       </View>
       <View style={styles.side}>
-        {score !== null ? (
-          <Text style={styles.score} importantForAccessibility="no">
-            {score}
-          </Text>
-        ) : null}
         {saveAction && saveLabel ? (
           <Pressable
             accessibilityRole="button"
@@ -211,7 +203,6 @@ const styles = StyleSheet.create({
   detailPressed: { opacity: 0.6 },
   detailLabel: { ...Type.subhead, color: Colors.light.primary },
   side: { alignItems: 'flex-end', gap: Spacing.two },
-  score: { ...Type.numeric, color: Colors.light.primary, minWidth: 28, textAlign: 'right', paddingTop: 2 },
   trip: {
     width: TRIP_BUTTON,
     height: TRIP_BUTTON,
