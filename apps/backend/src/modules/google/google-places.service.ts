@@ -107,6 +107,11 @@ const GEOCODE_MISS_TTL_MS = 24 * 60 * 60 * 1000;
 const GEOCODE_CACHE_MAX = 10_000;
 
 export type GoogleHit = { placeId: string; lat: number; lng: number };
+/** Một kết quả Text Search để ghép tên từ bài viết. `name`/`primaryType` chỉ để kiểm tra, không lưu (PRD 7.4). */
+export type GoogleCandidate = GoogleHit & {
+  name: string | null;
+  primaryType: string | null;
+};
 type GeocodeHit = GoogleHit;
 
 /**
@@ -409,6 +414,55 @@ export class GooglePlacesService {
   }
 
   /**
+   * Ghép một địa điểm đọc từ bài viết: Text Search trong khung vùng, tối đa 3
+   * kết quả theo thứ tự Google. Tên và loại Google chỉ để bên gọi kiểm tra
+   * (web-place-match.ts) rồi bỏ; chỉ place_id và tọa độ được lưu.
+   */
+  async findPlace(
+    query: string,
+    bbox: Bbox,
+    timeoutMs = 4000,
+  ): Promise<GoogleCandidate[]> {
+    const body = await this.request<{
+      places?: Array<{
+        id: string;
+        location?: { latitude: number; longitude: number };
+        displayName?: { text?: string };
+        primaryType?: string;
+      }>;
+    }>('/places:searchText', {
+      method: 'POST',
+      fieldMask: 'places.id,places.location,places.displayName,places.primaryType',
+      timeoutMs,
+      body: {
+        textQuery: query,
+        languageCode: 'vi',
+        regionCode: 'VN',
+        pageSize: 3,
+        locationRestriction: {
+          rectangle: {
+            low: { latitude: bbox[0], longitude: bbox[1] },
+            high: { latitude: bbox[2], longitude: bbox[3] },
+          },
+        },
+      },
+    });
+    return (body.places ?? []).flatMap((p) =>
+      p.location
+        ? [
+            {
+              placeId: p.id,
+              lat: p.location.latitude,
+              lng: p.location.longitude,
+              name: p.displayName?.text ?? null,
+              primaryType: p.primaryType ?? null,
+            },
+          ]
+        : [],
+    );
+  }
+
+  /**
    * Tìm địa điểm theo tên trong khung một vùng (ô tìm địa điểm). Tên/địa chỉ
    * chỉ để hiển thị trực tiếp, không lưu (PRD 7.4); giữ thứ tự Google trả về.
    */
@@ -493,7 +547,12 @@ export class GooglePlacesService {
 
   private async request<T>(
     path: string,
-    options: { method: 'GET' | 'POST'; fieldMask?: string; body?: unknown },
+    options: {
+      method: 'GET' | 'POST';
+      fieldMask?: string;
+      body?: unknown;
+      timeoutMs?: number;
+    },
   ): Promise<T> {
     if (this.config.mapsApiKey === null) {
       throw new GoogleUnavailableError('Chưa cấu hình GOOGLE_MAPS_API_KEY.');
@@ -513,7 +572,7 @@ export class GooglePlacesService {
         headers,
         body:
           options.body === undefined ? undefined : JSON.stringify(options.body),
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
       });
     } catch (error) {
       throw new GoogleUnavailableError(

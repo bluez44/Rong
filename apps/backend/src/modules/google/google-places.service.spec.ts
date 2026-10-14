@@ -495,3 +495,46 @@ describe('GooglePlacesService.preview', () => {
     await expect(service().preview('gone')).resolves.toBeNull();
   });
 });
+
+describe('GooglePlacesService.findPlace', () => {
+  it('Text Search giới hạn trong khung vùng, chỉ xin id/vị trí/tên/loại', async () => {
+    const calls = mockFetch(() => ({
+      body: {
+        places: [
+          {
+            id: 'ChIJ1',
+            location: { latitude: 11.9, longitude: 108.4 },
+            displayName: { text: 'Thác Datanla' },
+            primaryType: 'tourist_attraction',
+          },
+          { id: 'ChIJ2' },
+        ],
+      },
+    }));
+
+    await expect(
+      service().findPlace('Thác Datanla, Đà Lạt', [11.8, 108.3, 12.0, 108.6]),
+    ).resolves.toEqual([
+      { placeId: 'ChIJ1', lat: 11.9, lng: 108.4, name: 'Thác Datanla', primaryType: 'tourist_attraction' },
+    ]);
+
+    const [call] = calls;
+    expect(call.url).toBe(`${BASE}/places:searchText`);
+    expect(header(call, 'X-Goog-FieldMask')).toBe(
+      'places.id,places.location,places.displayName,places.primaryType',
+    );
+    const body = JSON.parse(call.init.body as string);
+    expect(body).toMatchObject({
+      textQuery: 'Thác Datanla, Đà Lạt',
+      pageSize: 3,
+      locationRestriction: {
+        rectangle: { low: { latitude: 11.8, longitude: 108.3 }, high: { latitude: 12.0, longitude: 108.6 } },
+      },
+    });
+  });
+
+  it('Google lỗi thì ném GoogleUnavailableError', async () => {
+    mockFetch(() => ({ status: 500, body: {} }));
+    await expect(service().findPlace('x', [1, 2, 3, 4])).rejects.toBeInstanceOf(GoogleUnavailableError);
+  });
+});
