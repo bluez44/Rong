@@ -329,16 +329,16 @@ function SelectedPlace({ place, onRemove }: { place: DraftPlace; onRemove: () =>
 
 const STAY_LIMIT = 8;
 
-/** Chọn nơi lưu trú trong danh mục của vùng (chip "Lưu trú"), điểm cao nhất trước. */
+/** Chọn nơi lưu trú trong danh sách của vùng (chip "Lưu trú"), theo thứ hạng. */
 function StayPicker({ regionId, selected }: { regionId: string; selected: DraftPlace | null }) {
   const stays = useRegionPlaces(regionId, STAY_ONLY);
   const [expanded, setExpanded] = useState(false);
   const options = stays.items.filter((p): p is typeof p & { id: string } => !!p.id);
   const visible = expanded ? options : options.slice(0, STAY_LIMIT);
-  // Nơi ở chọn trên bản đồ có thể nằm ngoài trang đầu.
+  // Nơi ở chọn từ "Muốn đi" hay tìm kiếm có thể không nằm trong danh sách.
   const extra = selected && !options.some((p) => p.id === selected.id) ? [selected] : [];
 
-  if (stays.status === 'loading') return <ActivityIndicator color={Colors.light.primary} style={styles.stayLoading} />;
+  if (stays.status === 'loading' || stays.status === 'building') return <ActivityIndicator color={Colors.light.primary} style={styles.stayLoading} />;
   if (stays.status === 'error' && stays.error) {
     return (
       <Notice tone="danger" title="Chưa tải được nơi lưu trú" action={<Button label="Thử lại" variant="plain" size="sm" onPress={stays.retry} style={styles.inlineAction} />}>
@@ -347,7 +347,7 @@ function StayPicker({ regionId, selected }: { regionId: string; selected: DraftP
     );
   }
   if (options.length === 0 && extra.length === 0) {
-    return <Text style={styles.hint}>Vùng này chưa có nơi lưu trú trong danh mục. Chọn “Không cần” để tiếp tục.</Text>;
+    return <Text style={styles.hint}>Vùng này chưa có nơi lưu trú trong danh sách. Chọn “Không cần” để tiếp tục.</Text>;
   }
 
   return (

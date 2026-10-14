@@ -423,23 +423,16 @@ function AddPlace({ itinerary, regionName, onPick }: { itinerary: Itinerary; reg
 }
 
 function RegionOptions({ regionId, exclude, onPick }: { regionId: string; exclude: Set<string>; onPick: (place: EditPlace) => void }) {
-  const places = useRegionPlaces(regionId, NO_FILTER, 'v1');
+  const places = useRegionPlaces(regionId, NO_FILTER);
   const items = places.items.filter((p): p is typeof p & { id: string } => !!p.id && !exclude.has(p.id));
 
-  if (places.status === 'loading') return <ActivityIndicator color={Colors.light.primary} style={styles.loading} />;
+  if (places.status === 'loading' || places.status === 'building') return <ActivityIndicator color={Colors.light.primary} style={styles.loading} />;
   if (places.status === 'error' && places.error && items.length === 0) return <Text style={styles.hint}>{places.error.message}</Text>;
-  return (
-    <>
-      {listOrEmpty(
-        items.map((p) => (
-          <PlaceOption key={p.id} name={p.name} category={p.category} detail={p.description ?? undefined} onPress={() => onPick(p)} />
-        )),
-        'Chưa có địa điểm nào trong danh mục của vùng này.',
-      )}
-      {places.nextCursor ? (
-        <Button label="Xem thêm" variant="plain" size="sm" loading={places.status === 'loadingMore'} onPress={places.loadMore} />
-      ) : null}
-    </>
+  return listOrEmpty(
+    items.map((p) => (
+      <PlaceOption key={p.id} name={p.name} category={p.category} detail={p.description ?? undefined} onPress={() => onPick(p)} />
+    )),
+    'Chưa có địa điểm nào trong danh sách của vùng này.',
   );
 }
 
