@@ -6,6 +6,7 @@ import { NestedReorderableList, useReorderableDrag } from 'react-native-reordera
 
 import { useAuth } from '@/auth/auth-context';
 import { ActionSheet, type SheetAction } from '@/components/ui/action-sheet';
+import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Icon, type IconName } from '@/components/ui/icon';
@@ -183,6 +184,7 @@ function EditItemRow({ item, warnings, onOpen }: { item: ItineraryItem; warnings
           <Text style={styles.meta}>
             {itemKind(item)} · {formatDuration(minutes)}
           </Text>
+          {item.place?.locationSource === 'ai' ? <ApproximateLocation compact /> : null}
           {warnings.map((message) => (
             <WarningLine key={message} message={message} />
           ))}

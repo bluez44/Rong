@@ -10,10 +10,12 @@ type MapMarkerProps = {
   selected?: boolean;
   /** Tên hiện trên viên kính khi marker đang chọn. */
   label?: string;
+  /** Vị trí do AI ước đoán: viền nét đứt, hơi mờ. */
+  approximate?: boolean;
 };
 
 /** Nội dung vẽ bên trong `<Marker>`. Không dùng ảnh Google (FR-2.2). */
-export function MapMarker({ category, selected, label }: MapMarkerProps) {
+export function MapMarker({ category, selected, label, approximate }: MapMarkerProps) {
   const size = selected ? 48 : 36;
   return (
     <View style={styles.wrap}>
@@ -30,6 +32,7 @@ export function MapMarker({ category, selected, label }: MapMarkerProps) {
           Shadow.marker,
           { width: size, height: size },
           selected ? styles.dotSelected : styles.dotDefault,
+          approximate && styles.dotApproximate,
         ]}>
         <Icon name={category} size={selected ? 24 : 18} color={selected ? Colors.light.onPrimary : Colors.light.primary} />
       </View>
@@ -44,4 +47,5 @@ const styles = StyleSheet.create({
   dot: { borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   dotDefault: { backgroundColor: Colors.light.surface, borderColor: Colors.light.surface },
   dotSelected: { backgroundColor: Colors.light.primary, borderColor: Colors.light.surface },
+  dotApproximate: { borderStyle: 'dashed', borderColor: Colors.light.warning, opacity: 0.85 },
 });
