@@ -96,11 +96,9 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
                 <Text style={styles.name} numberOfLines={2}>
                   {item.hit.name ?? 'Không rõ tên'}
                 </Text>
-                {item.hit.address ? (
-                  <Text style={styles.sub} numberOfLines={2}>
-                    {item.hit.address}
-                  </Text>
-                ) : null}
+                <Text style={styles.sub} numberOfLines={2}>
+                  {item.hit.address ?? CATEGORY_LABELS[item.hit.suggestedCategory]}
+                </Text>
               </Pressable>
             );
           case 'footer':
