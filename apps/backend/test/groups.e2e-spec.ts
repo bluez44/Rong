@@ -25,7 +25,7 @@ describe('Nhóm & chia sẻ (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(LangchainService)
-      .useValue({ planItinerary: vi.fn(), findPlaces: vi.fn() })
+      .useValue({ planItinerary: vi.fn() })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');

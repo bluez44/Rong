@@ -33,10 +33,5 @@ export interface OverpassElement {
   tags?: Record<string, string>;
 }
 
-export interface WikidataInfo {
-  sitelinks: number;
-  description: string | null;
-}
-
 /** [south, west, north, east] theo thứ tự Overpass dùng. */
 export type Bbox = [number, number, number, number];

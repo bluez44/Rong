@@ -44,7 +44,7 @@ describe('Lịch trình (e2e)', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(LangchainService)
-      .useValue({ planItinerary, findPlaces: vi.fn() })
+      .useValue({ planItinerary })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');

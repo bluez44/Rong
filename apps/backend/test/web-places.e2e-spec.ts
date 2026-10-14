@@ -41,8 +41,6 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     details: vi.fn(async () => null),
     preview: vi.fn(),
     summary: vi.fn(async () => null),
-    geocode: vi.fn(async () => null),
-    matchPlaceId: vi.fn(async () => null),
   };
   const agent = { enabled: true, findPlaces: vi.fn() };
 
@@ -89,6 +87,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         regionId,
       ]);
     }
+    await db?.query(
+      `DELETE FROM itineraries WHERE owner_id IN (SELECT id FROM users WHERE display_name = 'e2e-web-places')`,
+    );
     await db?.query(`DELETE FROM places WHERE name LIKE 'E2E wp %'`);
     await db?.query(`DELETE FROM regions WHERE source_key = 'e2e:web-places'`);
     await db?.query(`DELETE FROM users WHERE display_name = 'e2e-web-places'`);
@@ -219,21 +220,19 @@ describe('Địa điểm từ bài viết (e2e)', () => {
          RETURNING id`,
       )) as Array<{ id: string }>;
 
-      const [id] = await app
-        .get(RegionPlaceStore)
-        .replace(
-          regionId,
-          [
-            input('E2E wp Tên bài viết', {
-              source: 'google',
-              placeId: 'wp-saved',
-              lat: 11.94,
-              lng: 108.44,
-            }),
-          ],
-          [],
-          30,
-        );
+      const [id] = await app.get(RegionPlaceStore).replace(
+        regionId,
+        [
+          input('E2E wp Tên bài viết', {
+            source: 'google',
+            placeId: 'wp-saved',
+            lat: 11.94,
+            lng: 108.44,
+          }),
+        ],
+        [],
+        30,
+      );
 
       expect(id).toBe(saved.id);
       const [row] = (await db.query(`SELECT name FROM places WHERE id = $1`, [
@@ -497,7 +496,6 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         /^https:\/\/www\.google\.com\/maps\/search\//,
       );
       expect(google.details).not.toHaveBeenCalled();
-      expect(google.matchPlaceId).not.toHaveBeenCalled();
     });
 
     it('dòng web đã ghép Google: nội dung Google trực tiếp, giữ tên từ bài viết', async () => {
@@ -518,6 +516,58 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         sourceUrl: 'https://maps.google.com/?cid=1',
       });
       expect(google.details).toHaveBeenCalledWith('wp-detail');
+    });
+  });
+
+  describe('dòng OSM cũ', () => {
+    const osmRow = async (): Promise<string> => {
+      const [row] = (await db.query(
+        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
+         VALUES ('node', -97001, 'E2E wp OSM cũ', 'nature', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326), 50)
+         ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+      )) as Array<{ id: string }>;
+      return row.id;
+    };
+
+    it('GET /places/:id vẫn trả chi tiết của dòng osm đã có, không gọi Google', async () => {
+      const id = await osmRow();
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        id,
+        name: 'E2E wp OSM cũ',
+        locationSource: 'osm',
+        googleStatus: 'not_found',
+      });
+      expect(google.details).not.toHaveBeenCalled();
+    });
+
+    it('lịch trình tham chiếu dòng osm vẫn tạo và đọc lại được', async () => {
+      const id = await osmRow();
+      const created = await request(app.getHttpServer())
+        .post('/api/itineraries')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          regionId,
+          planningMode: 'manual',
+          startsAt: '2026-10-05T08:00:00+07:00',
+          endsAt: '2026-10-05T18:00:00+07:00',
+          travelParty: 'friends',
+          adults: 2,
+          children: 0,
+          selectedPlaceIds: [id],
+        })
+        .expect(201);
+      const res = await request(app.getHttpServer())
+        .get(`/api/itineraries/${created.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.unscheduled).toEqual([
+        expect.objectContaining({ placeId: id, name: 'E2E wp OSM cũ' }),
+      ]);
     });
   });
 });

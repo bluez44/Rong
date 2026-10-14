@@ -31,8 +31,7 @@ pnpm migration:run            # builds first, then runs dist/database/migrations
 pnpm start:dev                # http://localhost:3001/api, try GET /api/health
 pnpm test                     # unit tests (*.spec.ts under src/, vitest)
 pnpm test:e2e                 # test/*.e2e-spec.ts against a real, migrated database
-pnpm test:speed               # places-speed.e2e-spec.ts: v1/v2 latency with fixed-delay fakes (also part of test:e2e)
-pnpm bench:places             # test/*.live-spec.ts: real Overpass/Tavily/Gemini/Google timings (costs money; PLACES_LIVE_REGION=<source_key>)
+pnpm bench:places             # test/places.live-spec.ts: builds one region's list with real Tavily/Gemini/Google (costs money; PLACES_LIVE_REGION=<source_key>)
 pnpm lint                     # oxlint --type-aware
 pnpm typecheck
 pnpm format                   # prettier
@@ -71,33 +70,24 @@ Keep each external service behind its single gateway:
 
 | Gateway | Covers | Rules |
 | --- | --- | --- |
-| `modules/open-data/OpenDataService` | Nominatim, Overpass, Wikidata | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`, failover across the comma-separated `OVERPASS_URL` mirrors. |
-| `modules/google/` | Google Places (New), Geocoding | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days (Geocoding results are cached in memory only), never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
+| `modules/open-data/OpenDataService` | Nominatim | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`. The app no longer calls Overpass or Wikidata at runtime. |
+| `modules/google/` | Google Places (New) | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days, never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
 | `modules/share-import/LinkMetadataService` | oEmbed, Open Graph of user-shared links | Blocks non-public IPs on every redirect, at most 5 redirects / 5 s / 1 MB. |
-| `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, the `findPlaces` fallback, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) power the v2 places API. Gemini models are created in `src/chat-models/`. |
+| `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) find a region's places in web articles. Gemini models are created in `src/chat-models/`. |
 
-### Places: two pipelines
-- **v1, `GET /regions/:id/places`, OSM-based, no AI.**
-  1. The region search (`modules/regions`) folds diacritics (`searchKey`) and uses pg_trgm. With `online=1` it also queries Nominatim and imports the results.
-  2. Provinces before and after the July 2025 merger are seeded on boot by `RegionSeeder` from `regions/seed/vietnam-admin.ts`.
-  3. Each region's area is a **bounding box** (`RegionAreaService.ensure`), not a polygon.
-  4. Places are fetched from Overpass by that bbox, classified by OSM tags (`osm-place-mapping.ts`), scored deterministically (`place-scoring.ts`), stored in `places`, and paginated with a cursor.
-  5. If OSM fails and nothing is cached, it falls back to Gemini + Google Maps (`source: 'ai_google_maps'`, `id: null`, not stored).
-  6. Only a region that has never been fetched blocks the request, and for at most 15 s (then it falls back and keeps loading in the background); a stale one is served from `places` and refreshed in the background. When every Overpass mirror fails, `OpenDataService` fails fast for 3 minutes instead of retrying the whole mirror list on each request. With `PLACES_WARMUP=true`, `PlacesWarmer` pre-builds the catalog for seeded destinations and provinces (30 s after boot, then every 6 h). Keep it off for e2e.
-- **v2, `GET /v2/regions/:id/places`, web search + Gemini.** `places-v2.service.ts` asks `PlaceSearchService` for places named in web articles: three fixed Tavily queries run in parallel, then one Gemini structured-output call with `thinkingLevel: 'LOW'`. Only when they return fewer than 3 articles does it fall back to a LangChain agent (`createAgent` + the `search_web` tool, max 3 searches) that gets the articles found so far and searches with its own queries.
-  1. Every place is kept only if a source article actually mentions it (`web-grounding.ts`).
-  2. Each place is matched to the catalog by name similarity, or geocoded with Google (coordinates cached in memory for up to 30 days).
-  3. Results are cached in memory for 6 hours. Publication dates (≤ 1.5 s) and a missing region bbox (≤ 3 s) are not waited on past their budget; they finish in the background and fill the cached result.
-  4. Without a `TAVILY_API_KEY` it returns 503.
+### Places: one list per region, from web articles
+- **Regions.** The region search (`modules/regions`) folds diacritics (`searchKey`) and uses pg_trgm; with `online=1` it also queries Nominatim and imports the results. Provinces before and after the July 2025 merger are seeded on boot by `RegionSeeder` from `regions/seed/vietnam-admin.ts`, with their **bounding boxes** from `regions/seed/province-bboxes.ts` (generated once by `scripts/generate-province-bboxes.ts` from OSM, committed; merged provinces get the union of their parts). A region's area is a bbox, not a polygon (`RegionAreaService.ensure` fills in the rest without Overpass).
+- **`GET /regions/:id/places`** (`places/web-places.service.ts`) reads the region's stored list (`region_place_lists` + `region_places`, ordered by `rank`, no paging). A region with no list runs the pipeline and waits at most `WEB_PLACES_WAIT_MS` (25 s), then returns `status: 'building'` while it keeps going (the client polls); concurrent requests share one run. A list older than `WEB_PLACES_REFRESH_DAYS` (30) is served and refreshed in the background, keeping the old one if the refresh fails. Nothing and a failed pipeline → 503 `PLACES_UNAVAILABLE` (also without `TAVILY_API_KEY`).
+- **Pipeline:** `PlaceSearchService` runs four fixed Tavily queries in parallel and one Gemini structured-output call (`thinkingLevel: 'LOW'`); fewer than 3 articles → a LangChain agent (`createAgent` + `search_web`, max 3 searches). A place is kept only if an article mentions it (`web-grounding.ts`). Each is matched with `GooglePlacesService.findPlace` inside the region bbox (`web-place-match.ts`: name similarity ≥ `MATCH_MIN_SIMILARITY`, no category conflict); unmatched places keep the AI's coordinates if they fall inside the region. `RegionPlaceStore` saves them as `places.source = 'web'` rows with `location_source` `google` (30-day coordinates) or `ai` (shown as "Vị trí gần đúng").
 
-- **Place search** (`GET /regions/:id/places/search`, `GET /places/google/:googlePlaceId`, `POST /places/google`): catalog matches while typing, Google Text Search only on submit (per-user daily limit, `PLACE_SEARCH_DAILY_LIMIT`), Google results previewed live (Google calls for preview/save have their own per-user limit, `PLACE_DETAILS_DAILY_LIMIT`) and saved as `source = 'google'` rows named by the user.
+- **Place search** (`GET /regions/:id/places/search`, `GET /places/google/:googlePlaceId`, `POST /places/google`): matches against `web` rows while typing, Google Text Search only on submit (per-user daily limit, `PLACE_SEARCH_DAILY_LIMIT`), Google results previewed live (Google calls for preview/save have their own per-user limit, `PLACE_DETAILS_DAILY_LIMIT`) and saved as `source = 'google'` rows named by the user (`addToSaved: false` returns the id without adding it to "Muốn đi", for adding a place while planning).
 
 `src/modules/README.md` is the module map and documents these flows and the deliberate PRD deviations. Update it when module responsibilities change.
 
 ### Itineraries (F6, F8, F9)
 `modules/itineraries` creates a plan in four steps:
 
-1. Candidates: the user's selected places plus extras from the catalog.
+1. Candidates: the user's selected places plus extras from the region's list (`region_places`).
 2. k-means clusters the candidates into days (`planning/clustering.ts`).
 3. Gemini orders the stops (`ai-planner.ts`), and the result is fully re-validated. The AI may only use IDs it was sent, because every itinerary place must exist in the database (FR-6.3).
 4. Code sets the times (`planning/scheduler.ts`): meals, rest breaks, opening hours and estimated travel (`travel.ts`; no Google Routes yet).
@@ -117,9 +107,9 @@ Other behavior:
 `modules/saved-places` is the per-user "Muốn đi" list. `ranking/` and `realtime/` are placeholders for later PRD features.
 
 ### Share-to-app (F4)
-`modules/share-import`: `POST /share-imports` takes a shared link or text and returns 202; a background job fetches metadata (`LinkMetadataService`), extracts places with Gemini, and matches each one to the catalog or Google. The client polls `GET /share-imports/:id` and saves the user's picks with `POST /share-imports/:id/save`. Jobs cap at 30 s; interrupted ones are marked `INTERRUPTED`.
+`modules/share-import`: `POST /share-imports` takes a shared link or text and returns 202; a background job fetches metadata (`LinkMetadataService`), extracts places with Gemini, and matches each one to a `web` place or Google. The client polls `GET /share-imports/:id` and saves the user's picks with `POST /share-imports/:id/save`. Jobs cap at 30 s; interrupted ones are marked `INTERRUPTED`.
 
-`places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days). They are never ranked: every catalog query that lists, ranks or suggests must filter `p.source = 'osm'`. Call `PlaceLocationService.ensure` before using a Google place's coordinates.
+`places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days) and legacy `source = 'osm'` rows (kept because saved places and old itineraries reference them, never listed). Google rows are never ranked: anything that lists or suggests places reads the region's `region_places`, never `places` by bbox. Call `PlaceLocationService.ensure` before using Google coordinates (`location_source = 'google'`).
 
 ## Deploy
 - `apps/backend/Dockerfile` builds from the repo root.
