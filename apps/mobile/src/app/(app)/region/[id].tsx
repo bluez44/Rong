@@ -21,7 +21,7 @@ import { SearchField } from '@/components/ui/search-field';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { usePlaceSearch } from '@/hooks/use-place-search';
-import { useRegionPlaces, type PlacesApi } from '@/hooks/use-region-places';
+import { useRegionPlaces } from '@/hooks/use-region-places';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 import { formatFullDate } from '@/lib/trip-format';
@@ -35,12 +35,7 @@ export default function RegionScreen() {
   const center = params.lat && params.lng ? { lat: Number(params.lat), lng: Number(params.lng) } : null;
 
   const [categories, setCategories] = useState<PlaceCategory[]>([]);
-  // Danh mục OSM (dựng sẵn ở backend) là danh sách chính. Gợi ý AI từ bài viết
-  // tải song song ở tab riêng, nên không bắt người dùng chờ AI mới thấy địa điểm.
-  const [api, setApi] = useState<PlacesApi>('v1');
-  const catalog = useRegionPlaces(params.id, categories, 'v1');
-  const articles = useRegionPlaces(params.id, categories, 'v2');
-  const places = api === 'v1' ? catalog : articles;
+  const places = useRegionPlaces(params.id, categories);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   // Mở màn thì sheet thu gọn để thấy bản đồ; chọn marker hay kéo lên mới mở danh sách.
   const [detent, setDetent] = useState<SheetDetent>('collapsed');
@@ -80,7 +75,6 @@ export default function RegionScreen() {
     });
 
   const tripAction = (place: PlaceListItem) => {
-    // Mục AI không khớp danh mục thì không có id nên không đưa vào lịch trình được (FR-6.3).
     if (!place.id) return undefined;
     const item = { id: place.id, name: place.name, category: place.category };
     return place.category === 'stay'
@@ -88,7 +82,6 @@ export default function RegionScreen() {
       : { active: draft.places.some((p) => p.id === place.id), onPress: () => tripDraft.togglePlace(params.id, item) };
   };
 
-  // Như lịch trình: chỉ lưu được địa điểm có trong danh mục (FR-9.2 mở F6 bằng danh sách này).
   const saveAction = (place: PlaceListItem) =>
     place.id
       ? {
@@ -97,21 +90,18 @@ export default function RegionScreen() {
         }
       : undefined;
 
-  // Lịch trình chỉ dùng được địa điểm có trong danh mục (FR-6.3): chưa tìm thấy
-  // điểm nào như vậy ở cả hai nguồn thì chưa cho lập.
-  const canPlan = catalog.items.length > 0 || articles.items.some((p) => p.id);
+  // Mọi mục trong danh sách của vùng đều có id nên dùng được cho lịch trình (FR-6.3).
+  const canPlan = places.items.length > 0;
   const planTrip = () => {
     if (canPlan) router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
   };
 
-  const count = places.status === 'loading' ? 'Đang tải địa điểm…' : `${places.items.length}${places.nextCursor ? '+' : ''} địa điểm`;
-
-  const switchApi = (next: PlacesApi) => {
-    if (next === api) return;
-    setApi(next);
-    setSelectedKey(null);
-    list.current?.scrollToOffset({ offset: 0, animated: false });
-  };
+  const count =
+    places.status === 'loading'
+      ? 'Đang tải địa điểm…'
+      : places.status === 'building'
+        ? 'Đang tổng hợp…'
+        : `${places.items.length} địa điểm`;
 
   return (
     <View style={styles.screen}>
@@ -173,18 +163,12 @@ export default function RegionScreen() {
               />
             </View>
             {searching ? null : (
-              <>
-              <View style={styles.sources}>
-                <Chip label="Danh mục" icon="layers" selected={api === 'v1'} onPress={() => switchApi('v1')} />
-                <Chip label="Từ bài viết" icon="sparkles" selected={api === 'v2'} onPress={() => switchApi('v2')} />
-              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
                 <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
                 {CATEGORIES.map((c) => (
                   <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={categories.includes(c)} onPress={() => toggle(c)} />
                 ))}
               </ScrollView>
-              </>
             )}
           </View>
         }>
@@ -202,17 +186,14 @@ export default function RegionScreen() {
                 place={item}
                 selected={placeKey(item) === selectedKey}
                 onPress={() => selectFromList(item)}
-                // Mục AI không khớp danh mục thì không có màn chi tiết.
                 onOpenDetail={item.id ? () => openDetail(item) : undefined}
                 tripAction={tripAction(item)}
                 saveAction={saveAction(item)}
               />
             )}
-            onEndReached={places.loadMore}
-            onEndReachedThreshold={0.5}
             onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
             contentContainerStyle={styles.listContent}
-            ListEmptyComponent={<ListStatus places={places} api={api} />}
+            ListEmptyComponent={<ListStatus places={places} />}
             ListFooterComponent={places.items.length > 0 ? <ListFooter places={places} /> : null}
           />
         )}
@@ -224,17 +205,21 @@ export default function RegionScreen() {
 type Places = ReturnType<typeof useRegionPlaces>;
 
 /** Trạng thái khi chưa có dòng nào: đang tải lần đầu, lỗi, hoặc bộ lọc rỗng. */
-function ListStatus({ places, api }: { places: Places; api: PlacesApi }) {
+function ListStatus({ places }: { places: Places }) {
   if (places.status === 'loading') {
     return (
       <View style={styles.status}>
         <ActivityIndicator color={Colors.light.primary} />
-        {/* v2: AI tìm và đọc bài viết; lần đầu mỗi vùng mới chạy thật, sau đó backend giữ kết quả vài giờ.
-            v1: vùng đã dựng sẵn thì gần như tức thì; vùng chưa từng mở thì backend phải tải từ OSM. */}
+        <Text style={styles.hint}>Đang tải địa điểm…</Text>
+      </View>
+    );
+  }
+  if (places.status === 'building') {
+    return (
+      <View style={styles.status}>
+        <ActivityIndicator color={Colors.light.primary} />
         <Text style={styles.hint}>
-          {api === 'v2'
-            ? 'AI đang tìm địa điểm từ các bài viết về vùng này. Lần đầu có thể mất 10–20 giây.'
-            : 'Đang tải danh mục địa điểm của vùng này…'}
+          Đang tổng hợp địa điểm từ các bài viết về vùng này. Lần đầu mất 10–30 giây, những lần sau mở ngay.
         </Text>
       </View>
     );
@@ -251,7 +236,6 @@ function ListStatus({ places, api }: { places: Places; api: PlacesApi }) {
 function ListFooter({ places }: { places: Places }) {
   return (
     <View style={styles.footer}>
-      {places.status === 'loadingMore' ? <ActivityIndicator color={Colors.light.primary} /> : null}
       {places.status === 'error' && places.error ? <ErrorNotice places={places} /> : null}
       <Attribution places={places} />
     </View>
@@ -268,16 +252,13 @@ function ErrorNotice({ places }: { places: Places }) {
   );
 }
 
-/**
- * Ghi công nguồn: bắt buộc theo ODbL, theo chính sách Google khi dùng kết quả
- * dự phòng, và các bài viết mà AI dựa vào (kèm ngày đăng) với API v2.
- */
+/** Ghi công nguồn: Google Maps (vị trí) và các bài viết mà danh sách dựa vào (kèm ngày đăng). */
 function Attribution({ places }: { places: Places }) {
   if (!places.attribution) return null;
   return (
     <View style={styles.attribution}>
-      <Text style={styles.attributionText}>{places.source === 'ai_google_maps' ? 'Google Maps' : places.attribution}</Text>
-      {places.groundingSources.map((s) => (
+      <Text style={styles.attributionText}>{places.attribution}</Text>
+      {places.sources.map((s) => (
         <Text key={s.uri} style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(s.uri)}>
           {s.title}
           {s.publishedAt ? <Text style={styles.attributionText}>{` · ${formatFullDate(s.publishedAt)}`}</Text> : null}
@@ -306,7 +287,6 @@ const styles = StyleSheet.create({
   title: { ...Type.title2, color: Colors.light.text },
   count: { ...Type.subhead, color: Colors.light.textSecondary },
   searchRow: { paddingHorizontal: Spacing.five },
-  sources: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.five },
   chips: { gap: Spacing.two, paddingHorizontal: Spacing.five },
   listContent: { padding: Spacing.two, paddingBottom: Spacing.eight },
   status: { padding: Spacing.four, gap: Spacing.two, alignItems: 'flex-start' },

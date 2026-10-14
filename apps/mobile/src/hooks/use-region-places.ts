@@ -1,97 +1,77 @@
-import type { PlaceCategory, PlaceListItem, PlacesPage } from '@rong/shared-types';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ArticleSource, PlaceCategory, PlaceListItem, PlacesPage } from '@rong/shared-types';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/lib/api';
 
-const PAGE_SIZE = 20;
-
-/**
- * - `v1`: danh mục OSM do backend dựng sẵn, phân trang, mọi mục có id. Danh
- *   sách chính của màn vùng.
- * - `v2`: AI tìm web và đọc bài viết (chậm ở lần đầu mỗi vùng), một trang
- *   duy nhất, mỗi mục kèm bài viết nguồn. Không có nơi lưu trú.
- */
-export type PlacesApi = 'v1' | 'v2';
+/** Vùng chưa có danh sách thì backend trả `building`: hỏi lại sau chừng này. */
+const BUILDING_RETRY_MS = 3000;
 
 export type RegionPlacesState = {
-  /** `loading`: trang đầu; `loadingMore`: trang tiếp theo. */
-  status: 'loading' | 'loadingMore' | 'done' | 'error';
+  /** `building`: backend đang tổng hợp lần đầu cho vùng này (10–30 giây). */
+  status: 'loading' | 'building' | 'done' | 'error';
   items: PlaceListItem[];
-  nextCursor: string | null;
+  /** Các bài viết mà danh sách dựa vào. */
+  sources: ArticleSource[];
   attribution: string | null;
-  source: PlacesPage['source'] | null;
-  groundingSources: NonNullable<PlacesPage['groundingSources']>;
   error: ApiError | null;
 };
 
-const INITIAL: RegionPlacesState = {
-  status: 'loading',
-  items: [],
-  nextCursor: null,
-  attribution: null,
-  source: null,
-  groundingSources: [],
-  error: null,
-};
+const INITIAL: RegionPlacesState = { status: 'loading', items: [], sources: [], attribution: null, error: null };
 
 /**
- * Danh sách địa điểm của vùng, phân trang theo con trỏ (v1). Đổi bộ lọc danh
- * mục thì tải lại từ đầu. Mảng rỗng nghĩa là "Tất cả" (backend tự bỏ Lưu trú).
+ * Địa điểm của vùng, tổng hợp từ bài viết và định vị bằng Google. Mọi mục có
+ * id nên chọn được vào lịch trình. Mảng danh mục rỗng nghĩa là "Tất cả"
+ * (backend tự bỏ Lưu trú).
  */
-export function useRegionPlaces(regionId: string, categories: PlaceCategory[], api: PlacesApi = 'v1') {
+export function useRegionPlaces(regionId: string, categories: PlaceCategory[]) {
   const { authFetch } = useAuth();
   const [state, setState] = useState<RegionPlacesState>(INITIAL);
-  // Đổi bộ lọc giữa chừng thì bỏ phản hồi của bộ lọc cũ.
-  const latest = useRef(0);
+  // Tăng lên để tải lại (nút "Thử lại").
+  const [attempt, setAttempt] = useState(0);
   const filter = categories.join(',');
 
-  const fetchPage = useCallback(
-    async (cursor: string | null) => {
-      const id = ++latest.current;
-      setState((prev) =>
-        cursor ? { ...prev, status: 'loadingMore', error: null } : { ...INITIAL, status: 'loading' },
-      );
+  useEffect(() => {
+    // Đổi bộ lọc giữa chừng thì bỏ phản hồi của bộ lọc cũ.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const load = async () => {
       try {
         const params = new URLSearchParams();
-        if (api === 'v1') params.set('limit', String(PAGE_SIZE));
         if (filter) params.set('categories', filter);
-        if (cursor) params.set('cursor', cursor);
-        const path = api === 'v2' ? `/v2/regions/${regionId}/places` : `/regions/${regionId}/places`;
-        const page = await authFetch<PlacesPage>(`${path}?${params}`);
-        if (id !== latest.current) return;
-        setState((prev) => ({
+        const page = await authFetch<PlacesPage>(`/regions/${regionId}/places?${params}`);
+        if (cancelled) return;
+        if (page.status === 'building') {
+          setState({ ...INITIAL, status: 'building' });
+          timer = setTimeout(load, BUILDING_RETRY_MS);
+          return;
+        }
+        setState({
           status: 'done',
-          items: cursor ? [...prev.items, ...page.items] : page.items,
-          nextCursor: page.nextCursor,
+          items: page.items,
+          sources: page.sources ?? [],
           attribution: page.attribution,
-          source: page.source,
-          groundingSources: page.groundingSources ?? [],
           error: null,
-        }));
+        });
       } catch (error) {
-        if (id !== latest.current) return;
-        const apiError = error instanceof ApiError ? error : new ApiError(0, 'UNKNOWN', 'Có lỗi không mong muốn. Thử lại sau.');
+        if (cancelled) return;
+        const apiError =
+          error instanceof ApiError ? error : new ApiError(0, 'UNKNOWN', 'Có lỗi không mong muốn. Thử lại sau.');
         setState((prev) => ({ ...prev, status: 'error', error: apiError }));
       }
-    },
-    [authFetch, regionId, filter, api],
-  );
+    };
 
-  useEffect(() => {
-    // Bộ lọc đổi thì bỏ dữ liệu cũ và tải lại từ trang đầu.
+    // Bộ lọc đổi thì bỏ dữ liệu cũ và tải lại.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchPage(null);
-  }, [fetchPage]);
+    setState(INITIAL);
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [authFetch, regionId, filter, attempt]);
 
-  const loadMore = useCallback(() => {
-    if (state.status === 'done' && state.nextCursor) fetchPage(state.nextCursor);
-  }, [fetchPage, state.status, state.nextCursor]);
-
-  // Lỗi ở trang sau thì thử lại đúng trang đó, không tải lại từ đầu.
-  const retry = useCallback(() => {
-    fetchPage(state.items.length > 0 ? state.nextCursor : null);
-  }, [fetchPage, state.items.length, state.nextCursor]);
-
-  return { ...state, loadMore, retry };
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  return { ...state, retry };
 }
