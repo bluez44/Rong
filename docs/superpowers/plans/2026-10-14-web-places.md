@@ -2591,7 +2591,7 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 6 | xong | 8788f7d | e2e lịch trình chỉ xóa dòng `E2E it %` của Đà Lạt; test locationSource kiểm mọi điểm thăm (`ga` có thể rơi vào "Chưa xếp") |
 | 7 | xong | 1831970 | `google-category.ts` giữ ở `places/` (không có vòng import); `getDetail` bỏ hẳn ghép theo tên nên `GooglePlacesService.matchPlaceId` không còn chỗ gọi — gỡ ở Task 9; thêm e2e chi tiết dòng web |
 | 8 | xong | 82f562e | tỉnh cũ lấy từ relation `boundary=historic` (`was:admin_level=4`, tên "X"/"X cũ"/"X (cũ)") trên dữ liệu hiện tại, không cần truy vấn `[date:]` (máy Overpass hết giờ/không hỗ trợ). Khung Khánh Hòa cũ gồm cả Trường Sa (5,2°×6,2°), giống pipeline cũ. Trong cloud cần `NODE_USE_ENV_PROXY=1` để `fetch` của Node đi qua proxy |
-| 9 | đang làm | | |
+| 9 | xong | 8fa5ee1 | gỡ thêm `geocode` + `GOOGLE_GEOCODING_URL` và `LangchainService.findPlaces` (không còn chỗ gọi); e2e thêm lịch trình tham chiếu dòng osm; `modules/README.md` vốn lệch prettier nên giữ nguyên style |
 | 10 | xong | 23b6fb4 | hook thử lại trong `useEffect` (lint cấm `useCallback` tự gọi lại); chưa chạy trên thiết bị |
 | 11 | xong | bbfaee3 | marker AI: viền nét đứt màu `warning`; chưa chạy trên thiết bị |
 | 12 | xong | ec5c93f | chưa chạy trên thiết bị |
