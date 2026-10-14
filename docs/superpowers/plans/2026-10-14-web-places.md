@@ -2588,7 +2588,8 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 3 | xong | a2053c0 | |
 | 4 | xong | 48c5511 | |
 | 5 | xong | e8931d9 | xóa luôn `ai-fallback.*`, `places-source`/`places-speed` e2e và script `test:speed` (chỉ kiểm thử pipeline cũ) |
-| 6 | đang làm | | |
+| 6 | xong | 8788f7d | e2e lịch trình chỉ xóa dòng `E2E it %` của Đà Lạt; test locationSource kiểm mọi điểm thăm (`ga` có thể rơi vào "Chưa xếp") |
+| 7 | đang làm | | |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
