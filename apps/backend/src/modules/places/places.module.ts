@@ -24,6 +24,7 @@ import {
 } from './places.controller.js';
 import { PlacesWarmer } from './places-warmer.js';
 import { PlacesService } from './places.service.js';
+import { RegionPlaceStore } from './region-place-store.js';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { PlacesService } from './places.service.js';
     GoogleLocationJanitor,
     GooglePlaceRowsService,
     PlaceSearchService,
+    RegionPlaceStore,
     {
       provide: PLACE_SEARCH_CONFIG,
       inject: [ConfigService],
@@ -50,6 +52,6 @@ import { PlacesService } from './places.service.js';
         config.getOrThrow<AppConfig['placeSearch']>('placeSearch'),
     },
   ],
-  exports: [PlaceLocationService, GooglePlaceRowsService],
+  exports: [PlaceLocationService, GooglePlaceRowsService, RegionPlaceStore],
 })
 export class PlacesModule {}
