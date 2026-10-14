@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { NestedReorderableList, useReorderableDrag } from 'react-native-reorderable-list';
 
 import { useAuth } from '@/auth/auth-context';
+import { PlacePicker } from '@/components/place-picker';
 import { ActionSheet, type SheetAction } from '@/components/ui/action-sheet';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Button } from '@/components/ui/button';
@@ -419,7 +420,12 @@ function AddPlace({ itinerary, regionName, onPick }: { itinerary: Itinerary; reg
             `Chưa lưu địa điểm nào ở ${regionName} vào "Muốn đi".`,
           )
         : null}
-      {source === 'region' ? <RegionOptions regionId={itinerary.regionId} exclude={inTrip} onPick={onPick} /> : null}
+      {source === 'region' ? (
+        <>
+          <PlacePicker regionId={itinerary.regionId} exclude={inTrip} onPick={onPick} />
+          <RegionOptions regionId={itinerary.regionId} exclude={inTrip} onPick={onPick} />
+        </>
+      ) : null}
     </View>
   );
 }

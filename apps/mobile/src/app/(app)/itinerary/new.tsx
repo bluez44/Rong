@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { Glass } from '@/components/glass';
+import { PlacePicker } from '@/components/place-picker';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -160,6 +161,11 @@ export default function NewItineraryScreen() {
           {draft.places.map((place) => (
             <SelectedPlace key={place.id} place={place} onRemove={() => tripDraft.togglePlace(regionId, place)} />
           ))}
+          <PlacePicker
+            regionId={regionId}
+            exclude={new Set(draft.places.map((p) => p.id))}
+            onPick={(p) => tripDraft.togglePlace(regionId, p)}
+          />
           <Button label="Chọn thêm trên bản đồ" variant="plain" size="sm" onPress={() => router.back()} style={styles.inlineAction} />
         </Section>
 
