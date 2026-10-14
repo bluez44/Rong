@@ -79,14 +79,14 @@ export interface PlaceListItem {
   /** Link tới bản ghi gốc trên OpenStreetMap — bắt buộc ghi nguồn theo ODbL. */
   sourceUrl: string;
   /**
-   * Chỉ có với `ai_web_search` — tọa độ lấy từ đâu:
-   * - `catalog`: khớp danh mục OSM của app.
-   * - `geocoding`: Google Geocoding API.
-   * - `ai`: không định vị được, tọa độ do AI ước lượng — chỉ nên coi là gần đúng.
+   * Tọa độ lấy từ đâu. Giá trị `catalog` / `geocoding` là của API v2 cũ, bỏ ở
+   * bản sau; danh sách mới chỉ trả `google` hoặc `ai`.
    */
-  locationSource?: 'catalog' | 'geocoding' | 'ai';
-  /** Chỉ có với `ai_web_search`: các bài viết có nhắc tới địa điểm này. */
+  locationSource?: LocationSource | 'catalog' | 'geocoding';
+  /** Các bài viết có nhắc tới địa điểm này. */
   articles?: ArticleSource[];
+  /** Có khi đã ghép được với Google Places. */
+  googlePlaceId?: string | null;
 }
 
 /** Bài viết trên web mà kết quả AI dựa vào. */
@@ -96,6 +96,14 @@ export interface ArticleSource {
   /** Thời điểm đăng bài (ISO 8601), null nếu trang không ghi. */
   publishedAt: string | null;
 }
+
+/**
+ * Tọa độ của một địa điểm lấy từ đâu:
+ * - `google`: ghép được với Google Places (hạn 30 ngày, PRD 7.4).
+ * - `ai`: không tìm thấy trên Google Maps; AI ước đoán từ bài viết — chỉ gần đúng.
+ * - `osm`: dòng danh mục OSM cũ (không còn được liệt kê).
+ */
+export type LocationSource = 'google' | 'ai' | 'osm';
 
 export interface GoogleAuthorAttribution {
   name: string;
@@ -155,6 +163,8 @@ export interface GooglePlaceHit {
   googlePlaceId: string;
   name: string | null;
   address: string | null;
+  /** Loại gợi ý từ `primaryType` của Google — chỉ để điền sẵn, không lưu. */
+  suggestedCategory: PlaceCategory;
 }
 
 export interface PlaceSearchResponse {
@@ -182,6 +192,8 @@ export interface SaveGooglePlaceRequest {
   name: string;
   category: PlaceCategory;
   regionId: string;
+  /** false: chỉ tạo/lấy địa điểm để đưa vào lịch trình, không thêm vào "Muốn đi". Mặc định true. */
+  addToSaved?: boolean;
 }
 
 export interface SaveGooglePlaceResponse {
@@ -202,20 +214,22 @@ export type GoogleContentStatus = 'ok' | 'not_found' | 'unavailable';
  * - `ai_web_search`: API v2 — Gemini tìm web và đọc bài viết, một trang duy
  *   nhất. `groundingSources` là các bài viết đã dùng.
  */
-export type PlaceListSource = 'catalog' | 'ai_google_maps' | 'ai_web_search';
+/**
+ * - `web`: tổng hợp từ bài viết trên web (AI), định vị bằng Google Places.
+ * Các giá trị còn lại thuộc pipeline cũ, bỏ ở bản sau.
+ */
+export type PlaceListSource = 'web' | 'catalog' | 'ai_google_maps' | 'ai_web_search';
 
 export interface PlacesPage {
+  /** `building`: vùng chưa có danh sách và đang tổng hợp — hỏi lại sau vài giây. */
+  status?: 'ready' | 'building';
   items: PlaceListItem[];
   nextCursor: string | null;
   attribution: string;
   source: PlaceListSource;
-  /** Chỉ có với nguồn AI: các nguồn (Google Maps hoặc bài viết) mà câu trả lời dựa vào. */
-  groundingSources?: Array<{
-    title: string;
-    uri: string;
-    /** Chỉ có với `ai_web_search`: thời điểm đăng bài (ISO 8601), null nếu không rõ. */
-    publishedAt?: string | null;
-  }>;
+  /** Các bài viết mà danh sách dựa vào. */
+  sources?: ArticleSource[];
+  groundingSources?: Array<{ title: string; uri: string; publishedAt?: string | null }>;
 }
 
 /** Màn hình chi tiết địa điểm — F5. */
