@@ -2591,7 +2591,9 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 6 | xong | 8788f7d | e2e lịch trình chỉ xóa dòng `E2E it %` của Đà Lạt; test locationSource kiểm mọi điểm thăm (`ga` có thể rơi vào "Chưa xếp") |
 | 7 | xong | 1831970 | `google-category.ts` giữ ở `places/` (không có vòng import); `getDetail` bỏ hẳn ghép theo tên nên `GooglePlacesService.matchPlaceId` không còn chỗ gọi — gỡ ở Task 9; thêm e2e chi tiết dòng web |
 | 8 | **chờ** | fb160db (Step 1) | Step 2 cần mạng tới Overpass/Nominatim; môi trường cloud chặn (proxy 403). Chạy `cd apps/backend && npx tsx scripts/generate-province-bboxes.ts` ở máy có mạng, rồi làm tiếp Step 3–6. Task 9 phụ thuộc Task 8 (gỡ Overpass, tài liệu) |
-| 10 | đang làm | | |
+| 10 | xong | 23b6fb4 | hook thử lại trong `useEffect` (lint cấm `useCallback` tự gọi lại); chưa chạy trên thiết bị |
+| 11 | xong | bbfaee3 | marker AI: viền nét đứt màu `warning`; chưa chạy trên thiết bị |
+| 12 | xong | ec5c93f | chưa chạy trên thiết bị |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
