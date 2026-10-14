@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
+  ArticleSource,
   GoogleContentStatus,
   GooglePlaceContent,
   LocationSource,
@@ -28,19 +29,21 @@ const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
   web: 'Tổng hợp từ bài viết (AI) · Google Maps',
 };
 
-interface PlaceRow {
+interface DetailRow {
   id: string;
   name: string;
   category: PlaceCategory;
   lat: number;
   lng: number;
-  composite_score: number;
   description: string | null;
   opening_hours: string | null;
   website: string | null;
-  wikidata_id: string | null;
-  osm_type: string;
-  osm_id: string;
+  osm_type: string | null;
+  osm_id: string | null;
+  google_place_id: string | null;
+  source: 'osm' | 'google' | 'web';
+  location_source: LocationSource;
+  articles: ArticleSource[] | null;
 }
 
 @Injectable()
@@ -70,10 +73,13 @@ export class PlacesService {
     }
     const [row] = (await this.db.query(
       `SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
-              p.composite_score, p.description, p.wikidata_id, p.osm_type, p.osm_id,
+              p.description, p.osm_type, p.osm_id,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
-              p.google_place_id, p.source, p.location_source
+              p.google_place_id, p.source, p.location_source,
+              -- Bài viết nguồn: từ danh sách của vùng có địa điểm này (hạng cao nhất).
+              (SELECT rp.articles FROM region_places rp WHERE rp.place_id = p.id
+                ORDER BY rp.rank LIMIT 1) AS articles
          FROM places p WHERE p.id = $1`,
       [id],
     )) as DetailRow[];
@@ -103,7 +109,6 @@ export class PlacesService {
     return {
       ...item,
       id: row.id,
-      locationSource: row.location_source,
       attribution: ATTRIBUTIONS[row.source],
       googleStatus: status,
       google: content,
@@ -137,24 +142,19 @@ export class PlacesService {
   }
 }
 
-interface DetailRow extends PlaceRow {
-  google_place_id: string | null;
-  source: 'osm' | 'google' | 'web';
-  location_source: LocationSource;
-}
-
-function toListItem(row: PlaceRow): PlaceListItem {
+function toListItem(row: DetailRow): PlaceListItem {
   return {
     id: row.id,
     name: row.name,
     category: row.category,
     coordinates: { lat: row.lat, lng: row.lng },
-    compositeScore: row.composite_score,
     description: row.description,
     openingHours: row.opening_hours,
     website: row.website,
-    wikidataId: row.wikidata_id,
     hours: hoursToday(row.opening_hours),
+    // Dòng OSM cũ: link bản ghi gốc (ODbL). Dòng web/google được đặt link Google Maps ở getDetail.
     sourceUrl: `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}`,
+    locationSource: row.location_source,
+    articles: row.articles ?? [],
   };
 }

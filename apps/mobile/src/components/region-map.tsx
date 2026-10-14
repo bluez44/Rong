@@ -69,9 +69,10 @@ export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomI
     map.current?.animateCamera({ center: { latitude: selected.coordinates.lat, longitude: selected.coordinates.lng } }, { duration: 350 });
   }, [selected]);
 
-  // Chỉ vẽ tối đa 5 điểm cao nhất trong khung nhìn (FR-2.1), luôn kèm điểm đang chọn.
+  // Chỉ vẽ tối đa 5 điểm xếp hạng cao nhất trong khung nhìn (FR-2.1; danh sách đã theo
+  // thứ hạng), luôn kèm điểm đang chọn.
   const inView = visible ? places.filter((p) => contains(visible, p)) : places;
-  const markers = [...inView].sort((a, b) => b.compositeScore - a.compositeScore).slice(0, MAX_MAP_MARKERS);
+  const markers = inView.slice(0, MAX_MAP_MARKERS);
   if (selected && !markers.includes(selected)) markers.push(selected);
 
   return (

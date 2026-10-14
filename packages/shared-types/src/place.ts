@@ -4,8 +4,8 @@ import type { SharePlatform } from './share-import';
  * Địa điểm — PRD mục 7.2 (Place), F2, F3, F5.
  *
  * QUAN TRỌNG: không lưu rating, số đánh giá, giờ mở cửa, ảnh hay đánh giá lấy
- * từ Google (mục 7.4, nguyên tắc 2). Tên và tọa độ trong danh mục riêng phải
- * đến từ nguồn không phải Google (OSM, curate).
+ * từ Google (mục 7.4, nguyên tắc 2). Tên địa điểm lấy từ bài viết (hoặc người
+ * dùng đặt); tọa độ Google chỉ giữ ≤ 30 ngày.
  */
 export type PlaceCategory =
   | 'check_in'
@@ -56,35 +56,26 @@ export interface Place {
 
 /** Một mục trong danh sách địa điểm của vùng (bottom sheet — FR-2.9, FR-2.10). */
 export interface PlaceListItem {
-  /**
-   * null với kết quả dự phòng từ AI (`source: 'ai_google_maps'`): không nằm
-   * trong danh mục nên không có màn hình chi tiết `GET /places/:id`.
-   */
-  id: string | null;
+  id: string;
   name: string;
   category: PlaceCategory;
   coordinates: Coordinates;
-  compositeScore: number;
-  /** Mô tả ngắn (Wikidata), null nếu không có. */
+  /** Mô tả ngắn từ bài viết, null nếu không có. */
   description: string | null;
-  /** Chuỗi opening_hours thô theo cú pháp OSM, ví dụ "Mo-Su 07:00-17:00". */
+  /** Giờ mở cửa thô theo cú pháp opening_hours, ví dụ "07:00-17:00". */
   openingHours: string | null;
   /**
-   * Giờ mở cửa hôm nay tính từ `openingHours` theo giờ Việt Nam. null nếu OSM
-   * không có giờ; `openNow`/`today` null nếu cú pháp quá phức tạp để đọc chắc chắn.
+   * Giờ mở cửa hôm nay tính từ `openingHours` theo giờ Việt Nam. null nếu không
+   * có giờ; `openNow`/`today` null nếu cú pháp quá phức tạp để đọc chắc chắn.
    */
   hours: { openNow: boolean | null; today: string | null } | null;
   website: string | null;
-  wikidataId: string | null;
-  /** Link tới bản ghi gốc trên OpenStreetMap — bắt buộc ghi nguồn theo ODbL. */
+  /** Link mở địa điểm trên Google Maps. */
   sourceUrl: string;
-  /**
-   * Tọa độ lấy từ đâu. Giá trị `catalog` / `geocoding` là của API v2 cũ, bỏ ở
-   * bản sau; danh sách mới chỉ trả `google` hoặc `ai`.
-   */
-  locationSource?: LocationSource | 'catalog' | 'geocoding';
-  /** Các bài viết có nhắc tới địa điểm này. */
-  articles?: ArticleSource[];
+  /** Tọa độ lấy từ đâu; `ai` là gần đúng ("Vị trí gần đúng"). */
+  locationSource: LocationSource;
+  /** Các bài viết có nhắc tới địa điểm này (rỗng với địa điểm người dùng thêm). */
+  articles: ArticleSource[];
   /** Có khi đã ghép được với Google Places. */
   googlePlaceId?: string | null;
 }
@@ -150,7 +141,7 @@ export interface GooglePlaceContent {
   photos: GooglePhoto[];
 }
 
-/** Kết quả tìm có trong DB (danh mục OSM, hoặc dòng đã có khớp theo place_id). */
+/** Kết quả tìm có trong DB (danh sách của vùng, hoặc dòng đã có khớp theo place_id). */
 export interface PlaceSearchHit {
   id: string;
   name: string;
@@ -207,29 +198,17 @@ export interface SaveGooglePlaceResponse {
  */
 export type GoogleContentStatus = 'ok' | 'not_found' | 'unavailable';
 
-/**
- * - `catalog`: danh mục riêng (OSM + Wikidata), phân trang được.
- * - `ai_google_maps`: dự phòng khi nguồn dữ liệu mở lỗi — Gemini + Google Maps,
- *   một trang duy nhất, không lưu. Phải hiển thị "Google Maps" và `groundingSources`.
- * - `ai_web_search`: API v2 — Gemini tìm web và đọc bài viết, một trang duy
- *   nhất. `groundingSources` là các bài viết đã dùng.
- */
-/**
- * - `web`: tổng hợp từ bài viết trên web (AI), định vị bằng Google Places.
- * Các giá trị còn lại thuộc pipeline cũ, bỏ ở bản sau.
- */
-export type PlaceListSource = 'web' | 'catalog' | 'ai_google_maps' | 'ai_web_search';
+/** `web`: tổng hợp từ bài viết trên web (AI), định vị bằng Google Places. */
+export type PlaceListSource = 'web';
 
 export interface PlacesPage {
   /** `building`: vùng chưa có danh sách và đang tổng hợp — hỏi lại sau vài giây. */
-  status?: 'ready' | 'building';
+  status: 'ready' | 'building';
   items: PlaceListItem[];
-  nextCursor: string | null;
   attribution: string;
   source: PlaceListSource;
   /** Các bài viết mà danh sách dựa vào. */
-  sources?: ArticleSource[];
-  groundingSources?: Array<{ title: string; uri: string; publishedAt?: string | null }>;
+  sources: ArticleSource[];
 }
 
 /** Màn hình chi tiết địa điểm — F5. */

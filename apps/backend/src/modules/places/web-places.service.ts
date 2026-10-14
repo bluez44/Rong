@@ -103,7 +103,6 @@ export class WebPlacesService {
     return {
       status: 'ready',
       items: rows.flatMap((r) => toItem(r, regionName)),
-      nextCursor: null,
       attribution: ATTRIBUTION,
       source: 'web',
       sources: current?.sources ?? [],
@@ -295,12 +294,10 @@ function toItem(row: StoredPlaceRow, regionName: string): PlaceListItem[] {
       name: row.name,
       category: row.category,
       coordinates: { lat: row.lat, lng: row.lng },
-      compositeScore: 0,
       description: row.description,
       openingHours: row.opening_hours,
       hours: hoursToday(row.opening_hours),
       website: null,
-      wikidataId: null,
       sourceUrl: row.google_place_id
         ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
         : `https://www.google.com/maps/search/?api=1&query=${query}`,
@@ -350,7 +347,6 @@ function building(): PlacesPage {
   return {
     status: 'building',
     items: [],
-    nextCursor: null,
     attribution: ATTRIBUTION,
     source: 'web',
     sources: [],

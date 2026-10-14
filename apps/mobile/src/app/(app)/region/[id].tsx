@@ -71,24 +71,20 @@ export default function RegionScreen() {
   const openDetail = (place: PlaceListItem) =>
     router.push({
       pathname: '/place/[id]',
-      params: { id: place.id!, name: place.name, category: place.category, regionId: params.id, regionName },
+      params: { id: place.id, name: place.name, category: place.category, regionId: params.id, regionName },
     });
 
   const tripAction = (place: PlaceListItem) => {
-    if (!place.id) return undefined;
     const item = { id: place.id, name: place.name, category: place.category };
     return place.category === 'stay'
       ? { active: draft.accommodation?.id === place.id, onPress: () => tripDraft.toggleAccommodation(params.id, item) }
       : { active: draft.places.some((p) => p.id === place.id), onPress: () => tripDraft.togglePlace(params.id, item) };
   };
 
-  const saveAction = (place: PlaceListItem) =>
-    place.id
-      ? {
-          active: saved.isSaved(place.id),
-          onPress: () => saved.toggle({ id: place.id!, name: place.name, category: place.category }, { id: params.id, name: regionName }),
-        }
-      : undefined;
+  const saveAction = (place: PlaceListItem) => ({
+    active: saved.isSaved(place.id),
+    onPress: () => saved.toggle({ id: place.id, name: place.name, category: place.category }, { id: params.id, name: regionName }),
+  });
 
   // Mọi mục trong danh sách của vùng đều có id nên dùng được cho lịch trình (FR-6.3).
   const canPlan = places.items.length > 0;
@@ -186,7 +182,7 @@ export default function RegionScreen() {
                 place={item}
                 selected={placeKey(item) === selectedKey}
                 onPress={() => selectFromList(item)}
-                onOpenDetail={item.id ? () => openDetail(item) : undefined}
+                onOpenDetail={() => openDetail(item)}
                 tripAction={tripAction(item)}
                 saveAction={saveAction(item)}
               />

@@ -86,27 +86,22 @@ export default function PlaceDetailScreen() {
   );
 }
 
-/** Điểm Rong và giờ mở cửa hôm nay: dữ liệu riêng của app, không phải của Google. */
+/** Giờ mở cửa hôm nay: dữ liệu riêng của app (giờ trong bài viết), không phải của Google. */
 function Summary({ place }: { place: PlaceDetail }) {
-  const score = Math.round(place.compositeScore);
   const openState = place.hours?.openNow === true ? 'Đang mở' : place.hours?.openNow === false ? 'Đã đóng cửa' : null;
+
+  if (!openState && !place.hours?.today) return null;
 
   return (
     <View style={styles.summary}>
-      <View style={styles.score} accessible accessibilityLabel={`Điểm Rong ${score} trên 100`}>
-        <Text style={styles.scoreValue}>{score}</Text>
-        <Text style={styles.scoreLabel}>điểm Rong</Text>
+      <View style={styles.hoursToday}>
+        <Icon name="clock" size={16} />
+        <Text style={styles.meta}>
+          {openState ? <Text style={{ color: place.hours?.openNow ? Colors.light.primary : Colors.light.danger }}>{openState}</Text> : null}
+          {openState && place.hours?.today ? ' · ' : null}
+          {place.hours?.today}
+        </Text>
       </View>
-      {openState || place.hours?.today ? (
-        <View style={styles.hoursToday}>
-          <Icon name="clock" size={16} />
-          <Text style={styles.meta}>
-            {openState ? <Text style={{ color: place.hours?.openNow ? Colors.light.primary : Colors.light.danger }}>{openState}</Text> : null}
-            {openState && place.hours?.today ? ' · ' : null}
-            {place.hours?.today}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -229,9 +224,6 @@ const styles = StyleSheet.create({
   categoryLabel: { ...Type.subhead, color: Colors.light.primary },
   title: { ...Type.title1, color: Colors.light.text },
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
-  score: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.one },
-  scoreValue: { ...Type.title2, color: Colors.light.primary, fontVariant: ['tabular-nums'] },
-  scoreLabel: { ...Type.subhead, color: Colors.light.textSecondary },
   hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
   status: { paddingVertical: Spacing.six, alignItems: 'center' },

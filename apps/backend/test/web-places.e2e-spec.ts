@@ -381,6 +381,15 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         res.body.items.every((i: { id: string }) => typeof i.id === 'string'),
       ).toBe(true);
       expect(res.body.items[0].articles[0].uri).toBe('https://wp.test/1');
+
+      // Màn chi tiết cũng trả bài viết nguồn (từ danh sách của vùng).
+      const detail = await request(app.getHttpServer())
+        .get(`/api/places/${res.body.items[1].id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(detail.body.articles.map((a: { uri: string }) => a.uri)).toEqual([
+        'https://wp.test/1',
+      ]);
     });
 
     it('bỏ địa điểm không có trong bài viết nào', async () => {
