@@ -438,6 +438,7 @@ describe('GooglePlacesService.searchByName', () => {
             id: 'B',
             displayName: { text: 'Quán B' },
             formattedAddress: '2 Đường B',
+            primaryType: 'cafe',
           },
           { id: 'A', displayName: { text: 'Quán A' } },
         ],
@@ -446,13 +447,23 @@ describe('GooglePlacesService.searchByName', () => {
     await expect(
       service().searchByName('quán', [11.8, 108.3, 12.0, 108.6]),
     ).resolves.toEqual([
-      { googlePlaceId: 'B', name: 'Quán B', address: '2 Đường B' },
-      { googlePlaceId: 'A', name: 'Quán A', address: null },
+      {
+        googlePlaceId: 'B',
+        name: 'Quán B',
+        address: '2 Đường B',
+        suggestedCategory: 'cafe',
+      },
+      {
+        googlePlaceId: 'A',
+        name: 'Quán A',
+        address: null,
+        suggestedCategory: 'check_in',
+      },
     ]);
     const [call] = calls;
     expect(call.url).toBe(`${BASE}/places:searchText`);
     expect(header(call, 'X-Goog-FieldMask')).toBe(
-      'places.id,places.displayName,places.formattedAddress',
+      'places.id,places.displayName,places.formattedAddress,places.primaryType',
     );
     const body = JSON.parse(call.init.body as string);
     expect(body).toMatchObject({
@@ -515,7 +526,13 @@ describe('GooglePlacesService.findPlace', () => {
     await expect(
       service().findPlace('Thác Datanla, Đà Lạt', [11.8, 108.3, 12.0, 108.6]),
     ).resolves.toEqual([
-      { placeId: 'ChIJ1', lat: 11.9, lng: 108.4, name: 'Thác Datanla', primaryType: 'tourist_attraction' },
+      {
+        placeId: 'ChIJ1',
+        lat: 11.9,
+        lng: 108.4,
+        name: 'Thác Datanla',
+        primaryType: 'tourist_attraction',
+      },
     ]);
 
     const [call] = calls;
@@ -528,13 +545,18 @@ describe('GooglePlacesService.findPlace', () => {
       textQuery: 'Thác Datanla, Đà Lạt',
       pageSize: 3,
       locationRestriction: {
-        rectangle: { low: { latitude: 11.8, longitude: 108.3 }, high: { latitude: 12.0, longitude: 108.6 } },
+        rectangle: {
+          low: { latitude: 11.8, longitude: 108.3 },
+          high: { latitude: 12.0, longitude: 108.6 },
+        },
       },
     });
   });
 
   it('Google lỗi thì ném GoogleUnavailableError', async () => {
     mockFetch(() => ({ status: 500, body: {} }));
-    await expect(service().findPlace('x', [1, 2, 3, 4])).rejects.toBeInstanceOf(GoogleUnavailableError);
+    await expect(service().findPlace('x', [1, 2, 3, 4])).rejects.toBeInstanceOf(
+      GoogleUnavailableError,
+    );
   });
 });

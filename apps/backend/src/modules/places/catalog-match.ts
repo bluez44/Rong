@@ -7,11 +7,7 @@ export interface CatalogMatch {
   id: string;
   lat: number;
   lng: number;
-  osm_type: string;
-  osm_id: string;
-  wikidata_id: string | null;
   opening_hours: string | null;
-  website: string | null;
 }
 
 /** Ngưỡng độ giống tên (pg_trgm) để coi là cùng một địa điểm. */
@@ -20,8 +16,8 @@ export const CATALOG_MIN_SIMILARITY = 0.6;
 export const CATALOG_MIN_LENGTH_RATIO = 0.75;
 
 /**
- * Mỗi tên lấy địa điểm OSM giống nhất (trong khung bao nếu có), một truy vấn
- * cho cả danh sách. Chỉ dòng `source = 'osm'`: dòng Google không phải danh mục.
+ * Mỗi tên lấy địa điểm giống nhất (trong khung bao nếu có), một truy vấn cho
+ * cả danh sách. Chỉ dòng `web`: danh sách tổng hợp của các vùng.
  */
 export function matchCatalog(
   db: Pick<DataSource, 'query'>,
@@ -33,7 +29,7 @@ export function matchCatalog(
     `WITH candidates AS (
        SELECT p.*, unaccent(lower(p.name)) AS norm
          FROM places p
-        WHERE p.source = 'osm'
+        WHERE p.source = 'web' AND p.location IS NOT NULL
           AND ($2::float8 IS NULL OR p.location && ST_MakeEnvelope($2, $3, $4, $5, 4326))
      )
      SELECT n.idx, m.*
@@ -41,9 +37,7 @@ export function matchCatalog(
        CROSS JOIN LATERAL (SELECT unaccent(lower(n.name)) AS q) nq
        CROSS JOIN LATERAL (
          SELECT c.id, ST_Y(c.location) AS lat, ST_X(c.location) AS lng,
-                c.osm_type, c.osm_id, c.wikidata_id,
-                c.tags->>'opening_hours' AS opening_hours,
-                COALESCE(c.tags->>'website', c.tags->>'contact:website') AS website
+                c.tags->>'opening_hours' AS opening_hours
            FROM candidates c
           WHERE similarity(c.norm, nq.q) >= $6
             AND least(length(c.norm), length(nq.q))::float8

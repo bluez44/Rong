@@ -6,6 +6,7 @@ import type {
 } from '@rong/shared-types';
 
 import type { GoogleConfig } from '../../config/configuration.js';
+import { categoryFromGoogleType } from '../places/google-category.js';
 import type { Bbox } from '../regions/bbox.js';
 
 export const GOOGLE_CONFIG = 'GOOGLE_CONFIG';
@@ -432,7 +433,8 @@ export class GooglePlacesService {
       }>;
     }>('/places:searchText', {
       method: 'POST',
-      fieldMask: 'places.id,places.location,places.displayName,places.primaryType',
+      fieldMask:
+        'places.id,places.location,places.displayName,places.primaryType',
       timeoutMs,
       body: {
         textQuery: query,
@@ -476,10 +478,12 @@ export class GooglePlacesService {
         id: string;
         displayName?: { text?: string };
         formattedAddress?: string;
+        primaryType?: string;
       }>;
     }>('/places:searchText', {
       method: 'POST',
-      fieldMask: 'places.id,places.displayName,places.formattedAddress',
+      fieldMask:
+        'places.id,places.displayName,places.formattedAddress,places.primaryType',
       body: {
         textQuery: query,
         languageCode: 'vi',
@@ -497,8 +501,8 @@ export class GooglePlacesService {
       googlePlaceId: p.id,
       name: p.displayName?.text ?? null,
       address: p.formattedAddress ?? null,
-      // Tạm thời: Task 7 sẽ điền từ primaryType.
-      suggestedCategory: 'check_in' as const,
+      // Chỉ để điền sẵn khi người dùng lưu; không lưu loại của Google (PRD 7.4).
+      suggestedCategory: categoryFromGoogleType(p.primaryType),
     }));
   }
 

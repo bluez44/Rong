@@ -32,7 +32,7 @@ describe('Tìm địa điểm (e2e)', () => {
   let otherUserId: string;
   let detailsToken: string;
   let daLat: string;
-  let osmReu: string;
+  let webReu: string;
   let otherGoogleRow: string;
 
   const google = {
@@ -82,8 +82,11 @@ describe('Tìm địa điểm (e2e)', () => {
     )) as Array<{ id: string }>;
     daLat = region.id;
 
-    const osm = async (
-      osmId: number,
+    // Lần chạy trước bị ngắt có thể còn sót dòng (place_id là duy nhất).
+    await db.query(
+      `DELETE FROM places WHERE name LIKE 'E2E ps %' OR google_place_id LIKE 'e2e-ps-%'`,
+    );
+    const web = async (
       name: string,
       category: string,
       lng: number,
@@ -91,26 +94,30 @@ describe('Tìm địa điểm (e2e)', () => {
       googlePlaceId: string | null = null,
     ): Promise<string> => {
       const [row] = (await db.query(
-        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score, google_place_id)
-         VALUES ('node', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326), 50, $6)
-         ON CONFLICT (osm_type, osm_id) DO UPDATE
-           SET name = EXCLUDED.name, category = EXCLUDED.category,
-               location = EXCLUDED.location, google_place_id = EXCLUDED.google_place_id
+        `INSERT INTO places (source, name, category, location, location_source, location_expires_at, google_place_id, composite_score)
+         VALUES ('web', $1, $2::place_category, ST_SetSRID(ST_MakePoint($3::float8, $4::float8), 4326),
+                 $5, CASE WHEN $6::text IS NULL THEN NULL ELSE now() + interval '30 days' END, $6, 0)
          RETURNING id`,
-        [osmId, name, category, lng, lat, googlePlaceId],
+        [
+          name,
+          category,
+          lng,
+          lat,
+          googlePlaceId ? 'google' : 'ai',
+          googlePlaceId,
+        ],
       )) as Array<{ id: string }>;
       return row.id;
     };
-    await osm(-9600, 'E2E ps Bánh căn Nhà Chung', 'food', 108.4384, 11.9421);
-    osmReu = await osm(
-      -9601,
+    await web('E2E ps Bánh căn Nhà Chung', 'food', 108.4384, 11.9421);
+    webReu = await web(
       'E2E ps Cà phê Rêu',
       'cafe',
       108.44,
       11.945,
-      'e2e-ps-osm-reu',
+      'e2e-ps-web-reu',
     );
-    await osm(-9602, 'E2E ps Bánh căn Sài Gòn', 'food', 106.7, 10.78);
+    await web('E2E ps Bánh căn Sài Gòn', 'food', 106.7, 10.78);
     const googleRow = async (
       googlePlaceId: string,
       name: string,
@@ -142,7 +149,7 @@ describe('Tìm địa điểm (e2e)', () => {
     );
     await db?.query(
       `DELETE FROM places
-        WHERE (osm_id <= -9600 AND osm_id > -9700) OR google_place_id LIKE 'e2e-ps-%'`,
+        WHERE name LIKE 'E2E ps %' OR google_place_id LIKE 'e2e-ps-%'`,
     );
     await app?.close();
   });
@@ -177,7 +184,7 @@ describe('Tìm địa điểm (e2e)', () => {
     return n;
   };
 
-  it('danh mục: không dấu vẫn khớp, chỉ OSM trong vùng, không đọc tên dòng Google', async () => {
+  it('danh mục: không dấu vẫn khớp, chỉ dòng web trong vùng, không đọc tên dòng Google', async () => {
     const res = await api().search(daLat, 'banh can').expect(200);
     const names = res.body.catalog.map((h: { name: string }) => h.name);
     expect(names).toContain('E2E ps Bánh căn Nhà Chung');
@@ -201,14 +208,39 @@ describe('Tìm địa điểm (e2e)', () => {
     expect(res.body.catalog).toEqual([]);
   });
 
-  it('online: trùng place_id đã có → existing (OSM: tên OSM; Google: tên Google trực tiếp), còn lại giữ thứ tự Google', async () => {
+  it('online: trùng place_id đã có → existing (web: tên trong danh sách; Google: tên Google trực tiếp), còn lại giữ thứ tự Google', async () => {
     google.searchByName.mockResolvedValueOnce([
-      { googlePlaceId: 'e2e-ps-new-2', name: 'Mới 2', address: 'A2' },
-      { googlePlaceId: 'e2e-ps-osm-reu', name: 'Rêu (Google)', address: null },
-      { googlePlaceId: 'e2e-ps-other', name: 'Tên Google thật', address: null },
+      {
+        googlePlaceId: 'e2e-ps-new-2',
+        name: 'Mới 2',
+        address: 'A2',
+        suggestedCategory: 'cafe',
+      },
+      {
+        googlePlaceId: 'e2e-ps-web-reu',
+        name: 'Rêu (Google)',
+        address: null,
+        suggestedCategory: 'cafe',
+      },
+      {
+        googlePlaceId: 'e2e-ps-other',
+        name: 'Tên Google thật',
+        address: null,
+        suggestedCategory: 'cafe',
+      },
       // Dòng Google mà Google không trả tên: không lộ tên người khác, để ở danh sách Google.
-      { googlePlaceId: 'e2e-ps-other-noname', name: null, address: null },
-      { googlePlaceId: 'e2e-ps-new-1', name: 'Mới 1', address: 'A1' },
+      {
+        googlePlaceId: 'e2e-ps-other-noname',
+        name: null,
+        address: null,
+        suggestedCategory: 'cafe',
+      },
+      {
+        googlePlaceId: 'e2e-ps-new-1',
+        name: 'Mới 1',
+        address: 'A1',
+        suggestedCategory: 'cafe',
+      },
     ]);
     const before = await countPlaces();
     const res = await api().search(daLat, 'quan', true).expect(200);
@@ -216,9 +248,12 @@ describe('Tìm địa điểm (e2e)', () => {
       res.body.google.map((g: { googlePlaceId: string }) => g.googlePlaceId),
     ).toEqual(['e2e-ps-new-2', 'e2e-ps-other-noname', 'e2e-ps-new-1']);
     expect(
-      res.body.existing.map((h: { id: string; name: string }) => [h.id, h.name]),
+      res.body.existing.map((h: { id: string; name: string }) => [
+        h.id,
+        h.name,
+      ]),
     ).toEqual([
-      [osmReu, 'E2E ps Cà phê Rêu'],
+      [webReu, 'E2E ps Cà phê Rêu'],
       [otherGoogleRow, 'Tên Google thật'],
     ]);
     expect(JSON.stringify(res.body)).not.toContain('E2E ps tên người khác');
@@ -255,8 +290,8 @@ describe('Tìm địa điểm (e2e)', () => {
 
   it('xem trước: đã có trong DB → { placeId }; chưa có → nội dung trực tiếp; không ghi DB', async () => {
     const before = await countPlaces();
-    const known = await api().preview('e2e-ps-osm-reu').expect(200);
-    expect(known.body).toEqual({ placeId: osmReu });
+    const known = await api().preview('e2e-ps-web-reu').expect(200);
+    expect(known.body).toEqual({ placeId: webReu });
     google.preview.mockResolvedValueOnce({
       content: {
         placeId: 'e2e-ps-new-1',
@@ -288,7 +323,7 @@ describe('Tìm địa điểm (e2e)', () => {
     google.locate.mockResolvedValue({ lat: 11.95, lng: 108.44 });
     // Đã có trong DB: không gọi Google, không tốn lượt.
     for (let i = 0; i < 3; i++)
-      await api(detailsToken).preview('e2e-ps-osm-reu').expect(200);
+      await api(detailsToken).preview('e2e-ps-web-reu').expect(200);
     for (let i = 0; i < 5; i++)
       await api(detailsToken).preview(`e2e-ps-lim-${i}`).expect(404);
     const res = await api(detailsToken).preview('e2e-ps-lim-x').expect(429);
@@ -304,7 +339,7 @@ describe('Tìm địa điểm (e2e)', () => {
     expect(saved.body.code).toBe('PLACE_DETAILS_LIMIT');
     expect(google.preview).toHaveBeenCalledTimes(5);
     expect(google.locate).not.toHaveBeenCalled();
-    await api(detailsToken).preview('e2e-ps-osm-reu').expect(200);
+    await api(detailsToken).preview('e2e-ps-web-reu').expect(200);
   });
 
   it('lưu vào vùng không tồn tại → 404 REGION_NOT_FOUND, không gọi Google', async () => {
@@ -360,18 +395,18 @@ describe('Tìm địa điểm (e2e)', () => {
     expect(again).toEqual({ source: 'search' });
   });
 
-  it('lưu một place_id đã ghép vào OSM → lưu dòng OSM, không tạo dòng Google', async () => {
+  it('lưu một place_id đã ghép vào dòng web → lưu dòng web, không tạo dòng Google', async () => {
     const res = await api()
       .save({
-        googlePlaceId: 'e2e-ps-osm-reu',
+        googlePlaceId: 'e2e-ps-web-reu',
         name: 'Rêu',
         category: 'cafe',
         regionId: daLat,
       })
       .expect(201);
-    expect(res.body.placeId).toBe(osmReu);
+    expect(res.body.placeId).toBe(webReu);
     const [{ n }] = await db.query(
-      `SELECT count(*)::int AS n FROM places WHERE source = 'google' AND google_place_id = 'e2e-ps-osm-reu'`,
+      `SELECT count(*)::int AS n FROM places WHERE source = 'google' AND google_place_id = 'e2e-ps-web-reu'`,
     );
     expect(n).toBe(0);
   });
@@ -380,11 +415,11 @@ describe('Tìm địa điểm (e2e)', () => {
     await db.query(
       `INSERT INTO saved_places (user_id, place_id, region_id, source)
        VALUES ($1, $2, $3, 'share')`,
-      [otherUserId, osmReu, daLat],
+      [otherUserId, webReu, daLat],
     );
     await api(otherToken)
       .save({
-        googlePlaceId: 'e2e-ps-osm-reu',
+        googlePlaceId: 'e2e-ps-web-reu',
         name: 'Rêu',
         category: 'cafe',
         regionId: daLat,
@@ -392,7 +427,7 @@ describe('Tìm địa điểm (e2e)', () => {
       .expect(201);
     const [saved] = await db.query(
       `SELECT source FROM saved_places WHERE user_id = $1 AND place_id = $2`,
-      [otherUserId, osmReu],
+      [otherUserId, webReu],
     );
     expect(saved).toEqual({ source: 'share' });
   });
@@ -419,5 +454,24 @@ describe('Tìm địa điểm (e2e)', () => {
         regionId: daLat,
       })
       .expect(400);
+  });
+
+  it('lưu với addToSaved=false: có id nhưng không vào "Muốn đi"', async () => {
+    google.locate.mockResolvedValueOnce({ lat: 11.94, lng: 108.44 });
+    const res = await api()
+      .save({
+        googlePlaceId: 'e2e-ps-nosave',
+        name: 'E2E ps Không lưu',
+        category: 'cafe',
+        regionId: daLat,
+        addToSaved: false,
+      })
+      .expect(201);
+    expect(res.body.placeId).toEqual(expect.any(String));
+    const saved = (await db.query(
+      `SELECT 1 FROM saved_places WHERE place_id = $1`,
+      [res.body.placeId],
+    )) as unknown[];
+    expect(saved).toHaveLength(0);
   });
 });

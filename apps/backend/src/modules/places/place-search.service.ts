@@ -42,15 +42,15 @@ interface HitRow {
   id: string;
   name: string;
   category: PlaceCategory;
-  source: 'osm' | 'google';
+  source: 'osm' | 'google' | 'web';
   google_place_id: string | null;
   lat: number | null;
   lng: number | null;
 }
 
 /**
- * Tìm địa điểm theo tên trong một vùng: danh mục OSM khi gõ, Google Maps khi
- * bấm tìm; xem trước và lưu kết quả Google vào "Muốn đi". Không lưu nội dung
+ * Tìm địa điểm theo tên trong một vùng: danh sách của vùng khi gõ, Google Maps
+ * khi bấm tìm; xem trước và lưu kết quả Google (vào "Muốn đi" nếu muốn). Không lưu nội dung
  * Google; không xếp hạng trên dữ liệu Google (PRD 7.4).
  */
 @Injectable()
@@ -100,13 +100,21 @@ export class PlaceSearchService {
        SELECT p.id, p.name, p.category, p.source, p.google_place_id,
               ST_Y(p.location) AS lat, ST_X(p.location) AS lng
          FROM places p, nq
-        WHERE p.source = 'osm'
+        WHERE p.source = 'web' AND p.location IS NOT NULL
           AND p.location && ST_MakeEnvelope($2, $3, $4, $5, 4326)
           AND (similarity(unaccent(lower(p.name)), nq.q) >= $6
                OR position(nq.q IN unaccent(lower(p.name))) > 0)
-        ORDER BY similarity(unaccent(lower(p.name)), nq.q) DESC, p.composite_score DESC, p.id
+        ORDER BY similarity(unaccent(lower(p.name)), nq.q) DESC, p.id
         LIMIT $7`,
-      [query, bbox[1], bbox[0], bbox[3], bbox[2], MIN_SIMILARITY, CATALOG_LIMIT],
+      [
+        query,
+        bbox[1],
+        bbox[0],
+        bbox[3],
+        bbox[2],
+        MIN_SIMILARITY,
+        CATALOG_LIMIT,
+      ],
     )) as HitRow[];
 
     let google: GooglePlaceHit[] | null = null;
@@ -121,7 +129,7 @@ export class PlaceSearchService {
         const existingRow = (h: GooglePlaceHit): HitRow | null => {
           const row = known.get(h.googlePlaceId);
           if (!row) return null;
-          return row.source === 'osm' || h.name !== null ? row : null;
+          return row.source !== 'google' || h.name !== null ? row : null;
         };
         existing = hits.flatMap((h) => {
           const row = existingRow(h);
@@ -209,13 +217,15 @@ export class PlaceSearchService {
           m,
         );
       }
-      await this.saved.save(
-        userId,
-        placeId!,
-        dto.regionId,
-        { source: 'search', shareImportId: null, displayName: dto.name },
-        m,
-      );
+      if (dto.addToSaved !== false) {
+        await this.saved.save(
+          userId,
+          placeId!,
+          dto.regionId,
+          { source: 'search', shareImportId: null, displayName: dto.name },
+          m,
+        );
+      }
     });
     return { placeId: placeId! };
   }
@@ -234,7 +244,7 @@ export class PlaceSearchService {
     );
   }
 
-  /** Dòng `places` (OSM đã ghép hoặc nguồn Google) theo place_id; OSM ưu tiên. */
+  /** Dòng `places` (danh sách từ bài viết hoặc nguồn Google) theo place_id; dòng `web` ưu tiên. */
   private async byGoogleIds(ids: string[]): Promise<Map<string, HitRow>> {
     if (ids.length === 0) return new Map();
     const rows = (await this.db.query(
@@ -242,7 +252,7 @@ export class PlaceSearchService {
               ST_Y(p.location) AS lat, ST_X(p.location) AS lng
          FROM places p
         WHERE p.google_place_id = ANY($1::text[])
-        ORDER BY (p.source = 'osm') DESC`,
+        ORDER BY (p.source = 'web') DESC`,
       [ids],
     )) as HitRow[];
     const map = new Map<string, HitRow>();
@@ -253,10 +263,9 @@ export class PlaceSearchService {
   }
 
   private async requireRegion(regionId: string): Promise<void> {
-    const [row] = (await this.db.query(
-      `SELECT 1 FROM regions WHERE id = $1`,
-      [regionId],
-    )) as unknown[];
+    const [row] = (await this.db.query(`SELECT 1 FROM regions WHERE id = $1`, [
+      regionId,
+    ])) as unknown[];
     if (!row) {
       throw new NotFoundException({
         statusCode: 404,

@@ -1,5 +1,14 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import type { PlaceCategory } from '@rong/shared-types';
 
 import { PLACE_CATEGORIES } from '../entities/place.entity.js';
@@ -22,4 +31,9 @@ export class SaveGooglePlaceDto {
 
   @IsUUID()
   regionId!: string;
+
+  /** false: chỉ lấy id để đưa vào lịch trình, không thêm vào "Muốn đi". */
+  @IsOptional()
+  @IsBoolean()
+  addToSaved?: boolean;
 }

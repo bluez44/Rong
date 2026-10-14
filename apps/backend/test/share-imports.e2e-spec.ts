@@ -32,7 +32,7 @@ describe('Chia sẻ vào app (e2e)', () => {
   let token: string;
   let otherToken: string;
   let daLat: string;
-  let osmPlace: string;
+  let webPlace: string;
   const metadata = { assertSafe: vi.fn(async () => undefined), fetch: vi.fn() };
   const extract = vi.fn();
   const google = {
@@ -81,21 +81,21 @@ describe('Chia sẻ vào app (e2e)', () => {
     daLat = region.id;
     await app.get(RegionAreaService).ensure(daLat);
 
+    await db.query(`DELETE FROM places WHERE name LIKE 'E2E share %'`);
     const [place] = (await db.query(
-      `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
-       VALUES ('node', -9400, 'E2E share Bánh căn Nhà Chung', 'food',
-               ST_SetSRID(ST_MakePoint(108.4384, 11.9421), 4326), 50)
-       ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+      `INSERT INTO places (source, name, category, location, location_source, composite_score)
+       VALUES ('web', 'E2E share Bánh căn Nhà Chung', 'food',
+               ST_SetSRID(ST_MakePoint(108.4384, 11.9421), 4326), 'ai', 0)
        RETURNING id`,
     )) as Array<{ id: string }>;
-    osmPlace = place.id;
+    webPlace = place.id;
   });
 
   afterAll(async () => {
     await db?.query(`DELETE FROM users WHERE display_name LIKE 'e2e-share%'`);
     await db?.query(
       `DELETE FROM places
-        WHERE (osm_id <= -9400 AND osm_id > -9500) OR google_place_id LIKE 'e2e-share-%'`,
+        WHERE name LIKE 'E2E share %' OR google_place_id LIKE 'e2e-share-%'`,
     );
     await app?.close();
   });
@@ -203,7 +203,7 @@ describe('Chia sẻ vào app (e2e)', () => {
     expect(bc).toMatchObject({
       confidence: 'high',
       options: [
-        { ref: { kind: 'catalog', placeId: osmPlace }, regionId: daLat },
+        { ref: { kind: 'catalog', placeId: webPlace }, regionId: daLat },
       ],
     });
     // Lựa chọn tin cậy cao không cần tên Google (spec §4.6).
@@ -220,7 +220,7 @@ describe('Chia sẻ vào app (e2e)', () => {
 
     const saved = await api()
       .save(created.body.id, [
-        { candidateKey: bc.key, kind: 'catalog', placeId: osmPlace },
+        { candidateKey: bc.key, kind: 'catalog', placeId: webPlace },
         {
           candidateKey: gionui.key,
           kind: 'google',
@@ -449,7 +449,7 @@ describe('Chia sẻ vào app (e2e)', () => {
       .expect(202);
     const notReady = await api()
       .save(created.body.id, [
-        { candidateKey: 'c1', kind: 'catalog', placeId: osmPlace },
+        { candidateKey: 'c1', kind: 'catalog', placeId: webPlace },
       ])
       .expect(409);
     expect(notReady.body.code).toBe('SHARE_IMPORT_NOT_READY');
