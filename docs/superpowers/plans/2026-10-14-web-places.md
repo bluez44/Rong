@@ -2587,10 +2587,12 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 2 | xong | a7cdb69 | migration đã chạy trên DB dev |
 | 3 | xong | a2053c0 | |
 | 4 | xong | 48c5511 | |
-| 5 | đang làm | | |
+| 5 | xong | e8931d9 | xóa luôn `ai-fallback.*`, `places-source`/`places-speed` e2e và script `test:speed` (chỉ kiểm thử pipeline cũ) |
+| 6 | đang làm | | |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
 - Nếu Task 7 chuyển `google-category.ts` sang `modules/google/`, phải sửa cả import trong `places/web-place-match.ts`.
 - Task 8: Overpass lỗi thì lấy khung bao tỉnh từ Nominatim; vẫn thiếu thì dừng và báo.
 - Task 14 (đo thật, tốn tiền) phải hỏi người dùng trước khi chạy.
+- `google-places.service.spec.ts > searchByName` đã lỗi sẵn trước Task 5 (kết quả có thêm `suggestedCategory`); sửa khi làm Task 7.
