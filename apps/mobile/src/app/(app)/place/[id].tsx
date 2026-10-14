@@ -7,6 +7,7 @@ import { Glass } from '@/components/glass';
 import { GooglePlaceContentBlock } from '@/components/google-place-content';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
+import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
@@ -56,6 +57,7 @@ export default function PlaceDetailScreen() {
           <Text style={styles.title} accessibilityRole="header">
             {name}
           </Text>
+          {place?.locationSource === 'ai' ? <ApproximateLocation /> : null}
           {place ? <Summary place={place} /> : null}
         </View>
 

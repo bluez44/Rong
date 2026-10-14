@@ -9,6 +9,7 @@ import { useAuth } from '@/auth/auth-context';
 import { Glass } from '@/components/glass';
 import { ItineraryEditor } from '@/components/itinerary-editor';
 import { Screen } from '@/components/screen';
+import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Button } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
@@ -274,6 +275,7 @@ function ItemCard({ item }: { item: ItineraryItem }) {
         <Text style={styles.time}>{time}</Text>
         <Text style={styles.itemName}>{title}</Text>
         {kind ? <Text style={styles.meta}>{kind}</Text> : null}
+        {item.place?.locationSource === 'ai' ? <ApproximateLocation compact /> : null}
         {item.reason ? <Text style={styles.reason}>{item.reason}</Text> : null}
         {item.isAiSuggested ? (
           <View style={[styles.badge, styles.aiBadge, styles.itemBadge]}>

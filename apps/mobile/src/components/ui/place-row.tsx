@@ -1,6 +1,7 @@
 import type { PlaceListItem } from '@rong/shared-types';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Icon } from '@/components/ui/icon';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
@@ -43,13 +44,12 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
   ];
   const articles = place.articles;
   const approximate = place.locationSource === 'ai';
-  const meta = [CATEGORY_LABELS[place.category], hoursLabel(place.hours), approximate ? 'Vị trí gần đúng' : null]
-    .filter(Boolean)
-    .join(' · ');
+  const meta = [CATEGORY_LABELS[place.category], hoursLabel(place.hours)].filter(Boolean).join(' · ');
   const score = articles ? null : Math.round(place.compositeScore);
   const extras = [
     score !== null ? `điểm ${score} trên 100` : null,
     articles ? `theo ${articles.length} bài viết` : null,
+    approximate ? 'vị trí gần đúng' : null,
     saveAction?.active ? 'đã lưu vào Muốn đi' : null,
     tripAction?.active ? (isStay ? 'nơi lưu trú của chuyến đi' : 'đã thêm vào lịch trình') : null,
   ].filter(Boolean);
@@ -83,6 +83,7 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
             {place.description}
           </Text>
         ) : null}
+        {approximate ? <ApproximateLocation compact /> : null}
         {articles && !selected ? (
           <Text style={styles.source} numberOfLines={1} importantForAccessibility="no">
             Theo {articles.length} bài viết{latestLabel(articles)}
