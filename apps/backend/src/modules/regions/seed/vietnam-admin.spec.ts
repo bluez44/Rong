@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { bboxAround, type Bbox } from '../bbox.js';
+import { PROVINCE_BBOXES } from './province-bboxes.js';
 import { DESTINATIONS, NEW_PROVINCES, OLD_PROVINCES } from './vietnam-admin.js';
 
 const contains = ([s, w, n, e]: Bbox, [lat, lng]: [number, number]) =>
@@ -69,5 +70,28 @@ describe('dữ liệu sáp nhập tỉnh 1/7/2025', () => {
         expect(province!.mergedFrom).toHaveLength(0);
       }
     }
+  });
+});
+
+/** Canh gác file sinh bởi scripts/generate-province-bboxes.ts. */
+describe('PROVINCE_BBOXES', () => {
+  it('mọi tỉnh cũ và tỉnh mới không sáp nhập đều có khung bao hợp lệ', () => {
+    const keys = [
+      ...OLD_PROVINCES.map((p) => p.key),
+      ...NEW_PROVINCES.filter((n) => n.mergedFrom.length === 0).map(
+        (p) => p.key,
+      ),
+    ];
+    for (const key of keys) {
+      const box = PROVINCE_BBOXES[key];
+      expect(box, key).toBeDefined();
+      const [s, w, n, e] = box;
+      expect(s < n && w < e, key).toBe(true);
+    }
+  });
+
+  it('khung bao tỉnh cũ: Lâm Đồng chứa Đà Lạt, không chứa Phan Thiết (Bình Thuận cũ)', () => {
+    expect(contains(PROVINCE_BBOXES['lam-dong'], [11.94, 108.44])).toBe(true);
+    expect(contains(PROVINCE_BBOXES['lam-dong'], [10.93, 108.1])).toBe(false);
   });
 });

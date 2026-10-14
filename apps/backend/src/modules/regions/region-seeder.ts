@@ -6,17 +6,18 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { bboxAround } from './bbox.js';
+import { bboxAround, unionBbox, type Bbox } from './bbox.js';
 import { RegionAlias } from './entities/region-alias.entity.js';
 import { Region } from './entities/region.entity.js';
 import { searchKey } from './search-text.js';
+import { PROVINCE_BBOXES } from './seed/province-bboxes.js';
 import {
   DESTINATIONS,
   NEW_PROVINCES,
   OLD_PROVINCES,
 } from './seed/vietnam-admin.js';
 
-/** Thời điểm lấy dữ liệu OSM "trước sáp nhập": một ngày trước khi địa giới mới có hiệu lực. */
+/** Ngày cuối của địa giới "trước sáp nhập" (ghi trong `area_source` để tham khảo). */
 export const PRE_MERGER_DATE = '2025-06-30T00:00:00Z';
 
 const oldKey = (key: string) => `vn:province:${key}:pre_merger`;
@@ -41,7 +42,7 @@ type SeedRow = Pick<
 /**
  * Đưa dữ liệu tham chiếu (tỉnh cũ/mới, điểm đến) vào database mỗi lần khởi
  * động. Idempotent nhờ `source_key`, nên sửa file seed rồi khởi động lại là
- * cập nhật; ranh giới đã tải và thời điểm tải địa điểm không bị đụng tới.
+ * cập nhật (kể cả khung bao tỉnh, sinh sẵn trong `seed/province-bboxes.ts`).
  */
 @Injectable()
 export class RegionSeeder implements OnApplicationBootstrap {
@@ -68,6 +69,7 @@ export class RegionSeeder implements OnApplicationBootstrap {
           adminLevel: '4',
           date: PRE_MERGER_DATE,
         },
+        ...area(PROVINCE_BBOXES[p.key]),
       })),
       ...NEW_PROVINCES.map((p) => ({
         sourceKey: newKey(p.key),
@@ -85,6 +87,11 @@ export class RegionSeeder implements OnApplicationBootstrap {
           p.mergedFrom.length > 0
             ? { unionOf: p.mergedFrom.map(oldKey) }
             : { name: p.name, adminLevel: '4' },
+        ...area(
+          p.mergedFrom.length > 0
+            ? unionBbox(p.mergedFrom.map((k) => PROVINCE_BBOXES[k]))!
+            : PROVINCE_BBOXES[p.key],
+        ),
       })),
     ];
     const destinationRows: SeedRow[] = DESTINATIONS.map((d) => {
@@ -112,11 +119,8 @@ export class RegionSeeder implements OnApplicationBootstrap {
       };
     });
 
-    // Hai lệnh riêng: một lệnh upsert gộp sẽ ghi NULL vào khung bao của tỉnh
-    // (cột có trong lệnh nhưng dòng tỉnh không có giá trị), xóa khung bao đã
-    // lấy từ OSM mỗi lần khởi động.
-    await this.regions.upsert(rows, ['sourceKey']);
-    await this.regions.upsert(destinationRows, ['sourceKey']);
+    // Khung bao trong seed ghi đè khung đã có: sửa seed rồi khởi động lại là cập nhật.
+    await this.regions.upsert([...rows, ...destinationRows], ['sourceKey']);
 
     const ids = new Map(
       (await this.regions.find({ select: { id: true, sourceKey: true } })).map(
@@ -184,4 +188,24 @@ export class RegionSeeder implements OnApplicationBootstrap {
       `Đã seed ${rows.length} vùng và ${aliasRows.length} bí danh.`,
     );
   }
+}
+
+/** Khung bao và tâm của một tỉnh, lấy từ seed (không gọi Overpass lúc chạy). */
+function area(
+  box: Bbox,
+): Pick<
+  Region,
+  'center' | 'bboxSouth' | 'bboxWest' | 'bboxNorth' | 'bboxEast'
+> {
+  const [south, west, north, east] = box;
+  return {
+    center: {
+      type: 'Point',
+      coordinates: [(west + east) / 2, (south + north) / 2],
+    },
+    bboxSouth: south,
+    bboxWest: west,
+    bboxNorth: north,
+    bboxEast: east,
+  };
 }
