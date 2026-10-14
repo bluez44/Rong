@@ -443,6 +443,8 @@ export class GooglePlacesService {
       googlePlaceId: p.id,
       name: p.displayName?.text ?? null,
       address: p.formattedAddress ?? null,
+      // Tạm thời: Task 7 sẽ điền từ primaryType.
+      suggestedCategory: 'check_in' as const,
     }));
   }
 
