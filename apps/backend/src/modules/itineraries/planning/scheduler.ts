@@ -307,6 +307,7 @@ function snapshot(c: Candidate): ItineraryItem['place'] {
     name: c.name,
     category: c.category,
     coordinates: snapshotCoordinates(c),
+    locationSource: c.locationSource,
   };
 }
 
