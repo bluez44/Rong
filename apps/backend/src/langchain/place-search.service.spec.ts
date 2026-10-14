@@ -47,7 +47,7 @@ describe('findPlacesFromWeb — đường nhanh', () => {
 
     const result = await findPlacesFromWeb('Đà Lạt', d);
 
-    expect(d.search).toHaveBeenCalledTimes(3);
+    expect(d.search).toHaveBeenCalledTimes(4);
     expect(d.search.mock.calls.every(([q]) => q.endsWith('Đà Lạt'))).toBe(true);
     expect(result.sources.map((s) => s.uri)).toEqual([
       'https://a.vn',
@@ -84,9 +84,9 @@ describe('findPlacesFromWeb — đường nhanh', () => {
     expect(d.agent).not.toHaveBeenCalled();
   });
 
-  it('giữ tối đa 15 địa điểm', async () => {
-    const d = deps(async () => THREE, 20);
-    expect((await findPlacesFromWeb('Huế', d)).places).toHaveLength(15);
+  it('giữ tối đa 40 địa điểm', async () => {
+    const d = deps(async () => THREE, 50);
+    expect((await findPlacesFromWeb('Huế', d)).places).toHaveLength(40);
   });
 });
 

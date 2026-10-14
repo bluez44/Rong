@@ -1,10 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
+import { PlaceSearchService as AgentPlaceSearch } from '../src/langchain/place-search.service.js';
 import { GooglePlacesService } from '../src/modules/google/google-places.service.js';
 import { GoogleLocationJanitor } from '../src/modules/places/google-location-janitor.js';
 import { PlaceLocationService } from '../src/modules/places/place-location.service.js';
@@ -12,12 +15,14 @@ import {
   RegionPlaceStore,
   type WebPlaceInput,
 } from '../src/modules/places/region-place-store.js';
+import { WEB_PLACES_CONFIG } from '../src/modules/places/web-places.service.js';
 
 /** Dòng `web` của danh sách địa điểm từ bài viết (spec 2026-10-14). */
 describe('Địa điểm từ bài viết (e2e)', () => {
   let app: INestApplication;
   let db: DataSource;
   let regionId: string;
+  let token: string;
 
   const google = {
     enabled: true,
@@ -31,11 +36,16 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     geocode: vi.fn(async () => null),
     matchPlaceId: vi.fn(async () => null),
   };
+  const agent = { enabled: true, findPlaces: vi.fn() };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(GooglePlacesService)
       .useValue(google)
+      .overrideProvider(AgentPlaceSearch)
+      .useValue(agent)
+      .overrideProvider(WEB_PLACES_CONFIG)
+      .useValue({ refreshDays: 30, waitMs: 2000 })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -52,6 +62,10 @@ describe('Địa điểm từ bài viết (e2e)', () => {
        RETURNING id`,
     )) as Array<{ id: string }>;
     regionId = region.id;
+    const [user] = (await db.query(
+      `INSERT INTO users (display_name) VALUES ('e2e-web-places') RETURNING id`,
+    )) as Array<{ id: string }>;
+    token = app.get(JwtService).sign({ sub: user.id });
   });
 
   afterAll(async () => {
@@ -61,6 +75,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     }
     await db?.query(`DELETE FROM places WHERE name LIKE 'E2E wp %'`);
     await db?.query(`DELETE FROM regions WHERE source_key = 'e2e:web-places'`);
+    await db?.query(`DELETE FROM users WHERE display_name = 'e2e-web-places'`);
     await app?.close();
   });
 
@@ -210,6 +225,147 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         30,
       );
       expect((await store.list(regionId, ['food'])).map((r) => r.name)).toEqual(['E2E wp Quán E']);
+    });
+  });
+
+  describe('GET /regions/:id/places', () => {
+    const article = (n: number, body: string) => ({
+      title: `Bài ${n}`,
+      uri: `https://wp.test/${n}`,
+      content: body,
+      publishedAt: '2026-01-01',
+    });
+    const agentPlace = (title: string, category: string) => ({
+      title,
+      description: `${title} đẹp`,
+      address: '',
+      location: { lat: 11.94, lng: 108.44 },
+      category,
+      openHours: { open: '07:00', close: '17:00' },
+    });
+    const get = (query = '') =>
+      request(app.getHttpServer())
+        .get(`/api/regions/${regionId}/places${query}`)
+        .set('Authorization', `Bearer ${token}`);
+    const names = (body: { items: Array<{ name: string }> }) => body.items.map((i) => i.name);
+
+    beforeEach(async () => {
+      await db.query(`DELETE FROM region_places WHERE region_id = $1`, [regionId]);
+      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [regionId]);
+      agent.findPlaces.mockReset();
+      google.findPlace.mockReset();
+    });
+
+    it('lần đầu: chạy pipeline, lưu, trả mục có id; ghép được thì google, không thì ai', async () => {
+      agent.findPlaces.mockResolvedValue({
+        places: [agentPlace('E2E wp Thác Một', 'nature'), agentPlace('E2E wp Quán Hai', 'food')],
+        sources: [article(1, 'Ghé E2E wp Thác Một rồi ăn ở E2E wp Quán Hai.')],
+      });
+      google.findPlace.mockImplementation(async (query: string) =>
+        query.startsWith('E2E wp Thác Một')
+          ? [{ placeId: 'wp-g1', lat: 11.9, lng: 108.44, name: 'E2E wp Thác Một', primaryType: 'tourist_attraction' }]
+          : [],
+      );
+
+      const res = await get('?categories=nature,food').expect(200);
+
+      expect(res.body.status).toBe('ready');
+      expect(res.body.source).toBe('web');
+      expect(
+        res.body.items.map((i: { name: string; locationSource: string; googlePlaceId: string | null }) => [
+          i.name,
+          i.locationSource,
+          i.googlePlaceId ?? null,
+        ]),
+      ).toEqual([
+        ['E2E wp Thác Một', 'google', 'wp-g1'],
+        ['E2E wp Quán Hai', 'ai', null],
+      ]);
+      expect(res.body.items.every((i: { id: string }) => typeof i.id === 'string')).toBe(true);
+      expect(res.body.items[0].articles[0].uri).toBe('https://wp.test/1');
+    });
+
+    it('bỏ địa điểm không có trong bài viết nào', async () => {
+      agent.findPlaces.mockResolvedValue({
+        places: [agentPlace('E2E wp Có Thật', 'nature'), agentPlace('E2E wp Bịa', 'nature')],
+        sources: [article(2, 'Nên đến E2E wp Có Thật.')],
+      });
+      google.findPlace.mockResolvedValue([]);
+      const res = await get().expect(200);
+      expect(names(res.body)).toEqual(['E2E wp Có Thật']);
+    });
+
+    it('hai request song song chỉ chạy một lượt pipeline', async () => {
+      agent.findPlaces.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 300));
+        return { places: [agentPlace('E2E wp Song Song', 'nature')], sources: [article(3, 'E2E wp Song Song')] };
+      });
+      google.findPlace.mockResolvedValue([]);
+      const [a, b] = await Promise.all([get().expect(200), get().expect(200)]);
+      expect(agent.findPlaces).toHaveBeenCalledTimes(1);
+      expect(a.body.items).toHaveLength(1);
+      expect(b.body.items).toHaveLength(1);
+    });
+
+    it('quá thời gian chờ thì trả building, lần sau có kết quả', async () => {
+      agent.findPlaces.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 2500));
+        return { places: [agentPlace('E2E wp Chậm', 'nature')], sources: [article(4, 'E2E wp Chậm')] };
+      });
+      google.findPlace.mockResolvedValue([]);
+      const first = await get().expect(200);
+      expect(first.body).toMatchObject({ status: 'building', items: [] });
+      await new Promise((r) => setTimeout(r, 1000));
+      const second = await get().expect(200);
+      expect(second.body.status).toBe('ready');
+      expect(names(second.body)).toEqual(['E2E wp Chậm']);
+    });
+
+    it('pipeline lỗi khi đã có danh sách cũ: vẫn trả danh sách cũ', async () => {
+      agent.findPlaces.mockResolvedValueOnce({
+        places: [agentPlace('E2E wp Cũ', 'nature')],
+        sources: [article(5, 'E2E wp Cũ')],
+      });
+      google.findPlace.mockResolvedValue([]);
+      await get().expect(200);
+      await db.query(
+        `UPDATE region_place_lists SET expires_at = now() - interval '1 day' WHERE region_id = $1`,
+        [regionId],
+      );
+      agent.findPlaces.mockRejectedValueOnce(new Error('Tavily sập'));
+
+      const res = await get().expect(200);
+      expect(names(res.body)).toEqual(['E2E wp Cũ']);
+      await new Promise((r) => setTimeout(r, 200)); // làm mới nền chạy xong
+      expect(agent.findPlaces).toHaveBeenCalledTimes(2);
+      const [state] = (await db.query(`SELECT status FROM region_place_lists WHERE region_id = $1`, [
+        regionId,
+      ])) as Array<{ status: string }>;
+      expect(state.status).toBe('ready');
+    });
+
+    it('pipeline lỗi và chưa có gì: 503 PLACES_UNAVAILABLE', async () => {
+      agent.findPlaces.mockRejectedValue(new Error('Tavily sập'));
+      const res = await get().expect(503);
+      expect(res.body.code).toBe('PLACES_UNAVAILABLE');
+    });
+
+    it('Google lỗi: mọi địa điểm dùng tọa độ AI, danh sách vẫn lưu', async () => {
+      agent.findPlaces.mockResolvedValue({
+        places: [agentPlace('E2E wp Không Google', 'nature')],
+        sources: [article(6, 'E2E wp Không Google')],
+      });
+      google.findPlace.mockRejectedValue(new Error('500'));
+      const res = await get().expect(200);
+      expect(res.body.items[0].locationSource).toBe('ai');
+    });
+
+    it('vùng không tồn tại: 404 REGION_NOT_FOUND', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/regions/00000000-0000-4000-8000-000000000000/places')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+      expect(res.body.code).toBe('REGION_NOT_FOUND');
     });
   });
 });

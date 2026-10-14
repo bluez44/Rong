@@ -22,25 +22,25 @@ import { PlaceSearchDto } from './dto/place-search.dto.js';
 import { SaveGooglePlaceDto } from './dto/save-google-place.dto.js';
 import { PlaceSearchService } from './place-search.service.js';
 import { PlacesService } from './places.service.js';
+import { WebPlacesService } from './web-places.service.js';
 
 @Controller('regions')
 export class PlacesController {
   constructor(
-    private readonly places: PlacesService,
+    private readonly webPlaces: WebPlacesService,
     private readonly placeSearch: PlaceSearchService,
   ) {}
 
   /**
-   * Địa điểm trong vùng người dùng đã chọn. Lần đầu mở một vùng (hoặc sau
-   * PLACES_REFRESH_DAYS ngày) sẽ chậm vài giây vì phải tải từ OSM. OSM lỗi mà
-   * chưa có dữ liệu thì trả kết quả Gemini + Google Maps (`source`).
+   * Địa điểm của vùng, tổng hợp từ bài viết và định vị bằng Google. Lần đầu mở
+   * một vùng có thể trả `status: 'building'`: client hỏi lại sau vài giây.
    */
   @Get(':id/places')
   list(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query() dto: ListPlacesDto,
   ): Promise<PlacesPage> {
-    return this.places.listForRegion(id, dto);
+    return this.webPlaces.listForRegion(id, dto.categories);
   }
 
   /** Tìm địa điểm theo tên trong vùng: danh mục khi gõ, thêm Google Maps khi `online`. */

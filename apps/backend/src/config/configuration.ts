@@ -68,6 +68,14 @@ export interface ShareImportConfig {
   metaOembedToken: string | null;
 }
 
+/** Danh sách địa điểm từ bài viết (spec 2026-10-14-web-places). */
+export interface WebPlacesConfig {
+  /** Sau bao nhiêu ngày thì tổng hợp lại danh sách của một vùng (khớp hạn tọa độ Google). */
+  refreshDays: number;
+  /** Lần đầu mở vùng: chờ pipeline tối đa chừng này rồi trả `building`. */
+  waitMs: number;
+}
+
 /** Tìm địa điểm theo tên trong màn vùng. */
 export interface PlaceSearchConfig {
   /** Số lượt tìm Google Maps tối đa mỗi người trong 24 giờ. */
@@ -87,6 +95,7 @@ export interface AppConfig {
   google: GoogleConfig;
   shareImport: ShareImportConfig;
   placeSearch: PlaceSearchConfig;
+  webPlaces: WebPlacesConfig;
 }
 
 class MissingEnvError extends Error {
@@ -206,6 +215,10 @@ export function loadConfig(): AppConfig {
     shareImport: {
       dailyLimit: toInt(process.env.SHARE_IMPORT_DAILY_LIMIT, 30),
       metaOembedToken: process.env.META_OEMBED_TOKEN || null,
+    },
+    webPlaces: {
+      refreshDays: positiveInt('WEB_PLACES_REFRESH_DAYS', 30),
+      waitMs: positiveInt('WEB_PLACES_WAIT_MS', 25000),
     },
     placeSearch: {
       dailyLimit: positiveInt('PLACE_SEARCH_DAILY_LIMIT', 60),
