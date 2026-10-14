@@ -2595,6 +2595,7 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 10 | xong | 23b6fb4 | hook thử lại trong `useEffect` (lint cấm `useCallback` tự gọi lại); chưa chạy trên thiết bị |
 | 11 | xong | bbfaee3 | marker AI: viền nét đứt màu `warning`; chưa chạy trên thiết bị |
 | 12 | xong | ec5c93f | chưa chạy trên thiết bị |
+| 13 | xong | 21ac24a | giữ `website`; chi tiết trả `articles` của dòng web (từ `region_places`); marker bản đồ theo thứ hạng thay vì điểm. `apps/web` typecheck lỗi sẵn (`LayoutProps` cần `next typegen`), không liên quan |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
