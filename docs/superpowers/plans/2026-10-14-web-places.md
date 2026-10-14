@@ -2574,3 +2574,19 @@ Với 10 mục `google` ngẫu nhiên mỗi vùng, mở `sourceUrl` kiểm tra �
 git add apps/backend/src/modules/places/web-place-match*
 git commit -m "tune(backend): adjust the Google name-match threshold from live measurements"
 ```
+
+---
+
+## Tiến độ thực hiện
+
+Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate limit), tiếp tục từ task đầu tiên chưa có dòng "xong".
+
+| Task | Trạng thái | Commit | Ghi chú |
+| --- | --- | --- | --- |
+| 1 | đang làm | | |
+
+Quyết định khi thực hiện:
+- web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
+- Nếu Task 7 chuyển `google-category.ts` sang `modules/google/`, phải sửa cả import trong `places/web-place-match.ts`.
+- Task 8: Overpass lỗi thì lấy khung bao tỉnh từ Nominatim; vẫn thiếu thì dừng và báo.
+- Task 14 (đo thật, tốn tiền) phải hỏi người dùng trước khi chạy.
