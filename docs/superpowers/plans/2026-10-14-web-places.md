@@ -2589,11 +2589,11 @@ Nhánh `feat/web-places`. Cập nhật sau mỗi task; khi bị ngắt (rate lim
 | 4 | xong | 48c5511 | |
 | 5 | xong | e8931d9 | xóa luôn `ai-fallback.*`, `places-source`/`places-speed` e2e và script `test:speed` (chỉ kiểm thử pipeline cũ) |
 | 6 | xong | 8788f7d | e2e lịch trình chỉ xóa dòng `E2E it %` của Đà Lạt; test locationSource kiểm mọi điểm thăm (`ga` có thể rơi vào "Chưa xếp") |
-| 7 | đang làm | | |
+| 7 | xong | 1831970 | `google-category.ts` giữ ở `places/` (không có vòng import); `getDetail` bỏ hẳn ghép theo tên nên `GooglePlacesService.matchPlaceId` không còn chỗ gọi — gỡ ở Task 9; thêm e2e chi tiết dòng web |
+| 8 | đang làm | | |
 
 Quyết định khi thực hiện:
 - web-places e2e dùng vùng test riêng (`e2e:web-places`) thay vì Đà Lạt, vì các file e2e chạy song song.
 - Nếu Task 7 chuyển `google-category.ts` sang `modules/google/`, phải sửa cả import trong `places/web-place-match.ts`.
 - Task 8: Overpass lỗi thì lấy khung bao tỉnh từ Nominatim; vẫn thiếu thì dừng và báo.
 - Task 14 (đo thật, tốn tiền) phải hỏi người dùng trước khi chạy.
-- `google-places.service.spec.ts > searchByName` đã lỗi sẵn trước Task 5 (kết quả có thêm `suggestedCategory`); sửa khi làm Task 7.
