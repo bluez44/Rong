@@ -4,7 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PlaceSearchService as AgentPlaceSearch } from '../src/langchain/place-search.service.js';
@@ -50,7 +58,11 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     await app.init();
     db = app.get(DataSource);
@@ -70,8 +82,12 @@ describe('Địa điểm từ bài viết (e2e)', () => {
 
   afterAll(async () => {
     if (regionId) {
-      await db?.query(`DELETE FROM region_places WHERE region_id = $1`, [regionId]);
-      await db?.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [regionId]);
+      await db?.query(`DELETE FROM region_places WHERE region_id = $1`, [
+        regionId,
+      ]);
+      await db?.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [
+        regionId,
+      ]);
     }
     await db?.query(`DELETE FROM places WHERE name LIKE 'E2E wp %'`);
     await db?.query(`DELETE FROM regions WHERE source_key = 'e2e:web-places'`);
@@ -116,7 +132,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       const id = await webRow('E2E wp làm mới', 'wp-refresh', -1);
       google.locate.mockResolvedValueOnce({ lat: 11.95, lng: 108.45 });
 
-      await expect(app.get(PlaceLocationService).ensure([id])).resolves.toEqual([]);
+      await expect(app.get(PlaceLocationService).ensure([id])).resolves.toEqual(
+        [],
+      );
 
       expect(google.locate).toHaveBeenCalledWith('wp-refresh');
       const [row] = (await db.query(
@@ -129,12 +147,21 @@ describe('Địa điểm từ bài viết (e2e)', () => {
 
     it('không cho hai dòng web/google trùng place_id', async () => {
       await webRow('E2E wp trùng 1', 'wp-dup', 30);
-      await expect(webRow('E2E wp trùng 2', 'wp-dup', 30)).rejects.toThrow(/uq_place_google/);
+      await expect(webRow('E2E wp trùng 2', 'wp-dup', 30)).rejects.toThrow(
+        /uq_place_google/,
+      );
     });
   });
   describe('RegionPlaceStore', () => {
-    const article = { title: 'Bài A', uri: 'https://a.test/1', publishedAt: null };
-    const input = (name: string, location: WebPlaceInput['location']): WebPlaceInput => ({
+    const article = {
+      title: 'Bài A',
+      uri: 'https://a.test/1',
+      publishedAt: null,
+    };
+    const input = (
+      name: string,
+      location: WebPlaceInput['location'],
+    ): WebPlaceInput => ({
       name,
       category: 'nature',
       description: 'Mô tả',
@@ -144,8 +171,12 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     });
 
     beforeEach(async () => {
-      await db.query(`DELETE FROM region_places WHERE region_id = $1`, [regionId]);
-      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [regionId]);
+      await db.query(`DELETE FROM region_places WHERE region_id = $1`, [
+        regionId,
+      ]);
+      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [
+        regionId,
+      ]);
     });
 
     it('lưu danh sách theo thứ tự, đánh dấu ready và hạn làm mới', async () => {
@@ -153,7 +184,12 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       const ids = await store.replace(
         regionId,
         [
-          input('E2E wp Thác A', { source: 'google', placeId: 'wp-a', lat: 11.9, lng: 108.44 }),
+          input('E2E wp Thác A', {
+            source: 'google',
+            placeId: 'wp-a',
+            lat: 11.9,
+            lng: 108.44,
+          }),
           input('E2E wp Đồi B', { source: 'ai', lat: 11.92, lng: 108.45 }),
         ],
         [article],
@@ -170,7 +206,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       expect(rows[0].articles).toEqual([article]);
       const state = await store.state(regionId);
       expect(state?.status).toBe('ready');
-      expect(state!.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 29 * 86_400_000);
+      expect(state!.expiresAt!.getTime()).toBeGreaterThan(
+        Date.now() + 29 * 86_400_000,
+      );
     });
 
     it('trùng place_id với dòng người dùng đã lưu thì dùng lại dòng đó, giữ tên', async () => {
@@ -181,27 +219,55 @@ describe('Địa điểm từ bài viết (e2e)', () => {
          RETURNING id`,
       )) as Array<{ id: string }>;
 
-      const [id] = await app.get(RegionPlaceStore).replace(
-        regionId,
-        [input('E2E wp Tên bài viết', { source: 'google', placeId: 'wp-saved', lat: 11.94, lng: 108.44 })],
-        [],
-        30,
-      );
+      const [id] = await app
+        .get(RegionPlaceStore)
+        .replace(
+          regionId,
+          [
+            input('E2E wp Tên bài viết', {
+              source: 'google',
+              placeId: 'wp-saved',
+              lat: 11.94,
+              lng: 108.44,
+            }),
+          ],
+          [],
+          30,
+        );
 
       expect(id).toBe(saved.id);
-      const [row] = (await db.query(`SELECT name FROM places WHERE id = $1`, [id])) as Array<{ name: string }>;
+      const [row] = (await db.query(`SELECT name FROM places WHERE id = $1`, [
+        id,
+      ])) as Array<{ name: string }>;
       expect(row.name).toBe('E2E wp Tên người dùng');
     });
 
     it('làm mới: dòng AI cùng tên được dùng lại, ghép được Google thì nâng cấp chính dòng đó', async () => {
       const store = app.get(RegionPlaceStore);
-      const [first] = await store.replace(regionId, [input('E2E wp Hồ C', { source: 'ai', lat: 11.93, lng: 108.43 })], [], 30);
-      const [again] = await store.replace(regionId, [input('E2E wp Hồ C', { source: 'ai', lat: 11.93, lng: 108.43 })], [], 30);
+      const [first] = await store.replace(
+        regionId,
+        [input('E2E wp Hồ C', { source: 'ai', lat: 11.93, lng: 108.43 })],
+        [],
+        30,
+      );
+      const [again] = await store.replace(
+        regionId,
+        [input('E2E wp Hồ C', { source: 'ai', lat: 11.93, lng: 108.43 })],
+        [],
+        30,
+      );
       expect(again).toBe(first);
 
       const [upgraded] = await store.replace(
         regionId,
-        [input('E2E wp Hồ C', { source: 'google', placeId: 'wp-c', lat: 11.931, lng: 108.431 })],
+        [
+          input('E2E wp Hồ C', {
+            source: 'google',
+            placeId: 'wp-c',
+            lat: 11.931,
+            lng: 108.431,
+          }),
+        ],
         [],
         30,
       );
@@ -209,8 +275,16 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       const [row] = (await db.query(
         `SELECT location_source, google_place_id, location_expires_at IS NOT NULL AS expires FROM places WHERE id = $1`,
         [first],
-      )) as Array<{ location_source: string; google_place_id: string; expires: boolean }>;
-      expect(row).toEqual({ location_source: 'google', google_place_id: 'wp-c', expires: true });
+      )) as Array<{
+        location_source: string;
+        google_place_id: string;
+        expires: boolean;
+      }>;
+      expect(row).toEqual({
+        location_source: 'google',
+        google_place_id: 'wp-c',
+        expires: true,
+      });
     });
 
     it('list lọc theo danh mục', async () => {
@@ -219,12 +293,17 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         regionId,
         [
           input('E2E wp Thác D', { source: 'ai', lat: 11.9, lng: 108.4 }),
-          { ...input('E2E wp Quán E', { source: 'ai', lat: 11.9, lng: 108.4 }), category: 'food' },
+          {
+            ...input('E2E wp Quán E', { source: 'ai', lat: 11.9, lng: 108.4 }),
+            category: 'food',
+          },
         ],
         [],
         30,
       );
-      expect((await store.list(regionId, ['food'])).map((r) => r.name)).toEqual(['E2E wp Quán E']);
+      expect((await store.list(regionId, ['food'])).map((r) => r.name)).toEqual(
+        ['E2E wp Quán E'],
+      );
     });
   });
 
@@ -247,23 +326,39 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       request(app.getHttpServer())
         .get(`/api/regions/${regionId}/places${query}`)
         .set('Authorization', `Bearer ${token}`);
-    const names = (body: { items: Array<{ name: string }> }) => body.items.map((i) => i.name);
+    const names = (body: { items: Array<{ name: string }> }) =>
+      body.items.map((i) => i.name);
 
     beforeEach(async () => {
-      await db.query(`DELETE FROM region_places WHERE region_id = $1`, [regionId]);
-      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [regionId]);
+      await db.query(`DELETE FROM region_places WHERE region_id = $1`, [
+        regionId,
+      ]);
+      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [
+        regionId,
+      ]);
       agent.findPlaces.mockReset();
       google.findPlace.mockReset();
     });
 
     it('lần đầu: chạy pipeline, lưu, trả mục có id; ghép được thì google, không thì ai', async () => {
       agent.findPlaces.mockResolvedValue({
-        places: [agentPlace('E2E wp Thác Một', 'nature'), agentPlace('E2E wp Quán Hai', 'food')],
+        places: [
+          agentPlace('E2E wp Thác Một', 'nature'),
+          agentPlace('E2E wp Quán Hai', 'food'),
+        ],
         sources: [article(1, 'Ghé E2E wp Thác Một rồi ăn ở E2E wp Quán Hai.')],
       });
       google.findPlace.mockImplementation(async (query: string) =>
         query.startsWith('E2E wp Thác Một')
-          ? [{ placeId: 'wp-g1', lat: 11.9, lng: 108.44, name: 'E2E wp Thác Một', primaryType: 'tourist_attraction' }]
+          ? [
+              {
+                placeId: 'wp-g1',
+                lat: 11.9,
+                lng: 108.44,
+                name: 'E2E wp Thác Một',
+                primaryType: 'tourist_attraction',
+              },
+            ]
           : [],
       );
 
@@ -272,22 +367,29 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       expect(res.body.status).toBe('ready');
       expect(res.body.source).toBe('web');
       expect(
-        res.body.items.map((i: { name: string; locationSource: string; googlePlaceId: string | null }) => [
-          i.name,
-          i.locationSource,
-          i.googlePlaceId ?? null,
-        ]),
+        res.body.items.map(
+          (i: {
+            name: string;
+            locationSource: string;
+            googlePlaceId: string | null;
+          }) => [i.name, i.locationSource, i.googlePlaceId ?? null],
+        ),
       ).toEqual([
         ['E2E wp Thác Một', 'google', 'wp-g1'],
         ['E2E wp Quán Hai', 'ai', null],
       ]);
-      expect(res.body.items.every((i: { id: string }) => typeof i.id === 'string')).toBe(true);
+      expect(
+        res.body.items.every((i: { id: string }) => typeof i.id === 'string'),
+      ).toBe(true);
       expect(res.body.items[0].articles[0].uri).toBe('https://wp.test/1');
     });
 
     it('bỏ địa điểm không có trong bài viết nào', async () => {
       agent.findPlaces.mockResolvedValue({
-        places: [agentPlace('E2E wp Có Thật', 'nature'), agentPlace('E2E wp Bịa', 'nature')],
+        places: [
+          agentPlace('E2E wp Có Thật', 'nature'),
+          agentPlace('E2E wp Bịa', 'nature'),
+        ],
         sources: [article(2, 'Nên đến E2E wp Có Thật.')],
       });
       google.findPlace.mockResolvedValue([]);
@@ -298,7 +400,10 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     it('hai request song song chỉ chạy một lượt pipeline', async () => {
       agent.findPlaces.mockImplementation(async () => {
         await new Promise((r) => setTimeout(r, 300));
-        return { places: [agentPlace('E2E wp Song Song', 'nature')], sources: [article(3, 'E2E wp Song Song')] };
+        return {
+          places: [agentPlace('E2E wp Song Song', 'nature')],
+          sources: [article(3, 'E2E wp Song Song')],
+        };
       });
       google.findPlace.mockResolvedValue([]);
       const [a, b] = await Promise.all([get().expect(200), get().expect(200)]);
@@ -310,7 +415,10 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     it('quá thời gian chờ thì trả building, lần sau có kết quả', async () => {
       agent.findPlaces.mockImplementation(async () => {
         await new Promise((r) => setTimeout(r, 2500));
-        return { places: [agentPlace('E2E wp Chậm', 'nature')], sources: [article(4, 'E2E wp Chậm')] };
+        return {
+          places: [agentPlace('E2E wp Chậm', 'nature')],
+          sources: [article(4, 'E2E wp Chậm')],
+        };
       });
       google.findPlace.mockResolvedValue([]);
       const first = await get().expect(200);
@@ -338,9 +446,10 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       expect(names(res.body)).toEqual(['E2E wp Cũ']);
       await new Promise((r) => setTimeout(r, 200)); // làm mới nền chạy xong
       expect(agent.findPlaces).toHaveBeenCalledTimes(2);
-      const [state] = (await db.query(`SELECT status FROM region_place_lists WHERE region_id = $1`, [
-        regionId,
-      ])) as Array<{ status: string }>;
+      const [state] = (await db.query(
+        `SELECT status FROM region_place_lists WHERE region_id = $1`,
+        [regionId],
+      )) as Array<{ status: string }>;
       expect(state.status).toBe('ready');
     });
 
@@ -366,6 +475,49 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(404);
       expect(res.body.code).toBe('REGION_NOT_FOUND');
+    });
+  });
+
+  describe('GET /places/:id', () => {
+    it('dòng web tọa độ AI: không gọi Google, link tìm trên Google Maps, ghi rõ nguồn', async () => {
+      const id = await webRow('E2E wp Chi tiết AI', null, null);
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        id,
+        name: 'E2E wp Chi tiết AI',
+        locationSource: 'ai',
+        googleStatus: 'not_found',
+        google: null,
+        attribution: 'Tổng hợp từ bài viết (AI) · Google Maps',
+      });
+      expect(res.body.sourceUrl).toMatch(
+        /^https:\/\/www\.google\.com\/maps\/search\//,
+      );
+      expect(google.details).not.toHaveBeenCalled();
+      expect(google.matchPlaceId).not.toHaveBeenCalled();
+    });
+
+    it('dòng web đã ghép Google: nội dung Google trực tiếp, giữ tên từ bài viết', async () => {
+      const id = await webRow('E2E wp Chi tiết Google', 'wp-detail', 30);
+      google.details.mockResolvedValueOnce({
+        placeId: 'wp-detail',
+        name: 'Tên Google',
+        googleMapsUri: 'https://maps.google.com/?cid=1',
+      } as never);
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        name: 'E2E wp Chi tiết Google',
+        locationSource: 'google',
+        googleStatus: 'ok',
+        sourceUrl: 'https://maps.google.com/?cid=1',
+      });
+      expect(google.details).toHaveBeenCalledWith('wp-detail');
     });
   });
 });

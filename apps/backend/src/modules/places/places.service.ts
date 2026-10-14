@@ -8,6 +8,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   GoogleContentStatus,
   GooglePlaceContent,
+  LocationSource,
   PlaceCategory,
   PlaceDetail,
   PlaceListItem,
@@ -21,11 +22,11 @@ import {
 import { hoursToday } from './opening-hours.js';
 import { PlaceLocationService } from './place-location.service.js';
 
-export const ATTRIBUTION =
-  '© OpenStreetMap contributors (ODbL) · Wikidata (CC0)';
-
-/** Địa điểm chưa ghép được với Google thì sau chừng này mới thử lại (quán mới mở có thể đã lên Google). */
-const GOOGLE_REMATCH_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
+const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
+  osm: '© OpenStreetMap contributors (ODbL) · Wikidata (CC0)',
+  google: 'Google Maps',
+  web: 'Tổng hợp từ bài viết (AI) · Google Maps',
+};
 
 interface Cursor {
   s: number;
@@ -77,7 +78,7 @@ export class PlacesService {
               p.composite_score, p.description, p.wikidata_id, p.osm_type, p.osm_id,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
-              p.google_place_id, p.google_matched_at, p.source
+              p.google_place_id, p.source, p.location_source
          FROM places p WHERE p.id = $1`,
       [id],
     )) as DetailRow[];
@@ -92,17 +93,23 @@ export class PlacesService {
 
     const { status, content } = await this.googleContent(row);
     const item = toListItem(row);
-    if (row.source === 'google') {
+    if (row.source === 'google' && content?.name) {
       // Tên trong places là của người chia sẻ đầu tiên: có tên Google thì hiện tên đó (trực tiếp, không lưu).
-      if (content?.name) item.name = content.name;
+      item.name = content.name;
+    }
+    if (row.source !== 'osm') {
+      const query = encodeURIComponent(row.name);
       item.sourceUrl =
         content?.googleMapsUri ??
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.name)}&query_place_id=${row.google_place_id}`;
+        (row.google_place_id
+          ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
+          : `https://www.google.com/maps/search/?api=1&query=${query}`);
     }
     return {
       ...item,
       id: row.id,
-      attribution: row.source === 'google' ? 'Google Maps' : ATTRIBUTION,
+      locationSource: row.location_source,
+      attribution: ATTRIBUTIONS[row.source],
       googleStatus: status,
       google: content,
     };
@@ -112,36 +119,17 @@ export class PlacesService {
     status: GoogleContentStatus;
     content: GooglePlaceContent | null;
   }> {
+    // Chưa ghép được Google (tọa độ AI, dòng OSM cũ): không gọi Google.
+    if (row.google_place_id === null) {
+      return { status: 'not_found', content: null };
+    }
     if (!this.google.enabled) return { status: 'unavailable', content: null };
 
     try {
-      let placeId = row.google_place_id;
-      const retryDue =
-        row.google_matched_at === null ||
-        Date.now() - row.google_matched_at.getTime() > GOOGLE_REMATCH_AFTER_MS;
-
-      if (placeId === null && retryDue && row.source !== 'google') {
-        placeId = await this.google.matchPlaceId(row.name, row.lat, row.lng);
-        await this.db.query(
-          `UPDATE places SET google_place_id = $2, google_matched_at = now() WHERE id = $1`,
-          [row.id, placeId],
-        );
-      }
-      if (placeId === null) return { status: 'not_found', content: null };
-
-      const content = await this.google.details(placeId);
-      if (content === null) {
-        // Dòng Google không được gỡ place_id (chk_place_source).
-        if (row.source === 'google')
-          return { status: 'not_found', content: null };
-        // place_id có thể hết hiệu lực (Google gộp/xóa địa điểm): bỏ đi để lần sau ghép lại.
-        await this.db.query(
-          `UPDATE places SET google_place_id = NULL, google_matched_at = now() WHERE id = $1`,
-          [row.id],
-        );
-        return { status: 'not_found', content: null };
-      }
-      return { status: 'ok', content };
+      const content = await this.google.details(row.google_place_id);
+      return content === null
+        ? { status: 'not_found', content: null }
+        : { status: 'ok', content };
     } catch (error) {
       if (error instanceof GoogleUnavailableError) {
         this.logger.warn(
@@ -156,8 +144,8 @@ export class PlacesService {
 
 interface DetailRow extends PlaceRow {
   google_place_id: string | null;
-  google_matched_at: Date | null;
-  source: 'osm' | 'google';
+  source: 'osm' | 'google' | 'web';
+  location_source: LocationSource;
 }
 
 function toListItem(row: PlaceRow): PlaceListItem {
