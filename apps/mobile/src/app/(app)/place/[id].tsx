@@ -31,6 +31,8 @@ export default function PlaceDetailScreen() {
 
   const name = place?.name ?? params.name ?? 'Địa điểm';
   const category = place?.category ?? (params.category && params.category in CATEGORY_LABELS ? params.category : null);
+  // Đã có địa chỉ trong phần Google Maps thì không hiện thêm địa chỉ từ bài viết, tránh hai địa chỉ khác nhau.
+  const address = place?.google?.address ? null : place?.address;
 
   return (
     // Chỉ chừa cạnh trên: nội dung cuộn xuống dưới thanh home.
@@ -58,10 +60,10 @@ export default function PlaceDetailScreen() {
             {name}
           </Text>
           {place?.locationSource === 'ai' ? <ApproximateLocation /> : null}
-          {place?.address ? (
+          {address ? (
             <View style={styles.addressRow}>
               <Icon name="pin" size={15} color={Colors.light.textSecondary} />
-              <Text style={styles.addressText}>{place.address}</Text>
+              <Text style={styles.addressText}>{address}</Text>
             </View>
           ) : null}
           {place ? <Summary place={place} /> : null}
