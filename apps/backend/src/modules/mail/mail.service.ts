@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 
 import type { MailConfig } from '../../config/configuration.js';
 
@@ -21,23 +22,15 @@ export interface MailMessage {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly transporter: Transporter | null;
+  private readonly resend: Resend | null;
 
   constructor(@Inject(MAIL_CONFIG) private readonly config: MailConfig) {
-    this.transporter = config.smtpHost
-      ? createTransport({
-          host: config.smtpHost,
-          port: config.smtpPort,
-          secure: config.smtpSecure,
-          auth: config.smtpUser
-            ? { user: config.smtpUser, pass: config.smtpPassword ?? '' }
-            : undefined,
-        })
-      : null;
+    this.resend = config.resendApiKey ? new Resend(config.resendApiKey) : null;
+  
   }
 
   async send(message: MailMessage): Promise<void> {
-    if (this.transporter === null) {
+    if (this.resend === null) {
       this.logger.warn(
         `SMTP_HOST chưa được cấu hình, email không được gửi thật.\n` +
           `To: ${message.to}\nSubject: ${message.subject}\n\n${message.text}`,
@@ -45,6 +38,6 @@ export class MailService {
       return;
     }
 
-    await this.transporter.sendMail({ from: this.config.from, ...message });
+    await this.resend.emails.send({ from: this.config.from, ...message });
   }
 }

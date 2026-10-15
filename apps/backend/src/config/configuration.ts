@@ -35,6 +35,7 @@ export interface MailConfig {
   smtpUser: string | null;
   smtpPassword: string | null;
   from: string;
+  resendApiKey: string | null;
 }
 
 /** Nguồn dữ liệu mở (OSM, Wikidata) — mục 7.1 PRD. */
@@ -178,6 +179,7 @@ export function loadConfig(): AppConfig {
       smtpUser: process.env.SMTP_USER || null,
       smtpPassword: process.env.SMTP_PASSWORD || null,
       from: process.env.MAIL_FROM || 'Rong <no-reply@rong.local>',
+      resendApiKey: process.env.RESEND_API_KEY || null,
     },
     openData: {
       nominatimUrl:
