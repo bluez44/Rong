@@ -25,10 +25,10 @@ const MAX_PLACES = 40;
  * truy vấn cũng ra gần đúng mấy câu này mà tốn thêm trọn một lượt gọi model.
  */
 const queries = (regionName: string) => [
-  `địa điểm tham quan nổi tiếng ${regionName}`,
-  `quán ăn ngon ${regionName}`,
-  `quán cà phê đẹp ${regionName}`,
-  `khách sạn homestay đẹp ${regionName}`,
+  `địa điểm tham quan nổi tiếng ${regionName} năm ${new Date().getFullYear()}`,
+  `quán ăn ngon ${regionName} năm ${new Date().getFullYear()}`,
+  `quán cà phê đẹp ${regionName} năm ${new Date().getFullYear()}`,
+  `khách sạn homestay đẹp ${regionName} năm ${new Date().getFullYear()}`,
 ];
 
 const SYSTEM_PROMPT = `Bạn là trợ lý du lịch tìm địa điểm ở Việt Nam.

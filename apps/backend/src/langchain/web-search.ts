@@ -105,7 +105,7 @@ export function createWebSearchTool(apiKey: string, fetchImpl = fetch) {
     {
       name: WEB_SEARCH_TOOL_NAME,
       description:
-        'Tìm trên web và trả về nội dung các bài viết (blog du lịch, báo, trang review) khớp với truy vấn. ' +
+        `Tìm trên web và trả về nội dung các bài viết (blog du lịch, báo, trang review) mới nhất hiện tại (${new Date().getFullYear()}) khớp với truy vấn. ` +
         'Dùng để tìm địa điểm tham quan, ăn uống, cà phê… ở một khu vực.',
       schema: z.object({
         query: z
