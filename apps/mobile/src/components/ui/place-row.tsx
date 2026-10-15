@@ -55,7 +55,7 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
-      accessibilityLabel={[place.name, meta, ...extras].join(', ')}
+      accessibilityLabel={[place.name, meta, place.address, ...extras].filter(Boolean).join(', ')}
       // Cả dòng là một phần tử với trình đọc màn hình nên các nút bên trong được đưa ra thành hành động.
       accessibilityActions={actions.length ? actions : undefined}
       onAccessibilityAction={(e) => {
@@ -75,6 +75,14 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
         <Text style={styles.meta} numberOfLines={1}>
           {meta}
         </Text>
+        {place.address ? (
+          <View style={styles.address}>
+            <Icon name="pin" size={13} color={Colors.light.textSecondary} />
+            <Text style={styles.addressText} numberOfLines={selected ? undefined : 1}>
+              {place.address}
+            </Text>
+          </View>
+        ) : null}
         {place.description ? (
           <Text style={styles.description} numberOfLines={selected ? undefined : 2}>
             {place.description}
@@ -193,6 +201,8 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 2 },
   name: { ...Type.headline, color: Colors.light.text },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
+  address: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addressText: { ...Type.footnote, color: Colors.light.textSecondary, flexShrink: 1 },
   description: { ...Type.footnote, color: Colors.light.textSecondary, marginTop: 2 },
   source: { ...Type.caption, color: Colors.light.textSecondary, marginTop: 2 },
   articles: { gap: Spacing.two, marginTop: Spacing.two },

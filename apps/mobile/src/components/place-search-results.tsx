@@ -77,13 +77,15 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
             return (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${item.place.name}, ${CATEGORY_LABELS[item.place.category]}`}
+                accessibilityLabel={[item.place.name, CATEGORY_LABELS[item.place.category], item.place.address].filter(Boolean).join(', ')}
                 onPress={() => openPlace(item.place)}
                 style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
                 <Text style={styles.name} numberOfLines={2}>
                   {item.place.name}
                 </Text>
-                <Text style={styles.sub}>{CATEGORY_LABELS[item.place.category]}</Text>
+                <Text style={styles.sub} numberOfLines={2}>
+                  {[CATEGORY_LABELS[item.place.category], item.place.address].filter(Boolean).join(' · ')}
+                </Text>
               </Pressable>
             );
           case 'google':
