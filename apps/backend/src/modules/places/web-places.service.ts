@@ -179,7 +179,7 @@ export class WebPlacesService {
         const input: WebPlaceInput = {
           name: place.title.trim(),
           category: place.category,
-          address: place.address.trim() || place.location.address.trim() || null,
+          address: place.address.trim() || null,
           description: place.description.trim() || null,
           openingHours: openingHours(place.openHours),
           // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.

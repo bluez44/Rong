@@ -7,15 +7,12 @@ export const Places = z.array(
     address: z
       .string()
       .describe(
-        'Street address as written in the source (e.g. "2 Trần Quốc Toản, Phường 1"); empty string if unknown',
+        'Street address as written in the source (e.g. "2 Trần Quốc Toản, Phường 1"); empty string if unknown, do not guess',
       ),
     location: z
       .object({
         lat: z.number().describe('The latitude of the place'),
         lng: z.number().describe('The longitude of the place'),
-        address: z
-          .string()
-          .describe('The full address stated in the source, or an empty string if unknown; do not guess'),
       })
       .describe('The geographical location of the place'),
     category: z

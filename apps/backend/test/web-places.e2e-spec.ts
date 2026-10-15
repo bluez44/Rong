@@ -318,7 +318,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       title,
       description: `${title} đẹp`,
       address: '',
-      location: { lat: 11.94, lng: 108.44, address: '' },
+      location: { lat: 11.94, lng: 108.44 },
       category,
       openHours: { open: '07:00', close: '17:00' },
     });
