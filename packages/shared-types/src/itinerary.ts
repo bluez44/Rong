@@ -56,7 +56,11 @@ export interface ItineraryInput {
 export interface ItineraryPlaceSnapshot {
   name: string;
   category: string;
-  /** Địa chỉ dữ liệu riêng của Rong, được điền từ bản ghi places khi đọc lịch trình. */
+  /**
+   * Địa chỉ từ dữ liệu riêng của Rong (bài viết). Lưu trong ảnh chụp lúc tạo/sửa
+   * để dự phòng; mỗi lần đọc server điền lại bản mới nhất từ `places`. Địa điểm
+   * nguồn Google luôn null (PRD 7.4).
+   */
   address?: string | null;
   /**
    * Địa điểm nguồn Google: không lưu trong lịch trình (PRD 7.4) — server điền

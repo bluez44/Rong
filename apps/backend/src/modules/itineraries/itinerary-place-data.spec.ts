@@ -2,7 +2,7 @@ import type { ItineraryDay, ItineraryItem } from '@rong/shared-types';
 import type { DataSource } from 'typeorm';
 import { describe, expect, it, vi } from 'vitest';
 
-import { withItineraryPlaceData } from './google-coordinates.js';
+import { withItineraryPlaceData } from './itinerary-place-data.js';
 
 type Row = {
   id: string;

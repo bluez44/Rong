@@ -243,7 +243,7 @@ Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` (c�
 
 Lịch trình (`itineraries.days` JSONB) không lưu tọa độ Google hoặc địa chỉ Google. Ảnh chụp địa điểm nguồn Google ghi
 `coordinates: null` (`itineraries/planning/snapshot.ts`); các đường đọc (GET/POST/PUT lịch trình, trang xem công khai)
-điền tọa độ Google còn hạn và địa chỉ riêng của Rong từ `places` qua `itineraries/google-coordinates.ts`.
+điền tọa độ Google còn hạn và địa chỉ riêng của Rong từ `places` qua `itineraries/itinerary-place-data.ts`.
 
 Dòng Google dùng chung theo `google_place_id`, nên `places.name` là tên của người chia sẻ đầu tiên. Mỗi lượt lưu
 từ chia sẻ ghi tên theo nội dung của chính người đó vào `saved_places.display_name`; "Muốn đi" trả

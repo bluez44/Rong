@@ -39,7 +39,7 @@ import {
 import type { CreateItineraryDto } from './dto/create-itinerary.dto.js';
 import type { UpdateItineraryDto } from './dto/update-itinerary.dto.js';
 import { Itinerary } from './entities/itinerary.entity.js';
-import { withItineraryPlaceData } from './google-coordinates.js';
+import { withItineraryPlaceData } from './itinerary-place-data.js';
 import { itinerarySummaries } from './itinerary-summaries.js';
 import {
   assignToDays,

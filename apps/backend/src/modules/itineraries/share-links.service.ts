@@ -13,7 +13,7 @@ import { DataSource } from 'typeorm';
 
 import { notFound } from '../groups/errors.js';
 import { hashToken, isTokenShape, newToken } from '../groups/tokens.js';
-import { withItineraryPlaceData } from './google-coordinates.js';
+import { withItineraryPlaceData } from './itinerary-place-data.js';
 import { ItinerariesService } from './itineraries.service.js';
 
 /**
