@@ -5,6 +5,7 @@ import {
   articlesMentioning,
   extractPublishedDate,
   fetchPublishedDate,
+  groundedAddress,
   normalizeForMatch,
 } from './web-grounding.js';
 
@@ -47,6 +48,32 @@ describe('articlesMentioning', () => {
 
   it('tên của bài viết cũng tính', () => {
     expect(articlesMentioning('Ga Đà Lạt', 'Lâm Đồng', [source('d', '...', 'Review Ga Đà Lạt cổ kính')])).toHaveLength(1);
+  });
+});
+
+describe('groundedAddress', () => {
+  const articles = [
+    source('a', 'Quán nằm ở số 2 đường Trần Quốc Toản, Phường 1, mở cửa từ 7h.'),
+    source('b', 'Ghé chợ Đà Lạt buổi tối.'),
+  ];
+
+  it('giữ địa chỉ khi phần số nhà + đường có trong bài, bỏ qua "số", "đường" và dấu', () => {
+    expect(groundedAddress(' 2 Trần Quốc Toản, Phường 1, Đà Lạt ', articles)).toBe('2 Trần Quốc Toản, Phường 1, Đà Lạt');
+    expect(groundedAddress('Số 2 Đường TRAN QUOC TOAN', articles)).toBe('Số 2 Đường TRAN QUOC TOAN');
+  });
+
+  it('địa chỉ không có trong bài thì null — model tự đoán', () => {
+    expect(groundedAddress('12 Trần Quốc Toản, Phường 1', articles)).toBeNull();
+    expect(groundedAddress('2 Nguyễn Chí Thanh', articles)).toBeNull();
+  });
+
+  it('rỗng hoặc quá ngắn thì null', () => {
+    expect(groundedAddress('', articles)).toBeNull();
+    expect(groundedAddress('Số 2, Phường 1', articles)).toBeNull();
+  });
+
+  it('chỉ khớp nguyên từ: "2 Trần" không khớp "12 Trần"', () => {
+    expect(groundedAddress('2 Lê Lợi', [source('c', 'Địa chỉ: 12 Lê Lợi')])).toBeNull();
   });
 });
 

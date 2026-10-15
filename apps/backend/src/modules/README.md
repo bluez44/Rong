@@ -104,7 +104,7 @@ Dữ liệu:
 - Chỉ dòng có `google_place_id` mới gọi Google; dòng tọa độ AI và dòng OSM cũ trả `googleStatus: 'not_found'`.
   Không còn ghép `place_id` theo tên.
 - Dòng `web`/`google` có `sourceUrl` là link Google Maps; `locationSource` cho biết tọa độ từ đâu.
-- `places.address` lưu địa chỉ lấy từ bài viết (nguồn riêng của Rong), không lưu địa chỉ Google. Dòng Google-only giữ `address = NULL`; chi tiết Google vẫn lấy trực tiếp ở mỗi lần mở.
+- `places.address` lưu địa chỉ lấy từ bài viết (nguồn riêng của Rong), không lưu địa chỉ Google. Chỉ giữ địa chỉ Gemini trả về khi phần số nhà + đường có trong một bài đã nhắc địa điểm (`groundedAddress` trong `web-grounding.ts`), không thì `NULL`. Dòng Google-only giữ `address = NULL`; chi tiết Google vẫn lấy trực tiếp ở mỗi lần mở.
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
 

@@ -32,6 +32,37 @@ export function articlesMentioning(
   });
 }
 
+/**
+ * Địa chỉ model trả về, chỉ giữ khi phần cụ thể nhất (trước dấu phẩy đầu,
+ * thường là số nhà + đường) có trong một bài đã nhắc địa điểm; không thì null,
+ * vì địa chỉ model tự đoán sẽ bị hiển thị như dữ liệu thật. Bỏ các từ "số",
+ * "đường" ở cả hai phía vì bài hay viết "số 2 đường Trần Quốc Toản" còn model
+ * viết "2 Trần Quốc Toản".
+ */
+export function groundedAddress(
+  address: string,
+  articles: WebSource[],
+): string | null {
+  const trimmed = address.trim();
+  const street = forAddressMatch(trimmed.split(',')[0] ?? '');
+  // Như tên: phần quá ngắn khớp bừa vào bài nào cũng được.
+  if (street.length < 4) return null;
+  return articles.some((source) =>
+    ` ${forAddressMatch(`${source.title} ${source.content}`)} `.includes(
+      ` ${street} `,
+    ),
+  )
+    ? trimmed
+    : null;
+}
+
+function forAddressMatch(text: string): string {
+  return normalizeForMatch(text)
+    .split(' ')
+    .filter((word) => word !== 'so' && word !== 'duong')
+    .join(' ');
+}
+
 function nameVariants(title: string, regionName: string): string[] {
   const variants = new Set<string>();
   const base = normalizeForMatch(title);

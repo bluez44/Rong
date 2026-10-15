@@ -28,7 +28,11 @@ import {
   type StoredPlaceRow,
   type WebPlaceInput,
 } from './region-place-store.js';
-import { articlesMentioning, fetchPublishedDate } from './web-grounding.js';
+import {
+  articlesMentioning,
+  fetchPublishedDate,
+  groundedAddress,
+} from './web-grounding.js';
 import { pickGoogleMatch } from './web-place-match.js';
 
 export const WEB_PLACES_CONFIG = 'WEB_PLACES_CONFIG';
@@ -179,7 +183,7 @@ export class WebPlacesService {
         const input: WebPlaceInput = {
           name: place.title.trim(),
           category: place.category,
-          address: place.address.trim() || null,
+          address: groundedAddress(place.address, articles),
           description: place.description.trim() || null,
           openingHours: openingHours(place.openHours),
           // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.
