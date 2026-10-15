@@ -287,6 +287,132 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       });
     });
 
+    it('địa chỉ: lưu từ bài viết, làm mới không có địa chỉ thì giữ, có thì ghi đè', async () => {
+      const store = app.get(RegionPlaceStore);
+      const address = async (id: string) =>
+        (
+          (await db.query(`SELECT address FROM places WHERE id = $1`, [
+            id,
+          ])) as Array<{ address: string | null }>
+        )[0].address;
+      const ai = (addr: string | null) => ({
+        ...input('E2E wp Địa chỉ AI', {
+          source: 'ai',
+          lat: 11.93,
+          lng: 108.43,
+        }),
+        address: addr,
+      });
+      const google = (addr: string | null) => ({
+        ...input('E2E wp Địa chỉ G', {
+          source: 'google',
+          placeId: 'wp-addr',
+          lat: 11.94,
+          lng: 108.44,
+        }),
+        address: addr,
+      });
+
+      const [aiId, gId] = await store.replace(
+        regionId,
+        [ai('  2 Trần Quốc Toản  '), google('5 Lê Lợi')],
+        [],
+        30,
+      );
+      expect(await address(aiId)).toBe('2 Trần Quốc Toản');
+      expect(await address(gId)).toBe('5 Lê Lợi');
+      expect((await store.list(regionId, null)).map((r) => r.address)).toEqual([
+        '2 Trần Quốc Toản',
+        '5 Lê Lợi',
+      ]);
+
+      await store.replace(regionId, [ai(null), google('  ')], [], 30);
+      expect(await address(aiId)).toBe('2 Trần Quốc Toản');
+      expect(await address(gId)).toBe('5 Lê Lợi');
+
+      await store.replace(
+        regionId,
+        [ai('3 Trần Quốc Toản'), google('7 Lê Lợi')],
+        [],
+        30,
+      );
+      expect(await address(aiId)).toBe('3 Trần Quốc Toản');
+      expect(await address(gId)).toBe('7 Lê Lợi');
+    });
+
+    it('dòng AI nâng cấp lên Google giữ địa chỉ cũ nếu lần này không có', async () => {
+      const store = app.get(RegionPlaceStore);
+      const [id] = await store.replace(
+        regionId,
+        [
+          {
+            ...input('E2E wp Nâng cấp', {
+              source: 'ai',
+              lat: 11.93,
+              lng: 108.43,
+            }),
+            address: '9 Phan Đình Phùng',
+          },
+        ],
+        [],
+        30,
+      );
+      const [upgraded] = await store.replace(
+        regionId,
+        [
+          input('E2E wp Nâng cấp', {
+            source: 'google',
+            placeId: 'wp-addr-up',
+            lat: 11.931,
+            lng: 108.431,
+          }),
+        ],
+        [],
+        30,
+      );
+      expect(upgraded).toBe(id);
+      const [row] = (await db.query(
+        `SELECT address, location_source FROM places WHERE id = $1`,
+        [id],
+      )) as Array<{ address: string | null; location_source: string }>;
+      expect(row).toEqual({
+        address: '9 Phan Đình Phùng',
+        location_source: 'google',
+      });
+    });
+
+    it('dòng Google người dùng đã lưu không nhận địa chỉ từ bài viết (PRD 7.4)', async () => {
+      const [saved] = (await db.query(
+        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
+         VALUES ('google', 'wp-addr-saved', 'E2E wp Google đã lưu', 'food', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
+                 'google', now() + interval '30 days', 0)
+         RETURNING id`,
+      )) as Array<{ id: string }>;
+
+      await app.get(RegionPlaceStore).replace(
+        regionId,
+        [
+          {
+            ...input('E2E wp Tên khác', {
+              source: 'google',
+              placeId: 'wp-addr-saved',
+              lat: 11.94,
+              lng: 108.44,
+            }),
+            address: '1 Hai Bà Trưng',
+          },
+        ],
+        [],
+        30,
+      );
+
+      const [row] = (await db.query(
+        `SELECT address FROM places WHERE id = $1`,
+        [saved.id],
+      )) as Array<{ address: string | null }>;
+      expect(row.address).toBeNull();
+    });
+
     it('list lọc theo danh mục', async () => {
       const store = app.get(RegionPlaceStore);
       await store.replace(
@@ -404,6 +530,45 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       google.findPlace.mockResolvedValue([]);
       const res = await get().expect(200);
       expect(names(res.body)).toEqual(['E2E wp Có Thật']);
+    });
+
+    it('địa chỉ chỉ giữ khi có trong bài viết; trả ở danh sách và chi tiết', async () => {
+      agent.findPlaces.mockResolvedValue({
+        places: [
+          {
+            ...agentPlace('E2E wp Quán Có Địa Chỉ', 'food'),
+            address: '12 Trần Quốc Toản, Phường 1',
+          },
+          {
+            ...agentPlace('E2E wp Quán Đoán', 'food'),
+            address: '99 Nguyễn Chí Thanh',
+          },
+        ],
+        sources: [
+          article(
+            3,
+            'E2E wp Quán Có Địa Chỉ ở số 12 đường Trần Quốc Toản. E2E wp Quán Đoán thì ngon.',
+          ),
+        ],
+      });
+      google.findPlace.mockResolvedValue([]);
+
+      const res = await get().expect(200);
+      expect(
+        res.body.items.map((i: { name: string; address: string | null }) => [
+          i.name,
+          i.address,
+        ]),
+      ).toEqual([
+        ['E2E wp Quán Có Địa Chỉ', '12 Trần Quốc Toản, Phường 1'],
+        ['E2E wp Quán Đoán', null],
+      ]);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/places/${res.body.items[0].id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(detail.body.address).toBe('12 Trần Quốc Toản, Phường 1');
     });
 
     it('hai request song song chỉ chạy một lượt pipeline', async () => {
