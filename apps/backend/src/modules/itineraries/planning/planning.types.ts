@@ -7,6 +7,8 @@ export interface Candidate extends LatLng {
   id: string;
   name: string;
   category: PlaceCategory;
+  /** Địa chỉ từ dữ liệu riêng của Rong; không lấy nội dung Google. */
+  address?: string | null;
   score: number;
   description: string | null;
   /** Chuỗi opening_hours của OSM, nếu có. */

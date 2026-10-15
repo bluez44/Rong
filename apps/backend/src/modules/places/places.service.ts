@@ -35,6 +35,7 @@ interface DetailRow {
   category: PlaceCategory;
   lat: number;
   lng: number;
+  address: string | null;
   description: string | null;
   opening_hours: string | null;
   website: string | null;
@@ -73,6 +74,7 @@ export class PlacesService {
     }
     const [row] = (await this.db.query(
       `SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
+              p.address,
               p.description, p.osm_type, p.osm_id,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
@@ -148,6 +150,7 @@ function toListItem(row: DetailRow): PlaceListItem {
     name: row.name,
     category: row.category,
     coordinates: { lat: row.lat, lng: row.lng },
+    address: row.source === 'google' ? null : row.address,
     description: row.description,
     openingHours: row.opening_hours,
     website: row.website,

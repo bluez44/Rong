@@ -38,7 +38,7 @@ Quy tắc:
 - Có ít nhất 6 quán ăn và 3 nơi lưu trú nếu bài viết có nhắc.
 - title: tên riêng của địa điểm, viết đúng như trong bài viết (không dịch, không thêm tên thành phố hay mô tả).
 - description: một câu ngắn tiếng Việt, chỉ dựa trên điều bài viết nói về địa điểm đó.
-- address: địa chỉ (số nhà, đường, phường/xã) đúng như bài viết ghi; bài không ghi thì để chuỗi rỗng, không tự đoán.
+- address và location.address: địa chỉ (số nhà, đường, phường/xã) đúng như bài viết ghi; bài không ghi thì để chuỗi rỗng, không tự đoán.
 - location: tọa độ gần đúng theo hiểu biết của bạn (hệ thống sẽ tra lại vị trí chính xác theo tên và địa chỉ).
 - openHours: giờ mở cửa thông thường dạng HH:mm; không rõ thì để chuỗi rỗng. Mở cả ngày thì "00:00"-"24:00".`;
 

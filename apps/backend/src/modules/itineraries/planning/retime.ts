@@ -99,6 +99,7 @@ export function retimeDay(
         ? {
             name: place.name,
             category: place.category,
+            address: place.address ?? null,
             coordinates: snapshotCoordinates(place),
             locationSource: place.locationSource,
           }

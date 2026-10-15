@@ -58,6 +58,12 @@ export default function PlaceDetailScreen() {
             {name}
           </Text>
           {place?.locationSource === 'ai' ? <ApproximateLocation /> : null}
+          {place?.address ? (
+            <View style={styles.addressRow}>
+              <Icon name="pin" size={15} color={Colors.light.textSecondary} />
+              <Text style={styles.addressText}>{place.address}</Text>
+            </View>
+          ) : null}
           {place ? <Summary place={place} /> : null}
         </View>
 
@@ -223,6 +229,8 @@ const styles = StyleSheet.create({
   },
   categoryLabel: { ...Type.subhead, color: Colors.light.primary },
   title: { ...Type.title1, color: Colors.light.text },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
+  addressText: { ...Type.subhead, color: Colors.light.textSecondary, flex: 1 },
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
   hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },

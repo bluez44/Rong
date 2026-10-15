@@ -43,6 +43,10 @@ export class Place {
   @Column({ name: 'name', type: 'text' })
   name!: string;
 
+  /** Địa chỉ từ nội dung không phải Google; nội dung Google chỉ tải trực tiếp khi cần. */
+  @Column({ name: 'address', type: 'text', nullable: true })
+  address!: string | null;
+
   @Column({
     name: 'category',
     type: 'enum',

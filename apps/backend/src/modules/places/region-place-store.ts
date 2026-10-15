@@ -9,6 +9,7 @@ import { GOOGLE_LOCATION_TTL_DAYS } from './place-location.service.js';
 export interface WebPlaceInput {
   name: string;
   category: PlaceCategory;
+  address: string | null;
   description: string | null;
   /** "HH:mm-HH:mm" (cú pháp opening_hours OSM hợp lệ), null nếu không rõ. */
   openingHours: string | null;
@@ -28,6 +29,7 @@ export interface StoredPlaceRow {
   id: string;
   name: string;
   category: PlaceCategory;
+  address: string | null;
   description: string | null;
   lat: number | null;
   lng: number | null;
@@ -122,7 +124,7 @@ export class RegionPlaceStore {
 
   async list(regionId: string, categories: PlaceCategory[] | null): Promise<StoredPlaceRow[]> {
     const rows = (await this.db.query(
-      `SELECT p.id, p.name, p.category, p.description, p.location_source, p.google_place_id,
+      `SELECT p.id, p.name, p.category, p.address, p.description, p.location_source, p.google_place_id,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_Y(p.location) END AS lat,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_X(p.location) END AS lng,
               p.tags->>'opening_hours' AS opening_hours, rp.rank, rp.articles
@@ -141,19 +143,21 @@ export class RegionPlaceStore {
 
   private async upsertPlace(m: EntityManager, place: WebPlaceInput, aiRowId: string | null): Promise<string> {
     const tags = JSON.stringify(place.openingHours ? { opening_hours: place.openingHours } : {});
+    const address = place.address?.trim() || null;
     const { location } = place;
 
     if (location.source === 'google') {
       const [existing] = (await m.query(
-        `SELECT id FROM places WHERE google_place_id = $1 AND source IN ('google', 'web')`,
+        `SELECT id, source FROM places WHERE google_place_id = $1 AND source IN ('google', 'web')`,
         [location.placeId],
-      )) as Array<{ id: string }>;
+      )) as Array<{ id: string; source: 'google' | 'web' }>;
       if (existing) {
         await m.query(
           `UPDATE places SET location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326),
+                  address = CASE WHEN source = 'web' THEN COALESCE($5, address) ELSE address END,
                   location_expires_at = now() + make_interval(days => $4::int), updated_at = now()
             WHERE id = $1`,
-          [existing.id, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS],
+          [existing.id, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, address],
         );
         return existing.id;
       }
@@ -163,20 +167,20 @@ export class RegionPlaceStore {
           `UPDATE places SET google_place_id = $2, location_source = 'google',
                   location = ST_SetSRID(ST_MakePoint($3::float8, $4::float8), 4326),
                   location_expires_at = now() + make_interval(days => $5::int),
-                  description = $6, updated_at = now()
+                  description = $6, address = COALESCE($7, address), updated_at = now()
             WHERE id = $1`,
-          [aiRowId, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, place.description],
+          [aiRowId, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, place.description, address],
         );
         return aiRowId;
       }
       const [row] = (await m.query(
-        `INSERT INTO places (source, name, category, description, tags, google_place_id, location, location_source,
+        `INSERT INTO places (source, name, category, description, address, tags, google_place_id, location, location_source,
                              location_expires_at, composite_score)
-         VALUES ('web', $1, $2::place_category, $3, $4::jsonb, $5,
-                 ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326), 'google',
-                 now() + make_interval(days => $8::int), 0)
+         VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, $6,
+                 ST_SetSRID(ST_MakePoint($7::float8, $8::float8), 4326), 'google',
+                 now() + make_interval(days => $9::int), 0)
          RETURNING id`,
-        [place.name, place.category, place.description, tags, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS],
+        [place.name, place.category, place.description, address, tags, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS],
       )) as Array<{ id: string }>;
       return row.id;
     }
@@ -184,17 +188,17 @@ export class RegionPlaceStore {
     if (aiRowId) {
       await m.query(
         `UPDATE places SET location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326),
-                description = $4, tags = $5::jsonb, updated_at = now()
+                description = $4, tags = $5::jsonb, address = COALESCE($6, address), updated_at = now()
           WHERE id = $1`,
-        [aiRowId, location.lng, location.lat, place.description, tags],
+        [aiRowId, location.lng, location.lat, place.description, tags, address],
       );
       return aiRowId;
     }
     const [row] = (await m.query(
-      `INSERT INTO places (source, name, category, description, tags, location, location_source, composite_score)
-       VALUES ('web', $1, $2::place_category, $3, $4::jsonb, ST_SetSRID(ST_MakePoint($5::float8, $6::float8), 4326), 'ai', 0)
+      `INSERT INTO places (source, name, category, description, address, tags, location, location_source, composite_score)
+       VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326), 'ai', 0)
        RETURNING id`,
-      [place.name, place.category, place.description, tags, location.lng, location.lat],
+      [place.name, place.category, place.description, address, tags, location.lng, location.lat],
     )) as Array<{ id: string }>;
     return row.id;
   }

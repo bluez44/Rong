@@ -13,6 +13,9 @@ export const Places = z.array(
       .object({
         lat: z.number().describe('The latitude of the place'),
         lng: z.number().describe('The longitude of the place'),
+        address: z
+          .string()
+          .describe('The full address stated in the source, or an empty string if unknown; do not guess'),
       })
       .describe('The geographical location of the place'),
     category: z

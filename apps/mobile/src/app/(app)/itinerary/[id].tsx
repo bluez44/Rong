@@ -646,6 +646,7 @@ function TimelineItemCard({ item, stopIndex }: { item: ItineraryItem; stopIndex:
               <Text style={styles.stopTimeSlot}>{time}</Text>
               <Text style={styles.stopTitle}>{title}</Text>
               {kind ? <Text style={styles.stopSubtitle}>{kind}</Text> : null}
+              {item.place?.address ? <Text style={styles.stopAddress}>{item.place.address}</Text> : null}
             </View>
           </View>
           {canOpen ? (
@@ -1172,6 +1173,12 @@ const styles = StyleSheet.create({
   stopSubtitle: {
     ...Type.caption,
     color: Colors.light.textSecondary,
+  },
+  stopAddress: {
+    ...Type.footnote,
+    lineHeight: 17,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
   },
   stopArrowContainer: {
     padding: 4,

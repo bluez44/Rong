@@ -104,6 +104,7 @@ Dữ liệu:
 - Chỉ dòng có `google_place_id` mới gọi Google; dòng tọa độ AI và dòng OSM cũ trả `googleStatus: 'not_found'`.
   Không còn ghép `place_id` theo tên.
 - Dòng `web`/`google` có `sourceUrl` là link Google Maps; `locationSource` cho biết tọa độ từ đâu.
+- `places.address` lưu địa chỉ lấy từ bài viết (nguồn riêng của Rong), không lưu địa chỉ Google. Dòng Google-only giữ `address = NULL`; chi tiết Google vẫn lấy trực tiếp ở mỗi lần mở.
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
 
@@ -240,9 +241,9 @@ của job (không phải lúc lưu), và dữ liệu cũ không bao giờ kéo d
 Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` (cũng như
 `GET /places/:id`) trả 503 `PLACE_LOCATION_UNAVAILABLE`.
 
-Lịch trình (`itineraries.days` JSONB) không lưu tọa độ Google: ảnh chụp địa điểm nguồn Google ghi
-`coordinates: null` (`itineraries/planning/snapshot.ts`), và mọi đường đọc (GET/POST/PUT lịch trình, trang xem
-công khai) điền tọa độ hiện tại từ `places.location` qua `itineraries/google-coordinates.ts` — null khi đã hết hạn.
+Lịch trình (`itineraries.days` JSONB) không lưu tọa độ Google hoặc địa chỉ Google. Ảnh chụp địa điểm nguồn Google ghi
+`coordinates: null` (`itineraries/planning/snapshot.ts`); các đường đọc (GET/POST/PUT lịch trình, trang xem công khai)
+điền tọa độ Google còn hạn và địa chỉ riêng của Rong từ `places` qua `itineraries/google-coordinates.ts`.
 
 Dòng Google dùng chung theo `google_place_id`, nên `places.name` là tên của người chia sẻ đầu tiên. Mỗi lượt lưu
 từ chia sẻ ghi tên theo nội dung của chính người đó vào `saved_places.display_name`; "Muốn đi" trả

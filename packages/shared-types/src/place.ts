@@ -35,6 +35,8 @@ export interface Place {
    */
   googlePlaceId?: string | null;
   name: string;
+  /** Địa chỉ từ dữ liệu riêng của Rong; nội dung Google nằm trong GooglePlaceContent. */
+  address?: string | null;
   /** Tọa độ từ nguồn không phải Google. Dùng để lọc điểm trong polygon — FR-1.10. */
   coordinates: Coordinates;
   category: PlaceCategory;
@@ -60,6 +62,8 @@ export interface PlaceListItem {
   name: string;
   category: PlaceCategory;
   coordinates: Coordinates;
+  /** Địa chỉ từ dữ liệu riêng của Rong; không chứa nội dung địa chỉ lấy từ Google. */
+  address: string | null;
   /** Mô tả ngắn từ bài viết, null nếu không có. */
   description: string | null;
   /** Giờ mở cửa thô theo cú pháp opening_hours, ví dụ "07:00-17:00". */

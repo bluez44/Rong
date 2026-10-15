@@ -17,7 +17,7 @@ const place = (title: string) => ({
   title,
   description: '',
   address: '',
-  location: { lat: 11.94, lng: 108.44 },
+  location: { lat: 11.94, lng: 108.44, address: '' },
   category: 'nature' as const,
   openHours: { open: '', close: '' },
 });

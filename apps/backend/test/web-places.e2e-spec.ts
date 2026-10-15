@@ -165,6 +165,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     ): WebPlaceInput => ({
       name,
       category: 'nature',
+      address: null,
       description: 'Mô tả',
       openingHours: '07:00-17:00',
       articles: [article],
@@ -317,7 +318,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       title,
       description: `${title} đẹp`,
       address: '',
-      location: { lat: 11.94, lng: 108.44 },
+      location: { lat: 11.94, lng: 108.44, address: '' },
       category,
       openHours: { open: '07:00', close: '17:00' },
     });

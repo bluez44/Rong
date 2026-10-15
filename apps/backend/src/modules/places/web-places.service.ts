@@ -179,6 +179,7 @@ export class WebPlacesService {
         const input: WebPlaceInput = {
           name: place.title.trim(),
           category: place.category,
+          address: place.address.trim() || place.location.address.trim() || null,
           description: place.description.trim() || null,
           openingHours: openingHours(place.openHours),
           // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.
@@ -293,6 +294,7 @@ function toItem(row: StoredPlaceRow, regionName: string): PlaceListItem[] {
       id: row.id,
       name: row.name,
       category: row.category,
+      address: row.address,
       coordinates: { lat: row.lat, lng: row.lng },
       description: row.description,
       openingHours: row.opening_hours,
