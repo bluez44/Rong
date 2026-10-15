@@ -88,6 +88,12 @@ trúc (`langchain/place-search.service.ts`, ít bài quá thì agent tự tìm t
 tên giống ≥ `MATCH_MIN_SIMILARITY` và loại không mâu thuẫn) → không ghép được thì giữ tọa độ AI nếu nằm trong
 vùng (nới ~2 km), không thì bỏ → lưu bằng `RegionPlaceStore`.
 
+Bước ghép Google chỉ chạy khi `WEB_PLACES_GOOGLE_MATCH=true`, và **mặc định tắt**: Việt Nam nằm trong
+[Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) của Google Maps
+Platform, Places trả 403. Khi tắt, mọi địa điểm mới dùng tọa độ AI ("Vị trí gần đúng"). Các dòng đã ghép từ trước giữ
+`location_source = 'google'`; khi tọa độ của chúng hết hạn mà không lấy lại được qua Google thì danh sách vùng tạm
+ẩn chúng, cho tới lần làm mới danh sách.
+
 Dữ liệu:
 - `region_place_lists` (`status`, `fetched_at`, `expires_at`, `error_code`, `sources` = các bài viết) và
   `region_places` (`rank`, `articles` của từng địa điểm).

@@ -213,8 +213,8 @@ export class WebPlacesService {
   }
 
   /**
-   * Ghép từng địa điểm với Google (song song có giới hạn); không ghép được
-   * thì dùng tọa độ AI nếu nằm trong vùng; ngoài vùng thì bỏ.
+   * Ghép từng địa điểm với Google (song song có giới hạn) khi bật `googleMatch`; không ghép
+   * (tắt, hay không khớp) thì dùng tọa độ AI nếu nằm trong vùng; ngoài vùng thì bỏ.
    */
   private async locate(
     places: WebPlacesType,
@@ -228,7 +228,7 @@ export class WebPlacesService {
       while (next < places.length) {
         const i = next++;
         const place = places[i];
-        if (bbox && this.google.enabled) {
+        if (bbox && this.config.googleMatch && this.google.enabled) {
           try {
             const query = [place.title, place.address, regionName]
               .map((s) => s.trim())

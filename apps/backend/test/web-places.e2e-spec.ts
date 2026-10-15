@@ -32,6 +32,8 @@ describe('Địa điểm từ bài viết (e2e)', () => {
   let regionId: string;
   let token: string;
 
+  // Ghép Google tắt mặc định (Việt Nam là Prohibited Territory); các test ghép Google bật lại.
+  const config = { refreshDays: 30, waitMs: 2000, googleMatch: true };
   const google = {
     enabled: true,
     findPlace: vi.fn(),
@@ -51,7 +53,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       .overrideProvider(AgentPlaceSearch)
       .useValue(agent)
       .overrideProvider(WEB_PLACES_CONFIG)
-      .useValue({ refreshDays: 30, waitMs: 2000 })
+      .useValue(config)
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -517,6 +519,26 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       expect(detail.body.articles.map((a: { uri: string }) => a.uri)).toEqual([
         'https://wp.test/1',
       ]);
+    });
+
+    it('tắt ghép Google: không gọi Google, mọi địa điểm dùng tọa độ AI', async () => {
+      config.googleMatch = false;
+      try {
+        agent.findPlaces.mockResolvedValue({
+          places: [agentPlace('E2E wp Không Ghép', 'nature')],
+          sources: [article(4, 'Nên đến E2E wp Không Ghép.')],
+        });
+        const res = await get().expect(200);
+        expect(
+          res.body.items.map((i: { name: string; locationSource: string }) => [
+            i.name,
+            i.locationSource,
+          ]),
+        ).toEqual([['E2E wp Không Ghép', 'ai']]);
+        expect(google.findPlace).not.toHaveBeenCalled();
+      } finally {
+        config.googleMatch = true;
+      }
     });
 
     it('bỏ địa điểm không có trong bài viết nào', async () => {
