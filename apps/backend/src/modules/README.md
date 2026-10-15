@@ -236,10 +236,11 @@ của job (không phải lúc lưu), và dữ liệu cũ không bao giờ kéo d
 - `places/google-location-janitor.ts` — `GoogleLocationJanitor` đặt `location` và `location_expires_at` về
   NULL cho tọa độ Google quá hạn, 60 giây sau khi khởi động rồi mỗi 6 giờ.
 - `places/place-location.service.ts` — `PlaceLocationService.ensure(ids)` lấy lại tọa độ qua Google cho dòng
-  đã hết hạn trước khi lập lịch trình hay mở chi tiết; trả các id vẫn không lấy được.
+  đã hết hạn trước khi lập lịch trình hay hiện danh sách của vùng; trả các id vẫn không lấy được.
 
-Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` (cũng như
-`GET /places/:id`) trả 503 `PLACE_LOCATION_UNAVAILABLE`.
+Khi `ensure` không lấy lại được tọa độ, `PUT /itineraries/:id` trả 503 `PLACE_LOCATION_UNAVAILABLE`.
+`GET /places/:id` không gọi `ensure`: dòng đã ghép Google trả `googlePlaceId` để client chỉ đường bằng
+place_id (không cần tọa độ), tọa độ Google đã hết hạn thì `coordinates: null`; dòng AI/OSM luôn có tọa độ riêng.
 
 Lịch trình (`itineraries.days` JSONB) không lưu tọa độ Google hoặc địa chỉ Google. Ảnh chụp địa điểm nguồn Google ghi
 `coordinates: null` (`itineraries/planning/snapshot.ts`); các đường đọc (GET/POST/PUT lịch trình, trang xem công khai)

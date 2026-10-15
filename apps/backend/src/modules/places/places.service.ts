@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   ArticleSource,
@@ -12,7 +7,6 @@ import type {
   LocationSource,
   PlaceCategory,
   PlaceDetail,
-  PlaceListItem,
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
@@ -21,7 +15,6 @@ import {
   GoogleUnavailableError,
 } from '../google/google-places.service.js';
 import { hoursToday } from './opening-hours.js';
-import { PlaceLocationService } from './place-location.service.js';
 
 const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
   osm: '© OpenStreetMap contributors (ODbL) · Wikidata (CC0)',
@@ -33,8 +26,8 @@ interface DetailRow {
   id: string;
   name: string;
   category: PlaceCategory;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   address: string | null;
   description: string | null;
   opening_hours: string | null;
@@ -54,7 +47,6 @@ export class PlacesService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly google: GooglePlacesService,
-    private readonly locations: PlaceLocationService,
   ) {}
 
   /**
@@ -63,17 +55,12 @@ export class PlacesService {
    * riêng, kèm `googleStatus` để client hiển thị phù hợp.
    */
   async getDetail(id: string): Promise<PlaceDetail> {
-    const missing = await this.locations.ensure([id]);
-    if (missing.length > 0) {
-      throw new ServiceUnavailableException({
-        statusCode: 503,
-        code: 'PLACE_LOCATION_UNAVAILABLE',
-        message:
-          'Tạm thời không tải được vị trí địa điểm này. Hãy thử lại sau.',
-      });
-    }
+    // Không gọi Google lấy lại tọa độ: dòng đã ghép Google chỉ đường bằng
+    // place_id; dòng AI/OSM có tọa độ riêng. Tọa độ Google hết hạn trả null.
     const [row] = (await this.db.query(
-      `SELECT p.id, p.name, p.category, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
+      `SELECT p.id, p.name, p.category,
+              CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_Y(p.location) END AS lat,
+              CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_X(p.location) END AS lng,
               p.address,
               p.description, p.osm_type, p.osm_id,
               p.tags->>'opening_hours' AS opening_hours,
@@ -144,13 +131,19 @@ export class PlacesService {
   }
 }
 
-function toListItem(row: DetailRow): PlaceListItem {
+function toListItem(
+  row: DetailRow,
+): Omit<PlaceDetail, 'attribution' | 'googleStatus' | 'google'> {
   return {
     id: row.id,
     name: row.name,
     category: row.category,
-    coordinates: { lat: row.lat, lng: row.lng },
+    coordinates:
+      row.lat === null || row.lng === null
+        ? null
+        : { lat: Number(row.lat), lng: Number(row.lng) },
     address: row.source === 'google' ? null : row.address,
+    googlePlaceId: row.google_place_id,
     description: row.description,
     openingHours: row.opening_hours,
     website: row.website,

@@ -666,6 +666,8 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         googleStatus: 'not_found',
         google: null,
         attribution: 'Tổng hợp từ bài viết (AI) · Google Maps',
+        coordinates: { lat: 11.94, lng: 108.44 },
+        googlePlaceId: null,
       });
       expect(res.body.sourceUrl).toMatch(
         /^https:\/\/www\.google\.com\/maps\/search\//,
@@ -689,8 +691,24 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         locationSource: 'google',
         googleStatus: 'ok',
         sourceUrl: 'https://maps.google.com/?cid=1',
+        googlePlaceId: 'wp-detail',
       });
       expect(google.details).toHaveBeenCalledWith('wp-detail');
+    });
+
+    it('dòng đã ghép Google, tọa độ hết hạn: không gọi Google lấy tọa độ, coordinates null, vẫn có googlePlaceId', async () => {
+      const id = await webRow('E2E wp Chi tiết hết hạn', 'wp-detail-old', -1);
+      google.details.mockResolvedValueOnce(null);
+      const res = await request(app.getHttpServer())
+        .get(`/api/places/${id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        coordinates: null,
+        googlePlaceId: 'wp-detail-old',
+        locationSource: 'google',
+      });
+      expect(google.locate).not.toHaveBeenCalled();
     });
   });
 

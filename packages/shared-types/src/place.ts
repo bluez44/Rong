@@ -221,8 +221,13 @@ export interface PlacesPage {
 }
 
 /** Màn hình chi tiết địa điểm — F5. */
-export interface PlaceDetail extends Omit<PlaceListItem, 'id'> {
+export interface PlaceDetail extends Omit<PlaceListItem, 'id' | 'coordinates'> {
   id: string;
+  /**
+   * null khi tọa độ Google đã hết hạn (PRD 7.4): màn chi tiết không gọi Google
+   * lấy lại, vì địa điểm đã ghép Google chỉ đường bằng `googlePlaceId`.
+   */
+  coordinates: Coordinates | null;
   attribution: string;
   googleStatus: GoogleContentStatus;
   google: GooglePlaceContent | null;
