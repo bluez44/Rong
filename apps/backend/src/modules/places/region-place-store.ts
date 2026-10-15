@@ -148,13 +148,13 @@ export class RegionPlaceStore {
 
     if (location.source === 'google') {
       const [existing] = (await m.query(
-        `SELECT id, source FROM places WHERE google_place_id = $1 AND source IN ('google', 'web')`,
+        `SELECT id FROM places WHERE google_place_id = $1 AND source IN ('google', 'web')`,
         [location.placeId],
-      )) as Array<{ id: string; source: 'google' | 'web' }>;
+      )) as Array<{ id: string }>;
       if (existing) {
         await m.query(
           `UPDATE places SET location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326),
-                  address = CASE WHEN source = 'web' THEN COALESCE($5, address) ELSE address END,
+                  address = CASE WHEN source = 'web' THEN COALESCE($5::text, address) ELSE address END,
                   location_expires_at = now() + make_interval(days => $4::int), updated_at = now()
             WHERE id = $1`,
           [existing.id, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, address],
@@ -167,7 +167,7 @@ export class RegionPlaceStore {
           `UPDATE places SET google_place_id = $2, location_source = 'google',
                   location = ST_SetSRID(ST_MakePoint($3::float8, $4::float8), 4326),
                   location_expires_at = now() + make_interval(days => $5::int),
-                  description = $6, address = COALESCE($7, address), updated_at = now()
+                  description = $6, address = COALESCE($7::text, address), updated_at = now()
             WHERE id = $1`,
           [aiRowId, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, place.description, address],
         );
@@ -188,7 +188,7 @@ export class RegionPlaceStore {
     if (aiRowId) {
       await m.query(
         `UPDATE places SET location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326),
-                description = $4, tags = $5::jsonb, address = COALESCE($6, address), updated_at = now()
+                description = $4, tags = $5::jsonb, address = COALESCE($6::text, address), updated_at = now()
           WHERE id = $1`,
         [aiRowId, location.lng, location.lat, place.description, tags, address],
       );
