@@ -150,6 +150,11 @@ export interface PlaceSearchHit {
   id: string;
   name: string;
   category: PlaceCategory;
+  /**
+   * Dòng `web`: địa chỉ từ bài viết, null nếu bài không ghi. Dòng nguồn Google
+   * (chỉ có trong `existing`): địa chỉ Google lấy trực tiếp trong lượt tìm, không lưu (PRD 7.4).
+   */
+  address: string | null;
   coordinates: Coordinates | null;
 }
 

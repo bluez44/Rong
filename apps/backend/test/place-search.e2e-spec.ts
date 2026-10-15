@@ -107,7 +107,16 @@ describe('Tìm địa điểm (e2e)', () => {
       )) as Array<{ id: string }>;
       return row.id;
     };
-    await web('E2E ps Bánh căn Nhà Chung', 'food', 108.4384, 11.9421);
+    const banhCan = await web(
+      'E2E ps Bánh căn Nhà Chung',
+      'food',
+      108.4384,
+      11.9421,
+    );
+    await db.query(`UPDATE places SET address = $2 WHERE id = $1`, [
+      banhCan,
+      '1 Nhà Chung, Phường 3',
+    ]);
     webReu = await web(
       'E2E ps Cà phê Rêu',
       'cafe',
@@ -193,6 +202,12 @@ describe('Tìm địa điểm (e2e)', () => {
     ).not.toContain('E2E ps tên người khác');
     expect(res.body.google).toBeNull();
     expect(google.searchByName).not.toHaveBeenCalled();
+    // Danh sách kết quả cũng có địa chỉ từ bài viết, không phải mở chi tiết mới thấy.
+    expect(
+      res.body.catalog.find(
+        (h: { name: string }) => h.name === 'E2E ps Bánh căn Nhà Chung',
+      ).address,
+    ).toBe('1 Nhà Chung, Phường 3');
   });
 
   it('chuỗi tìm chỉ có khoảng trắng → 400, không tốn lượt Google', async () => {
@@ -223,7 +238,7 @@ describe('Tìm địa điểm (e2e)', () => {
       {
         googlePlaceId: 'e2e-ps-other',
         name: 'Tên Google thật',
-        address: null,
+        address: 'Địa chỉ Google',
         suggestedCategory: 'cafe',
       },
       // Dòng Google mà Google không trả tên: không lộ tên người khác, để ở danh sách Google.
@@ -246,13 +261,18 @@ describe('Tìm địa điểm (e2e)', () => {
       res.body.google.map((g: { googlePlaceId: string }) => g.googlePlaceId),
     ).toEqual(['e2e-ps-new-2', 'e2e-ps-other-noname', 'e2e-ps-new-1']);
     expect(
-      res.body.existing.map((h: { id: string; name: string }) => [
-        h.id,
-        h.name,
-      ]),
+      res.body.existing.map(
+        (h: { id: string; name: string; address: string | null }) => [
+          h.id,
+          h.name,
+          h.address,
+        ],
+      ),
     ).toEqual([
-      [webReu, 'E2E ps Cà phê Rêu'],
-      [otherGoogleRow, 'Tên Google thật'],
+      // Dòng web: địa chỉ từ bài viết (chưa có), không lấy địa chỉ Google.
+      [webReu, 'E2E ps Cà phê Rêu', null],
+      // Dòng Google: địa chỉ Google trực tiếp từ lượt tìm.
+      [otherGoogleRow, 'Tên Google thật', 'Địa chỉ Google'],
     ]);
     expect(JSON.stringify(res.body)).not.toContain('E2E ps tên người khác');
     expect(await countPlaces()).toBe(before); // tìm không ghi DB

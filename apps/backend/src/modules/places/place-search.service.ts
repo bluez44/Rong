@@ -44,6 +44,7 @@ interface HitRow {
   category: PlaceCategory;
   source: 'osm' | 'google' | 'web';
   google_place_id: string | null;
+  address: string | null;
   lat: number | null;
   lng: number | null;
 }
@@ -97,7 +98,7 @@ export class PlaceSearchService {
 
     const catalog = (await this.db.query(
       `WITH nq AS (SELECT unaccent(lower($1)) AS q)
-       SELECT p.id, p.name, p.category, p.source, p.google_place_id,
+       SELECT p.id, p.name, p.category, p.source, p.google_place_id, p.address,
               ST_Y(p.location) AS lat, ST_X(p.location) AS lng
          FROM places p, nq
         WHERE p.source = 'web' AND p.location IS NOT NULL
@@ -134,7 +135,12 @@ export class PlaceSearchService {
         existing = hits.flatMap((h) => {
           const row = existingRow(h);
           if (!row) return [];
-          return [toHit(row, row.source === 'google' ? h.name! : row.name)];
+          // Dòng Google: tên và địa chỉ Google lấy trực tiếp từ lượt tìm này, không lưu.
+          return [
+            row.source === 'google'
+              ? toHit(row, h.name!, h.address)
+              : toHit(row, row.name),
+          ];
         });
         google = hits.filter((h) => !existingRow(h));
       } catch (error) {
@@ -248,7 +254,7 @@ export class PlaceSearchService {
   private async byGoogleIds(ids: string[]): Promise<Map<string, HitRow>> {
     if (ids.length === 0) return new Map();
     const rows = (await this.db.query(
-      `SELECT p.id, p.name, p.category, p.source, p.google_place_id,
+      `SELECT p.id, p.name, p.category, p.source, p.google_place_id, p.address,
               ST_Y(p.location) AS lat, ST_X(p.location) AS lng
          FROM places p
         WHERE p.google_place_id = ANY($1::text[])
@@ -276,11 +282,16 @@ export class PlaceSearchService {
   }
 }
 
-function toHit(row: HitRow, name: string): PlaceSearchHit {
+function toHit(
+  row: HitRow,
+  name: string,
+  address: string | null = row.source === 'google' ? null : row.address,
+): PlaceSearchHit {
   return {
     id: row.id,
     name,
     category: row.category,
+    address,
     coordinates:
       row.lat !== null && row.lng !== null
         ? { lat: Number(row.lat), lng: Number(row.lng) }
