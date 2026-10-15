@@ -6,237 +6,158 @@
 
 **Discover places and build travel itineraries across Vietnam — in seconds, not hours.**
 
-[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android%20%7C%20Web-black)](#-tech-stack)
-[![Stack](https://img.shields.io/badge/stack-React%20Native%20%C2%B7%20NestJS%20%C2%B7%20PostGIS-blue)](#-tech-stack)
-[![AI](https://img.shields.io/badge/AI-Gemini%20API-8A2BE2)](#-ai-itineraries--or-do-it-yourself)
-[![Status](https://img.shields.io/badge/status-MVP%20scoped-orange)](#-roadmap)
+[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS%20%7C%20Web-black)](#-architecture)
+[![Stack](https://img.shields.io/badge/stack-Expo%20%C2%B7%20NestJS%20%C2%B7%20PostGIS-blue)](#-architecture)
+[![AI](https://img.shields.io/badge/AI-Gemini%20%2B%20Tavily-8A2BE2)](#-places-one-list-per-region-from-web-articles)
+[![Status](https://img.shields.io/badge/status-MVP%20in%20progress-orange)](#-status)
 
 </div>
 
 ---
 
-## 😮‍💨 The problem everyone has
+## 😮‍💨 The problem
 
-You saved 47 TikToks about Đà Lạt. You scrolled three Facebook review groups. You opened twelve travel blog tabs. And you still ended up typing an itinerary into Notes at 1 AM — not sure if that café is still open, not sure how long it takes to get from A to B, while your group argues in Zalo about what time to leave tomorrow.
+You saved 47 TikToks about Đà Lạt, scrolled three Facebook review groups, opened twelve blog tabs — and still ended up typing an itinerary into Notes at 1 AM while the group argued in Zalo.
 
 **Too much information. Not enough plan.**
 
-## ✨ What Rong does about it
+## ✨ What Rong does
 
-Rong collapses all of that mess into **one map and one itinerary**:
-
-> 🔍 **Search** a destination → see its boundary drawn on the map, with a curated, ranked list of places inside it.
+> 🔍 **Search** a destination — old or new province name, with or without diacritics.
 >
-> ❤️ **Pick** what you like — or share a TikTok / Facebook / Instagram post straight into the app and let Rong pin the places mentioned in it.
+> 📍 **Browse** a list of places for that region, compiled from travel articles on the web and pinned on Google Maps.
 >
-> 🤖 **Let AI plan it** around your dates, who's coming, your budget and your pace — complete with meals, real travel times, and cost estimates in VNĐ.
+> ❤️ **Save** what you like to *Muốn đi* — or share a TikTok / Facebook / Instagram link into the app and let Rong find the places in it.
 >
-> 👥 **Send one link** to the group via Zalo or Messenger. They open it in a browser — no app install — and everyone edits in real time.
-
-From *"let's go to Đà Lạt"* to a finished three-day plan with a budget: **under 20 seconds**.
+> 🤖 **Plan** a trip with AI (or by hand): days, stops, meals, rest breaks and travel times worked out for you.
+>
+> 🔗 **Share** a read-only link that opens in any browser — no app install needed.
 
 ---
 
 ## 🎯 Features
 
-### 🗺️ Browse by destination, not by keyword
+### 🗺️ Destination search (F1)
 
-| | |
-| --- | --- |
-| **Search that speaks Vietnamese** | Type `da lat`, get **Đà Lạt**. Typos still work. Old names still work. |
-| **Handles the July 2025 province merger** | Search "Bình Thuận" and Rong shows both *Bình Thuận (old)* and *Lâm Đồng (new)*, clearly labeled. Nobody gets lost because an administrative unit was renamed. |
-| **Real boundaries on the map** | Once you pick a region, the map zooms to fit it, dims everything outside, and highlights the border. |
-| **Hand-drawn tourist polygons** | Đà Lạt, Mũi Né and Hội An are shaped the way **travelers** think of them — not the way the administrative map does. |
+- **Speaks Vietnamese:** type `da lat`, get **Đà Lạt**. Diacritics are folded and matching is fuzzy (`pg_trgm`).
+- **July 2025 province merger:** provinces both before and after the merger are seeded, clearly labeled, with their bounding boxes.
+- **Popular destinations** (including former districts such as Cần Giờ, Củ Chi) are seeded with aliases, so they're found instantly.
+- **Online fallback:** when you press search and nothing matches, Rong asks Nominatim (OpenStreetMap) and imports the result.
 
-### 📍 Map + bottom sheet: skim fast, filter deep
+### 📍 Places: one list per region, from web articles (F2)
 
-- **Top 5 standout markers** in the current viewport, recomputed every time you pan or zoom.
-- **Three-stage bottom sheet** — collapsed / half / full screen — with infinite scroll over every place in the region.
-- **Multi-select category chips:** Check-in · Food · Cafés · Nature · Kid-friendly · Culture & history · Nightlife · Stays.
-- **Secondary filters:** good for kids / elders / big groups / couples, price level, open now.
-- **Two-way sync:** tap a list item and the map flies to its marker; tap a marker and the list scrolls to it.
-- Panned away from where you started? A **"Search this area"** button appears.
-
-### 🔥 Rankings with real heat
-
-Every place carries a **composite score (0–100)**, computed entirely from Rong's own signals:
-
-```text
-Composite = 0.40 × Editorial score     ← scored by hand during curation
-          + 0.30 × Popularity          ← detail views, saves, adds to itineraries
-          + 0.30 × Community signal    ← share-to-app activity, last 30 days
-```
-
-And Rong **tells you why**: *"Saved 120 times this week."* A **"Trending"** badge lights up when a place suddenly spikes against its own baseline.
-
-### 📲 Share-to-app: turn a TikTok into a pin
-
-See a good video? Hit **Share → Rong**. That's it.
-
-AI reads the link's public metadata, extracts candidate place names, matches them against Rong's catalog, and drops them into your **Saved** list — with an embed of the original post and clear attribution. A *"Top 10 cafés in Đà Lạt"* video? Select all of them at once.
-
-> 🎯 Quality target: **≥ 70%** of valid links correctly resolve at least one place.
-
-### 🧠 AI itineraries — or do it yourself
-
-Choose **AI planning** or **manual planning**, then tell Rong: start and end date/time, who's coming, headcount, where you're staying, budget, pace, transport.
-
-The AI runs a disciplined six-step pipeline:
-
-```mermaid
-flowchart TD
-  I["User input"] --> F["Filter candidates"]
-  F --> C["Cluster geographically"]
-  C --> L["AI selects and sequences"]
-  L --> V{"Constraint check"}
-  V -- "Violation" --> L
-  V -- "Valid" --> K["Compute costs"]
-  K --> O["Return itinerary"]
-```
-
-The key difference: **the AI is not allowed to make things up.** It may only pick from the real catalog, opening hours and prices come from data rather than the model, and after generation a **code-based constraint checker** re-validates opening hours, real travel times and total daily load.
-
-**Group-aware rules** apply automatically:
-
-| Traveling with | Stops/day | Rong will… |
-| --- | --- | --- |
-| 👨‍👩‍👧 Family with young kids | 3–4 | insert a 2–3 hour midday break, keep each leg ≤ 45 min, prefer kid-friendly places |
-| 🎉 Group of friends | 5–7 | pack in photo spots, street food and nightlife |
-| 💑 Couples | 4–5 | favor views, atmospheric cafés and sunset spots |
-| 👴 With elderly travelers | 3–4 | avoid steep climbs and long walks, build in rest time |
-
-Plus **automatic meal slots** (breakfast 06:30–09:00 · lunch 11:00–13:30 · dinner 17:30–20:30), choosing restaurants near the surrounding stops and within budget.
-
-A place that doesn't fit isn't quietly dropped — it lands in an **"Couldn't schedule"** list with the reason, so you can drag it in yourself.
-
-### 💸 Costs in VNĐ, no hand-waving
-
-A **low–high range**, shown **per person** and **per group**, broken into four categories: attraction tickets · food · local transport · accommodation. Every figure is labeled *"Estimate"* with a data freshness date, and **recalculates the moment the itinerary changes**.
-
-### ✏️ Edit an itinerary like a playlist
-
-- **Drag and drop** to reorder within a day or move a stop to another day.
-- **"Swap for something similar"** — three nearby alternatives of the same type, matched to your group.
-- **Edit in plain language:** *"Fewer cafés, add somewhere the kids can run around on day 2 afternoon"* → preview the changes before applying them.
-- **Smart warnings** (advisory, never blocking): this place is closed at that hour, this leg takes over 60 minutes, this day exceeds 10 active hours, this day has no dinner.
-- **10-step undo** and **autosave**.
-
-### 👥 Group trips without the Zalo argument
-
-- Create a group, **invite by link**, share straight to Zalo or Messenger with a proper preview card.
-- Invitees **open the itinerary on the web — no app install required**.
-- **Roles:** Owner · Editor · Viewer.
-- **Real-time sync in ≤ 2 seconds**, with a simple "who changed what" activity log.
-- A **shared shortlist** so the whole group can heart places before anything gets scheduled.
-
-### 🚪 Try it without signing up
-
-Search, browse places, build one itinerary — no account needed. Sign in (Google / Apple / phone OTP) only when you want to save long-term, share, or create a group. Changed your mind? **Delete your account and all your data from inside the app.**
-
----
-
-## 🧰 Tech stack
-
-The whole stack is **TypeScript end to end** — one language across mobile, web and backend.
+Each region gets a single ranked list of places, built from real travel articles:
 
 ```mermaid
 flowchart LR
-  A["Mobile app<br/>React Native"] -- "REST + WebSocket" --> B["Backend<br/>NestJS"]
-  W["Itinerary web view<br/>Next.js SSR"] -- "REST" --> B
-  A --> M["Google Maps SDK"]
-  W --> MJ["Maps JavaScript API"]
-  B --> DB[("Postgres + PostGIS")]
-  B --> RD[("Redis<br/>pub/sub, cache")]
-  B --> RO["Google Routes API"]
-  B --> P["Google Places API (New)"]
-  B --> Q["Queue workers"]
-  Q --> AI["Gemini API"]
+  T["Tavily<br/>4 web searches"] --> G["Gemini<br/>structured extraction"]
+  G --> W["Grounding<br/>place must appear in an article"]
+  W --> M["Google Places match<br/>inside the region's bbox"]
+  M --> S[("region_places<br/>ranked list")]
 ```
 
-| Layer | Technology | Why |
-| --- | --- | --- |
-| 📱 **Mobile** | React Native | One codebase for iOS 17+ and Android 10+ |
-| 🌐 **Web** | Next.js (SSR) + Maps JavaScript API | Rich Open Graph previews in Zalo/Messenger; viewable without the app |
-| 🗺️ **Maps** | Google Maps SDK (`react-native-maps`, Google provider) | Old/new boundaries rendered as polygon overlays from our own data |
-| ⚙️ **Backend** | NestJS (TypeScript) | The **single** entry point for app and web: business logic, authorization, outbound services |
-| 🗄️ **Database** | PostgreSQL + **PostGIS** | Spatial queries — "which places fall inside this polygon?" is the heart of the discovery flow |
-| 🔎 **Search** | Postgres full-text + `unaccent` (or Meilisearch/Typesense) | Diacritic-free input, typo tolerance |
-| ⚡ **Real-time** | NestJS WebSocket Gateway (Socket.IO) + Redis adapter | Group itinerary sync that scales across backend instances |
-| 🧠 **AI** | **Gemini API** (paid tier) | Place extraction, itinerary sequencing, community summaries, natural-language edits |
-| 🛣️ **Routing** | Google Routes API (Compute Route Matrix) | Real travel-time matrices between stops |
-| 🔐 **Auth** | NestJS + Passport/JWT | Google / Apple / SMS OTP, access + refresh tokens |
-| 📊 **Analytics** | PostHog · Amplitude · Firebase Analytics | Funnel tracking from search → share → install |
+- The first visit builds the list (10–30 s); the app shows a *"building"* state and polls. Concurrent visitors share one run.
+- Lists refresh in the background after 30 days; the old list stays if a refresh fails.
+- A place is kept only if an article actually mentions it. Places Google can't match keep the AI's coordinates — only if they fall inside the region — and are marked **"Vị trí gần đúng"** (approximate location).
+- Category chips: Check-in · Food · Cafés · Nature · Kid-friendly · Culture & history · Nightlife · Stays.
+- **Search by name inside a region:** matches the region's list while typing, and Google Text Search on submit (per-user daily limits).
 
-> **Architectural rule:** clients **never** talk to the database directly. Everything goes through the NestJS backend — business logic and permissions live in one place, and the database provider can be swapped without a client ever noticing.
+### 🏷️ Place details (F5)
 
-### 🧱 Data that's built, not scraped
+Rong's own name, category and description from articles, plus **live** Google Maps content — rating, reviews, opening hours, photos — fetched only when you open a place, never stored, and attributed to Google Maps.
 
-Rong's place catalog is a first-party asset, assembled ahead of time by a **background pipeline** and refreshed on a schedule:
+### 📲 Share-to-app (F4)
 
-```text
-Ingest  →  AI extraction  →  Deduplication  →  place_id matching
-        →  Region assignment via first-party coordinates  →  Human curation
-        →  Composite scoring
+Hit **Share → Rong** on a TikTok, Facebook or Instagram post (or paste text). A background job reads the link's public metadata (oEmbed / Open Graph), extracts place names with Gemini and matches each one to a known place or to Google. Pick the ones you want and they land in *Muốn đi*.
+
+### 🧠 Itineraries (F6, F8, F9)
+
+Choose **AI planning** or **manual planning**, then set dates and times, who's coming, headcount, where you're staying, budget, pace and transport.
+
+```mermaid
+flowchart TD
+  I["Selected places + extras from the region's list"] --> C["k-means: cluster into days"]
+  C --> A["Gemini orders the stops"]
+  A --> V{"Re-validate<br/>only known place IDs"}
+  V -- "Gemini fails" --> H["Heuristic planner"]
+  V --> S["Scheduler: meals, rest breaks,<br/>opening hours, travel time"]
+  H --> S
+  S --> O["Itinerary"]
 ```
 
-Sources: **OpenStreetMap** (ODbL) · **Wikidata** (CC0) · Wikivoyage · the National Tourism Administration and provincial tourism portals · Foursquare · YouTube Data API · user share-to-app · and **manual curation**, the highest-quality source for the first five destinations.
+- **The AI can't invent places:** it only sees IDs from the database, and its output is fully re-validated (FR-6.3).
+- **Group-aware rules:** families with young kids, friends, couples and elderly travelers get different stops-per-day, rest breaks and preferences.
+- **Automatic meal slots** — breakfast, lunch, dinner — inside fixed windows.
+- **Edit like a playlist:** reorder and move stops between days; every edit is re-timed and returns **advisory warnings** (long leg, long day, missing meal, place closed) that never block saving.
+- **"Swap for something similar"** suggests nearby alternatives.
+- **Share links:** a read-only public view at `/t/<token>` on the web app; links can be revoked.
 
-**No scraping of Facebook, Instagram or TikTok.** Third-party content is always shown as an embed or a link, with attribution.
+### 👥 Groups (backend, F10)
 
-### ⚖️ Google Maps Platform compliance, taken seriously
+Groups, invite links, roles (**owner · editor · viewer**), a shared place list and an activity log. An itinerary can be moved into a group. All permission rules live in one file (`groups/access.ts`); a caller who can't see a resource gets 404, not 403.
 
-This isn't a footnote — it's a design constraint running through the whole product:
+### 🔐 Accounts (F11)
 
-- Google content is **only ever displayed on a Google map** (Maps SDK on mobile, Maps JS API on web).
-- **No Google content is stored**, except `place_id` (indefinitely) and coordinates (cached ≤ 30 days). Everything else is fetched **in real time through the backend**.
-- Names and coordinates in the first-party catalog come from **non-Google sources**; polygon filtering uses **only** those coordinates.
-- **Composite scores and every sort order use first-party signals only** — Google ratings appear solely on the detail screen, visually separated and attributed to Google Maps.
-- Google data reaches the AI for **exactly one purpose**: sequencing travel itineraries — minimal fields, never logged, never stored, never used for training.
-- Cost is controlled with **field masks**, **session tokens**, Place Details calls only when a user actually opens a place, plus quotas and budget alerts in the Google Cloud Console.
+Email + password (argon2id) with a 6-digit email verification code. Short-lived JWT access tokens plus rotating refresh tokens (reuse revokes the whole family). Users can **delete their account and data from inside the app**.
 
 ---
 
-## 📐 Quality bar
+## 🚦 Status
 
-| Metric | Target |
+| Area | State |
 | --- | --- |
-| ⚡ App launch → map ready | ≤ 3 s |
-| 🗺️ Boundary + pins rendered (4G) | ≤ 2 s |
-| 🎚️ Filter change | ≤ 500 ms |
-| 🤖 Itinerary generation (p90) | ≤ 20 s, streamed day by day |
-| 📜 List scroll & map pan | ≥ 55 fps on mid-range devices |
-| 🔄 Group real-time sync | ≤ 2 s |
-| 🧾 Hallucinated places in itineraries | **0%** |
-| 🕐 Items not violating opening hours | ≥ 95% |
-| 📦 Curated places per destination at launch | ≥ 150 |
-
-Plus: ≥ 99.5% uptime · dynamic type, sufficient contrast and screen-reader labels · compliance with Vietnam's Personal Data Protection Law (effective 1 Jan 2026).
+| Destination search, old/new provinces | ✅ Backend + mobile |
+| Region place lists (Tavily + Gemini + Google matching) | ✅ Backend + mobile |
+| Place details with live Google content, search by name | ✅ Backend + mobile |
+| *Muốn đi* saved list, share-to-app | ✅ Backend + mobile |
+| AI / manual itineraries, editing, alternatives, warnings | ✅ Backend + mobile |
+| Public share link | ✅ Backend + web (`/t/[token]`) |
+| Groups, invites, roles, activity log | ✅ Backend · ⏳ mobile UI |
+| Cost estimates (F7), composite ranking (F3), real-time sync | ⏳ Planned (`ranking/`, `realtime/` are placeholders) |
+| Google Routes travel times | ⏳ Planned (travel time is estimated for now) |
+| Google / Apple sign-in | ⏳ Planned (`auth_identities` is ready for it) |
 
 ---
 
-## 🚀 Roadmap
+## 🧰 Architecture
 
-```text
-Phase 0 — Discovery      3–4 weeks    15–20 user interviews · legal review · Figma prototype
-Phase 1 — Data           6–8 weeks    Polygons + aliases · old/new boundaries · curate 5 destinations
-Phase 2 — Build MVP     10–12 weeks   F1 → F11
-Phase 3 — Closed beta       4 weeks   200–500 users · measure · fix
-Phase 4 — Launch               —      Ahead of a long public holiday
+TypeScript end to end, in a **pnpm + Turborepo** monorepo.
+
+```mermaid
+flowchart LR
+  A["Mobile<br/>Expo · React Native"] -- "REST" --> B["Backend<br/>NestJS"]
+  W["Web<br/>Next.js (share view)"] -- "REST" --> B
+  A --> M["Google Maps SDK"]
+  B --> DB[("Postgres + PostGIS")]
+  B --> P["Google Places API (New)"]
+  B --> N["Nominatim"]
+  B --> TV["Tavily"]
+  B --> AI["Gemini (LangChain)"]
+  B --> SM["SMTP"]
 ```
 
-**First five destinations:** 🌲 Đà Lạt · 🏖️ Vũng Tàu · 🏝️ Phú Quốc · 🌉 Đà Nẵng – Hội An · 🏙️ Ho Chi Minh City (central districts)
+| Layer | Technology |
+| --- | --- |
+| 📱 **Mobile** | Expo SDK 57 · React Native · expo-router · `react-native-maps` (Google provider) · `expo-share-intent` |
+| 🌐 **Web** | Next.js 16 App Router · Tailwind 4 — public itinerary view |
+| ⚙️ **Backend** | NestJS 12 · TypeORM · global JWT guard · `ValidationPipe` |
+| 🗄️ **Database** | PostgreSQL 16 + PostGIS · `pg_trgm` · hand-written SQL migrations |
+| 🧠 **AI** | Gemini through LangChain (structured output, agents) · Tavily web search |
+| 🗺️ **Maps data** | Google Places API (New) · Nominatim (OSM) · seeded province bounding boxes |
+| 🧪 **Tests** | Vitest (unit + e2e against a real database) · oxlint · Prettier |
 
-> Great data for five destinations beats mediocre data for the whole country.
+**Architectural rules**
 
-**Queued for V2:** multi-destination trips and multiple stays · in-group voting and comments · bill splitting · packing checklists · live "On the trip" mode · offline maps · booking affiliates for stays, tickets and tours.
+- Clients **never** talk to the database or third-party APIs directly. Everything goes through the NestJS backend.
+- Each external service sits behind **one gateway**: `open-data/` (Nominatim), `google/` (Google Places), `share-import/LinkMetadataService` (user links, with SSRF protection), `src/langchain/` (Gemini, Tavily).
+- Errors are Nest exceptions with a `{ code, message }` body; clients match on `code`.
 
----
+### ⚖️ Google Maps Platform compliance (PRD §7.4)
 
-## 📊 North Star
-
-> **Itineraries saved and shared with at least one other person, per week.**
-
-Because an itinerary only really matters once the whole group is looking at the same one.
+- Only `place_id` is stored indefinitely; Google coordinates are cached for **at most 30 days**.
+- Ratings, reviews, photos and opening hours are fetched **live**, only on the place detail screen, and attributed to Google Maps.
+- **Nothing is ranked or sorted on Google data** — lists come from Rong's own `region_places`.
+- Names and descriptions in the list come from web articles, not from Google.
 
 ---
 
@@ -245,80 +166,103 @@ Because an itinerary only really matters once the whole group is looking at the 
 ```text
 rong/
 ├── apps/
-│   ├── mobile/          Expo SDK 57 · React Native 0.86 · expo-router
-│   ├── web/             Next.js 16 App Router · Tailwind 4
+│   ├── mobile/          Expo SDK 57 · React Native · expo-router (screens in src/app)
+│   ├── web/             Next.js 16 · public itinerary view at /t/[token]
 │   └── backend/         NestJS 12 · TypeORM · PostGIS
+│       └── src/
+│           ├── modules/     auth, users, regions, places, google, open-data,
+│           │                share-import, saved-places, itineraries, groups,
+│           │                mail, health, ranking*, realtime*   (* placeholders)
+│           ├── langchain/   Gemini + Tavily place search
+│           └── database/    migrations
 ├── packages/
-│   └── shared-types/    The data contract shared by all three apps
+│   └── shared-types/    The API contract shared by all three apps
 ├── infra/
-│   └── docker-compose.yml   PostGIS 16 + Redis 7
-└── docs/PRD-Rong.md
+│   ├── docker-compose.yml   PostGIS 16 + Redis 7 for local dev
+│   └── prod/                EC2 + Caddy + Docker Compose
+├── docs/
+│   ├── PRD-Rong.md          Product spec (Vietnamese)
+│   └── superpowers/         Design specs and plans for larger backend slices
+└── .github/workflows/
+    ├── release-apk.yml      Builds the Android APK on v* tags
+    └── deploy-backend.yml   Backend deploy (currently a placeholder)
 ```
 
-Inside `apps/backend/src/modules/`, every folder maps to a feature group in the
-PRD — see [the module map](./apps/backend/src/modules/README.md). One rule worth
-knowing up front: **`modules/google/` is the only place allowed to call Google
-APIs.** The PRD's compliance constraints (store nothing but `place_id`, cache
-coordinates ≤ 30 days, never rank on Google data) are only auditable if those
-calls live behind a single door.
+The backend module map, flows and deliberate PRD deviations are documented in
+[`apps/backend/src/modules/README.md`](./apps/backend/src/modules/README.md).
+
+---
 
 ## 🏁 Getting started
 
-Requires **Node 20+**, **pnpm**, and **Docker** for local Postgres and Redis.
+Requires **Node 24**, **pnpm**, and **Docker**.
 
 ```bash
 pnpm install
+pnpm infra:up                 # PostGIS on host port 5433 (not 5432), Redis on 6379
 
-# Start Postgres + PostGIS and Redis
-pnpm infra:up
-
-# Backend — copy env, run migrations, start on :3001
-cp apps/backend/.env.example apps/backend/.env
+# Backend — http://localhost:3001/api
+cp apps/backend/.env.example apps/backend/.env   # JWT_SECRET must be ≥ 32 chars
 pnpm --filter @rong/backend migration:run
 pnpm --filter @rong/backend start:dev
+curl http://localhost:3001/api/health            # reports the live PostGIS version
 
-# Web — :3000
+# Web — http://localhost:3000
 pnpm --filter @rong/web dev
 
-# Mobile — Metro bundler, then open in Expo dev client
-pnpm --filter @rong/mobile start
+# Mobile — Metro, or native builds
+cp apps/mobile/.env.example apps/mobile/.env
+pnpm --filter @rong/mobile start                 # or: android / ios
 ```
 
-Verify the backend and its database wiring in one call:
+### Environment variables
 
-```bash
-curl http://localhost:3001/api/health
-```
+Each app ships a `.env.example`; no keys are committed.
 
-A healthy response reports the live PostGIS version — not just that Postgres
-accepted a connection, since a database without the `postgis` extension would
-break the entire discovery flow.
+| App | Key variables |
+| --- | --- |
+| Backend | `JWT_SECRET`, `DB_*`, `GOOGLE_MAPS_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY` (without it, place lists return 503), `SMTP_*` (empty → emails are logged), `OPEN_DATA_CONTACT_EMAIL`, daily limits (`PLACE_SEARCH_DAILY_LIMIT`, `PLACE_DETAILS_DAILY_LIMIT`, `SHARE_IMPORT_DAILY_LIMIT`), `WEB_PLACES_REFRESH_DAYS`, `WEB_PLACES_WAIT_MS` |
+| Mobile | `EXPO_PUBLIC_API_BASE_URL`, `GOOGLE_MAPS_ANDROID_API_KEY`, `GOOGLE_MAPS_IOS_API_KEY` (read at Expo config time) |
 
 ### Workspace tasks
 
 | Command | Does |
 | --- | --- |
-| `pnpm build` | Build every app through Turborepo |
+| `pnpm build` | Build every workspace through Turborepo |
 | `pnpm typecheck` | Type-check every workspace |
 | `pnpm lint` | Lint every workspace |
-| `pnpm test` | Run all test suites |
+| `pnpm test` | Run all unit tests |
 | `pnpm infra:up` / `infra:down` | Start / stop Postgres + Redis |
+| `pnpm --filter @rong/backend test:e2e` | Backend e2e tests against a migrated database |
 
-### Environment variables
+> `@rong/shared-types` is consumed from its `dist/`. The backend's scripts build it for you; if you run `vitest` or `tsc` directly after changing it, run `pnpm build:deps` first.
 
-Each app ships a `.env.example`. Copy it to `.env` and fill in the blanks — no
-API keys are committed to this repository, and the mobile Google Maps keys are
-read at Expo config evaluation time from `apps/mobile/.env`.
+---
+
+## 🚢 Release & deploy
+
+- **Android APK:** pushing a tag matching `v*` (e.g. `v1.1.0`) runs [`release-apk.yml`](./.github/workflows/release-apk.yml), which builds the APK locally with EAS (`release` profile) and attaches `rong-<tag>.apk` to a GitHub Release. Manual runs keep the APK as a workflow artifact.
+
+  ```bash
+  git tag v1.1.0 && git push origin v1.1.0
+  ```
+
+- **Backend:** `apps/backend/Dockerfile` builds from the repo root and runs migrations on start. `infra/prod/` holds the EC2 + Caddy + Docker Compose setup — see its README.
+
+---
 
 ## 📄 Documentation
 
-- [`docs/PRD-Rong.md`](./docs/PRD-Rong.md) — the full Product Requirements Document (in Vietnamese): user stories, F1–F11 specs, data model, compliance principles, analytics, risks.
-- [`apps/backend/src/modules/README.md`](./apps/backend/src/modules/README.md) — backend module map, folder by folder.
+- [`docs/PRD-Rong.md`](./docs/PRD-Rong.md) — the Product Requirements Document (Vietnamese). Feature IDs (F1, FR-6.3, §7.4) refer to it.
+- [`apps/backend/src/modules/README.md`](./apps/backend/src/modules/README.md) — backend module map and flows.
+- [`docs/superpowers/`](./docs/superpowers) — design specs and implementation plans.
+- [`apps/mobile/CLAUDE.md`](./apps/mobile/CLAUDE.md) — mobile screen and keyboard conventions.
 
 ## 🙏 Attribution
 
-Map and boundary data: **© OpenStreetMap contributors** (ODbL) · **Wikidata** (CC0).
-Photos, reviews, opening hours and live place information: **Google Maps Platform**.
+Map and boundary data: **© OpenStreetMap contributors** (ODbL).
+Ratings, reviews, photos, opening hours and live place information: **Google Maps Platform**.
+Place lists are compiled from public travel articles found via Tavily.
 
 <div align="center">
 
