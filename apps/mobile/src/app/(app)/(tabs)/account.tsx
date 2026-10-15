@@ -46,7 +46,6 @@ export default function AccountScreen() {
         keyboardDismissMode="on-drag">
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>SỔ TAY LỮ KHÁCH · HỒ SƠ</Text>
             <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
           </View>
           <View style={styles.headerMark}>
@@ -402,7 +401,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.eight, gap: Spacing.six },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCopy: { gap: Spacing.one },
-  eyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9, letterSpacing: 1.3, color: Palette.terracotta700 },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
   headerMark: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forest100 },
   profileCard: {

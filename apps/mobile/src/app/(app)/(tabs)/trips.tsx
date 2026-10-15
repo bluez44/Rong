@@ -55,7 +55,6 @@ export default function TripsScreen() {
           <View style={styles.header}>
             <View style={styles.headingRow}>
               <View style={styles.headingCopy}>
-                <Text style={styles.eyebrow}>SỔ TAY LỮ KHÁCH</Text>
                 <Text style={styles.title} accessibilityRole="header">Chuyến đi</Text>
               </View>
               <Pressable
@@ -200,7 +199,6 @@ function TripCard({ trip, past }: { trip: ItinerarySummary; past: boolean }) {
             <Text style={styles.tripDestination} numberOfLines={1}>{trip.regionName}</Text>
             <Text style={styles.tripDates}>{dates} · {trip.dayCount} ngày</Text>
           </View>
-          <Icon name="forward" size={18} color={Palette.charcoalMuted} />
         </View>
 
         <View style={styles.tripDivider} />
@@ -231,7 +229,6 @@ const styles = StyleSheet.create({
   header: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   headingCopy: { gap: Spacing.one },
-  eyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9, letterSpacing: 1.5, color: Palette.terracotta700 },
   title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 29, lineHeight: 37, color: Palette.forest900 },
   createButton: {
     minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one,

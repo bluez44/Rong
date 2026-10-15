@@ -287,9 +287,6 @@ export default function HomeScreen() {
           <Text style={styles.quoteText}>
             {'“Rong chơi không chỉ là dịch chuyển, mà là để lòng mình rộng mở cùng xứ sở.”'}
           </Text>
-          <Text style={styles.quoteSubtext}>
-            Rong cùng hơn 12.000 người yêu xê dịch khắp Việt Nam
-          </Text>
         </View>
       </ScrollView>
     </Screen>
@@ -638,12 +635,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.light.secondary,
     lineHeight: 22,
-  },
-  quoteSubtext: {
-    ...Type.caption,
-    fontSize: 11,
-    color: Colors.light.textDisabled,
-    marginTop: Spacing.one,
-    textAlign: 'center',
   },
 });

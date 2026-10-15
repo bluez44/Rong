@@ -1,9 +1,10 @@
 import type { Itinerary, ItineraryDay, ItineraryItem, ItineraryWarning } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   Share,
@@ -14,6 +15,14 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import { ScrollViewContainer } from 'react-native-reorderable-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  cancelAnimation,
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useAuth } from '@/auth/auth-context';
 import { Glass } from '@/components/glass';
@@ -143,7 +152,7 @@ export default function ItineraryScreen() {
       <ScrollViewContainer
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: insets.bottom + (editing ? Spacing.eight : 100) },
+          { paddingBottom: insets.bottom + (editing ? Spacing.eight : data?.tips.length ? 84 : Spacing.four) },
         ]}
         refreshControl={
           data && !editing ? (
@@ -231,41 +240,7 @@ export default function ItineraryScreen() {
         ) : null}
       </ScrollViewContainer>
 
-      {/* Floating Bottom Action Bar */}
-      {data && !editing ? (
-        <View style={[styles.floatingBottomBar, { bottom: insets.bottom + Spacing.three }]}>
-          <View style={styles.floatingBarInner}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Thêm điểm đến"
-              onPress={() =>
-                router.push({
-                  pathname: '/search',
-                  params: { regionId: data.regionId, ...(regionName && { regionName }) },
-                })
-              }
-              style={styles.floatingAddBtn}>
-              <Icon name="add" size={18} color={Palette.turmeric100} />
-              <Text style={styles.floatingAddText}>Thêm điểm đến</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Bắt đầu đi thôi"
-              accessibilityHint="Mở bản đồ khu vực để bắt đầu hành trình"
-              onPress={() =>
-                router.push({
-                  pathname: '/region/[id]',
-                  params: { id: data.regionId, ...(regionName && { name: regionName }) },
-                })
-              }
-              style={styles.floatingActionBtn}>
-              <Text style={styles.floatingActionText}>Bắt đầu đi thôi</Text>
-              <Icon name="map" size={16} color={Palette.onPine} />
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      {data && !editing && data.tips.length > 0 ? <AiTipsAccess tips={data.tips} /> : null}
     </Screen>
   );
 }
@@ -526,25 +501,88 @@ function ItineraryViewBody({
         </View>
       ) : null}
 
-      {/* 8. AI Tips */}
-      {itinerary.tips.length > 0 ? (
-        <View style={styles.tipsBox}>
-          <View style={styles.row}>
-            <Icon name="sparkles" size={16} color={Palette.forest700} />
-            <Text style={styles.tipsTitle} accessibilityRole="header">
-              Mẹo cho chuyến đi
-            </Text>
-          </View>
-          {itinerary.tips.map((tip) => (
-            <Text key={tip} style={styles.tipItem}>
-              • {tip}
-            </Text>
-          ))}
-          <Text style={styles.tipDisclaimer}>Gợi ý từ Rong AI, hãy kiểm tra lại trước khi khởi hành.</Text>
-        </View>
-      ) : null}
-
       <DeleteButton id={itinerary.id} />
+    </>
+  );
+}
+
+function AiTipsAccess({ tips }: { tips: string[] }) {
+  const insets = useSafeAreaInsets();
+  const [visible, setVisible] = useState(false);
+  const pulse = useSharedValue(1);
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withTiming(1.06, { duration: 1100, reduceMotion: ReduceMotion.System }),
+      -1,
+      true,
+      undefined,
+      ReduceMotion.System,
+    );
+    return () => cancelAnimation(pulse);
+  }, [pulse]);
+
+  return (
+    <>
+      <Animated.View style={[styles.aiTipsButtonWrap, { bottom: insets.bottom + Spacing.three }, pulseStyle]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Mở mẹo Rong AI cho chuyến đi"
+          accessibilityHint="Hiển thị các gợi ý cần lưu ý trước khi khởi hành"
+          onPress={() => setVisible(true)}
+          style={({ pressed }) => [styles.aiTipsButton, pressed && styles.pressed]}>
+          <Icon name="sparkles" size={23} color={Palette.onPine} />
+        </Pressable>
+      </Animated.View>
+
+      <Modal
+        visible={visible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={() => setVisible(false)}>
+        <View style={styles.tipsModalBackdrop}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Đóng mẹo Rong AI"
+            onPress={() => setVisible(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[styles.tipsModalCard, { paddingBottom: Math.max(insets.bottom, Spacing.four) }]}>
+            <View style={styles.tipsModalHeader}>
+              <View style={styles.tipsModalTitleGroup}>
+                <View style={styles.tipsModalIcon}>
+                  <Icon name="sparkles" size={17} color={Palette.forest900} />
+                </View>
+                <View>
+                  <Text style={styles.tipsModalEyebrow}>RONG AI · GỢI Ý</Text>
+                  <Text style={styles.tipsTitle} accessibilityRole="header">Mẹo cho chuyến đi</Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Đóng"
+                onPress={() => setVisible(false)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.tipsCloseButton, pressed && styles.pressed]}>
+                <Icon name="close" size={18} color={Palette.charcoal} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tipsModalList}>
+              {tips.map((tip, index) => (
+                <View key={`${index}-${tip}`} style={styles.tipRow}>
+                  <View style={styles.tipBullet}><Text style={styles.tipBulletText}>{index + 1}</Text></View>
+                  <Text style={styles.tipItem}>{tip}</Text>
+                </View>
+              ))}
+              <Text style={styles.tipDisclaimer}>Gợi ý từ Rong AI, hãy kiểm tra lại trước khi khởi hành.</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1238,15 +1276,79 @@ const styles = StyleSheet.create({
     color: Palette.forest900,
   },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
-  tipsBox: {
-    gap: Spacing.two,
-    padding: Spacing.four,
-    borderRadius: Radius.lg,
-    backgroundColor: Palette.forest100,
-    borderWidth: 1,
-    borderColor: Palette.forest200,
+  aiTipsButtonWrap: {
+    position: 'absolute',
+    right: Spacing.four,
+    zIndex: 50,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  aiTipsButton: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.forest900,
+    borderWidth: 1,
+    borderColor: Palette.forest700,
+    ...Shadow.glass,
+  },
+  tipsModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(22, 35, 29, 0.38)',
+  },
+  tipsModalCard: {
+    maxHeight: '78%',
+    paddingTop: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    backgroundColor: Palette.parchment50,
+    ...Shadow.glass,
+  },
+  tipsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+    paddingBottom: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.parchment300,
+  },
+  tipsModalTitleGroup: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  tipsModalIcon: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.forest100,
+  },
+  tipsModalEyebrow: {
+    ...Type.caption,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: Palette.terracotta700,
+  },
+  tipsCloseButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.parchment200,
+  },
+  tipsModalList: { gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.two },
+  tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.three },
+  tipBullet: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.forest100,
+  },
+  tipBulletText: { ...Type.caption, fontSize: 11, color: Palette.forest700 },
   tipsTitle: {
     ...Type.headline,
     color: Palette.forest900,
@@ -1256,6 +1358,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: Palette.forest900,
+    flex: 1,
   },
   tipDisclaimer: {
     ...Type.caption,
@@ -1264,55 +1367,4 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   deleteBtn: { alignSelf: 'center', marginTop: Spacing.two },
-
-  /* 8. Floating Bottom Action Bar */
-  floatingBottomBar: {
-    position: 'absolute',
-    left: Spacing.four,
-    right: Spacing.four,
-    zIndex: 50,
-  },
-  floatingBarInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Palette.forest900,
-    borderRadius: Radius.lg,
-    padding: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderColor: Palette.forest700,
-    ...Shadow.glass,
-  },
-  floatingAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  floatingAddText: {
-    ...Type.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Palette.turmeric100,
-  },
-  floatingActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one + 2,
-    backgroundColor: Colors.light.secondary,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.md,
-    ...Shadow.card,
-  },
-  floatingActionText: {
-    ...Type.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Palette.onPine,
-  },
 });
