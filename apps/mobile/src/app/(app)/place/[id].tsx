@@ -127,7 +127,7 @@ function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string 
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}
 
-      {/* Giờ theo OpenStreetMap chỉ hiện khi Google không có giờ từng ngày, để khỏi hai bảng giờ lệch nhau. */}
+      {/* Giờ của Rong (bài viết / OSM cũ) chỉ hiện khi Google không có giờ từng ngày, để khỏi hai bảng giờ lệch nhau. */}
       {place.openingHours && !place.google?.weekdayHours.length ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Giờ mở cửa</Text>
@@ -139,9 +139,12 @@ function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string 
 
       <View style={styles.attribution}>
         <Text style={styles.attributionText}>Thông tin địa điểm: {place.attribution}</Text>
-        <Text style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(place.sourceUrl)}>
-          Xem bản ghi gốc trên OpenStreetMap
-        </Text>
+        {/* Đã ghép Google thì link Google Maps nằm ở nút "Chỉ đường" và khối Google Maps. */}
+        {place.googlePlaceId ? null : (
+          <Text style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(place.sourceUrl)}>
+            {place.sourceUrl.includes('openstreetmap.org') ? 'Xem bản ghi gốc trên OpenStreetMap' : 'Tìm trên Google Maps'}
+          </Text>
+        )}
       </View>
     </>
   );
@@ -199,13 +202,20 @@ function GoogleSection({ place }: { place: PlaceDetail }) {
 }
 
 /** Mở Apple Maps trên iOS, Google Maps ở nơi khác, đều chỉ đường tới tọa độ riêng của app. */
+/**
+ * Đã ghép Google: chỉ đường bằng place_id trên Google Maps, không cần tọa độ (server không
+ * lấy lại tọa độ Google đã hết hạn cho màn này). Chưa ghép: theo tọa độ riêng (AI/OSM).
+ */
 function directionsUrl(place: PlaceDetail): string {
+  if (place.googlePlaceId) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}&destination_place_id=${encodeURIComponent(place.googlePlaceId)}`;
+  }
+  if (!place.coordinates) return place.sourceUrl;
   const { lat, lng } = place.coordinates;
   if (Platform.OS === 'ios') {
     return `https://maps.apple.com/?daddr=${lat},${lng}&q=${encodeURIComponent(place.name)}`;
   }
-  const placeId = place.google?.placeId ? `&destination_place_id=${place.google.placeId}` : '';
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}${placeId}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
 const styles = StyleSheet.create({
