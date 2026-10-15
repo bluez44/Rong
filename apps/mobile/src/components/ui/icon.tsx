@@ -46,7 +46,7 @@ const ICONS = {
   culture: { ios: 'building.columns', android: 'account_balance', web: 'account_balance' },
   nightlife: { ios: 'moon.stars', android: 'nightlife', web: 'nightlife' },
   stay: { ios: 'bed.double', android: 'hotel', web: 'hotel' },
-  // Stitch Khám phá - Rông icons
+  // Stitch Khám phá - Rong icons
   explore: { ios: 'safari', android: 'explore', web: 'explore' },
   tune: { ios: 'slider.horizontal.3', android: 'tune', web: 'tune' },
   bookmark: { ios: 'bookmark', android: 'bookmark_border', web: 'bookmark_border' },

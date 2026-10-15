@@ -43,7 +43,7 @@ import {
 
 type Params = { id: string; regionName?: string; edit?: string };
 
-/** Cặp font theo Stitch Rông, chỉ áp dụng cho màn lịch trình. */
+/** Cặp font theo Stitch Rong, chỉ áp dụng cho màn lịch trình. */
 const Type = {
   display: { ...BaseType.display, fontFamily: 'PlayfairDisplay_700Bold' },
   title1: { ...BaseType.title1, fontFamily: 'PlayfairDisplay_700Bold' },
@@ -407,7 +407,7 @@ function ItineraryViewBody({
           <View style={styles.flex}>
             <View style={styles.aiNoteTitleRow}>
               <Text style={styles.aiNoteTitle}>
-                {itinerary.planner === 'ai' ? 'Rông AI ghi chú' : 'Ghi chú lịch trình'}
+                {itinerary.planner === 'ai' ? 'Rong AI ghi chú' : 'Ghi chú lịch trình'}
               </Text>
               <View style={styles.optimizedBadge}>
                 <Text style={styles.optimizedBadgeText}>{PLANNER_LABELS[itinerary.planner]}</Text>

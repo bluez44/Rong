@@ -83,8 +83,8 @@ export default function LoginScreen() {
           <View style={styles.heroBrand}>
             <Text style={styles.brandEyebrow}>SỔ TAY ĐỒNG HÀNH</Text>
             <View style={styles.brandTitleRow}>
-              <Text style={styles.brandTitle}>Rông</Text>
-              <Text style={styles.brandPronunciation}>/rôŋ/ — đi dạo thảnh thơi</Text>
+              <Text style={styles.brandTitle}>Rong</Text>
+              <Text style={styles.brandPronunciation}>Rong Thong Dong</Text>
             </View>
           </View>
           <View style={styles.compassBadge} pointerEvents="none">

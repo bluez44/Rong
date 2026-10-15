@@ -39,7 +39,7 @@ export const Palette = {
   mapWater: '#BCD7D3',
   mapPark: '#CFE1C8',
   mapRoad: '#FFFFFF',
-  // Stitch Design System - Rông Travel Companion
+  // Stitch Design System - Rong Travel Companion
   forest900: '#083C29',
   forest700: '#24533F',
   forest200: '#94C5AC',
@@ -85,7 +85,7 @@ export const Colors = {
     danger: Palette.danger700,
     dangerBackground: Palette.danger100,
     focus: Palette.lavender700,
-    // Stitch Rông Travel Companion semantic extensions
+    // Stitch Rong Travel Companion semantic extensions
     primaryContainer: Palette.forest700,
     onPrimaryContainer: Palette.forest200,
     secondary: Palette.terracotta700,
