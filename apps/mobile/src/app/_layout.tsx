@@ -6,6 +6,12 @@ import {
   BeVietnamPro_800ExtraBold,
   useFonts,
 } from '@expo-google-fonts/be-vietnam-pro';
+import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import { DefaultTheme, Stack, ThemeProvider, type Theme } from 'expo-router';
 import { ShareIntentProvider } from 'expo-share-intent';
 import * as SplashScreen from 'expo-splash-screen';
@@ -52,6 +58,11 @@ function RootNavigator() {
     BeVietnamPro_600SemiBold,
     BeVietnamPro_700Bold,
     BeVietnamPro_800ExtraBold,
+    PlayfairDisplay_600SemiBold,
+    PlayfairDisplay_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
   });
   const preferences = usePreferences();
   useEffect(() => {

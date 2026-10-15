@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
+    "@expo-google-fonts/playfair-display": "0.4.2",
+    "@expo-google-fonts/plus-jakarta-sans": "0.4.2",
     "@expo/ui": "~57.0.20",
     "@rong/shared-types": "workspace:*",
     "expo": "~57.0.25",

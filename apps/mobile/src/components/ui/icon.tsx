@@ -57,6 +57,7 @@ const ICONS = {
   arrowForward: { ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' },
   motorcycle: { ios: 'bicycle', android: 'two_wheeler', web: 'two_wheeler' },
   kayak: { ios: 'water.waves', android: 'kayaking', web: 'kayaking' },
+  share: { ios: 'square.and.arrow.up', android: 'share', web: 'share' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;
