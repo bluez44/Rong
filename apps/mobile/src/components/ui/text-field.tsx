@@ -1,6 +1,16 @@
 import { forwardRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextInputProps,
+  type TextStyle,
+} from 'react-native';
 
+import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 
 export type TextFieldProps = Omit<TextInputProps, 'style'> & {
@@ -10,10 +20,14 @@ export type TextFieldProps = Omit<TextInputProps, 'style'> & {
   error?: string | null;
   /** Ô mật khẩu: ẩn chữ và có nút Hiện/Ẩn. */
   password?: boolean;
+  /** Biểu tượng đầu ô, nếu màn hình cần. */
+  leadingIcon?: IconName;
+  /** Tuỳ chỉnh nhãn cho kiểu micro-label. */
+  labelStyle?: StyleProp<TextStyle>;
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, hint, error, password, onFocus, onBlur, ...rest },
+  { label, hint, error, password, leadingIcon, labelStyle, onFocus, onBlur, ...rest },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -22,8 +36,16 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, labelStyle]}>{label}</Text>
       <View style={[styles.box, focused && styles.boxFocused, !!error && styles.boxError]}>
+        {leadingIcon ? (
+          <Icon
+            name={leadingIcon}
+            size={18}
+            color={Colors.light.textSecondary}
+            style={styles.leadingIcon}
+          />
+        ) : null}
         <TextInput
           ref={ref}
           style={styles.input}
@@ -62,6 +84,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 const styles = StyleSheet.create({
   wrap: { gap: Spacing.two },
   label: { ...Type.subhead, color: Colors.light.text },
+  leadingIcon: { marginLeft: Spacing.four },
   box: {
     flexDirection: 'row',
     alignItems: 'center',

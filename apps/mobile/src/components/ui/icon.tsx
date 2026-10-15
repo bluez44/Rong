@@ -58,6 +58,8 @@ const ICONS = {
   motorcycle: { ios: 'bicycle', android: 'two_wheeler', web: 'two_wheeler' },
   kayak: { ios: 'water.waves', android: 'kayaking', web: 'kayaking' },
   share: { ios: 'square.and.arrow.up', android: 'share', web: 'share' },
+  mail: { ios: 'envelope', android: 'mail', web: 'mail' },
+  lock: { ios: 'lock.fill', android: 'lock', web: 'lock' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;
