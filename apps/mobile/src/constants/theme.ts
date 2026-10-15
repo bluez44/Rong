@@ -39,6 +39,25 @@ export const Palette = {
   mapWater: '#BCD7D3',
   mapPark: '#CFE1C8',
   mapRoad: '#FFFFFF',
+  // Stitch Design System - Rông Travel Companion
+  forest900: '#083C29',
+  forest700: '#24533F',
+  forest200: '#94C5AC',
+  forest100: '#BBEED3',
+  terracotta700: '#A0401D',
+  terracotta500: '#C25934',
+  terracotta300: '#FF875E',
+  terracotta100: '#FFDBD0',
+  turmeric700: '#482F00',
+  turmeric500: '#D99B26',
+  turmeric100: '#FFDEAE',
+  parchment50: '#FCF9F1',
+  parchment100: '#F6F3EB',
+  parchment200: '#F1EEE6',
+  parchment300: '#EBE8E0',
+  parchment400: '#E5E2DA',
+  charcoal: '#1C1C17',
+  charcoalMuted: '#414944',
 } as const;
 
 /** Vai trò màu. Mỗi màu có một việc: pine = hành động, lavender = AI, persimmon = "Đang hot". */
@@ -66,6 +85,20 @@ export const Colors = {
     danger: Palette.danger700,
     dangerBackground: Palette.danger100,
     focus: Palette.lavender700,
+    // Stitch Rông Travel Companion semantic extensions
+    primaryContainer: Palette.forest700,
+    onPrimaryContainer: Palette.forest200,
+    secondary: Palette.terracotta700,
+    secondaryContainer: Palette.terracotta300,
+    onSecondaryContainer: '#732100',
+    tertiary: Palette.turmeric700,
+    tertiaryContainer: '#654400',
+    onTertiaryContainer: '#EFAE3A',
+    surfaceContainerLowest: Palette.surface,
+    surfaceContainerLow: Palette.parchment100,
+    surfaceContainer: Palette.parchment200,
+    surfaceContainerHigh: Palette.parchment300,
+    onSurfaceVariant: Palette.charcoalMuted,
   },
 } as const;
 
