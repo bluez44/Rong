@@ -48,7 +48,8 @@ describe('findPlacesFromWeb — đường nhanh', () => {
     const result = await findPlacesFromWeb('Đà Lạt', d);
 
     expect(d.search).toHaveBeenCalledTimes(4);
-    expect(d.search.mock.calls.every(([q]) => q.endsWith('Đà Lạt'))).toBe(true);
+    const suffix = `Đà Lạt năm ${new Date().getFullYear()}`;
+    expect(d.search.mock.calls.every(([q]) => q.endsWith(suffix))).toBe(true);
     expect(result.sources.map((s) => s.uri)).toEqual([
       'https://a.vn',
       'https://b.vn',
