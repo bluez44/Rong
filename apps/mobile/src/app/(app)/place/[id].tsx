@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
 import { GooglePlaceContentBlock } from '@/components/google-place-content';
+import { PointsMap } from '@/components/points-map';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
@@ -31,8 +32,6 @@ export default function PlaceDetailScreen() {
 
   const name = place?.name ?? params.name ?? 'Địa điểm';
   const category = place?.category ?? (params.category && params.category in CATEGORY_LABELS ? params.category : null);
-  // Đã có địa chỉ trong phần Google Maps thì không hiện thêm địa chỉ từ bài viết, tránh hai địa chỉ khác nhau.
-  const address = place?.google?.address ? null : place?.address;
 
   return (
     // Chỉ chừa cạnh trên: nội dung cuộn xuống dưới thanh home.
@@ -60,13 +59,16 @@ export default function PlaceDetailScreen() {
             {name}
           </Text>
           {place?.locationSource === 'ai' ? <ApproximateLocation /> : null}
-          {address ? (
+          {place ? <Summary place={place} /> : null}
+          {/* Địa chỉ của Rong (từ bài viết), ngay dưới giờ mở cửa. */}
+          {place ? (
             <View style={styles.addressRow}>
-              <Icon name="pin" size={15} color={Colors.light.textSecondary} />
-              <Text style={styles.addressText}>{address}</Text>
+              <Icon name="pin" size={16} color={Colors.light.textSecondary} />
+              <Text style={[styles.addressText, !place.address && styles.addressMissing]}>
+                {place.address ?? 'Chưa tìm được địa chỉ'}
+              </Text>
             </View>
           ) : null}
-          {place ? <Summary place={place} /> : null}
         </View>
 
         {detail.status === 'loading' && !place ? (
@@ -115,15 +117,36 @@ function Summary({ place }: { place: PlaceDetail }) {
 }
 
 function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string }) {
+  const openDirections = () => Linking.openURL(directionsUrl(place));
+  const sourceIsGoogle = isGoogleMapsUrl(place.sourceUrl);
+
   return (
     <>
       <View style={styles.actionGroup}>
         {regionId ? <TripButton place={place} regionId={regionId} /> : null}
         <View style={styles.actions}>
-          <Button label="Chỉ đường" variant={regionId ? 'glass' : 'primary'} onPress={() => Linking.openURL(directionsUrl(place))} style={styles.action} />
+          <Button label="Chỉ đường" variant={regionId ? 'glass' : 'primary'} onPress={openDirections} style={styles.action} />
           {place.website ? <Button label="Trang web" variant="glass" onPress={() => Linking.openURL(place.website!)} style={styles.action} /> : null}
         </View>
       </View>
+
+      {place.coordinates ? (
+        <PointsMap
+          points={[
+            {
+              key: place.id,
+              lat: place.coordinates.lat,
+              lng: place.coordinates.lng,
+              icon: place.category,
+              label: place.name,
+              approximate: place.locationSource === 'ai',
+            },
+          ]}
+          interactive={false}
+          onPress={openDirections}
+          style={styles.miniMap}
+        />
+      ) : null}
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}
 
@@ -139,10 +162,10 @@ function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string 
 
       <View style={styles.attribution}>
         <Text style={styles.attributionText}>Thông tin địa điểm: {place.attribution}</Text>
-        {/* Đã ghép Google thì link Google Maps nằm ở nút "Chỉ đường" và khối Google Maps. */}
-        {place.googlePlaceId ? null : (
+        {/* Link Google Maps đã nằm ở nút "Chỉ đường"; chỉ còn hiện link nguồn khác (bản ghi OSM cũ). */}
+        {place.googlePlaceId || sourceIsGoogle ? null : (
           <Text style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(place.sourceUrl)}>
-            {place.sourceUrl.includes('openstreetmap.org') ? 'Xem bản ghi gốc trên OpenStreetMap' : 'Tìm trên Google Maps'}
+            {place.sourceUrl.includes('openstreetmap.org') ? 'Xem bản ghi gốc trên OpenStreetMap' : 'Xem nguồn'}
           </Text>
         )}
       </View>
@@ -201,21 +224,28 @@ function GoogleSection({ place }: { place: PlaceDetail }) {
   return null;
 }
 
-/** Mở Apple Maps trên iOS, Google Maps ở nơi khác, đều chỉ đường tới tọa độ riêng của app. */
 /**
- * Đã ghép Google: chỉ đường bằng place_id trên Google Maps, không cần tọa độ (server không
- * lấy lại tọa độ Google đã hết hạn cho màn này). Chưa ghép: theo tọa độ riêng (AI/OSM).
+ * Thứ tự ưu tiên:
+ * 1. Đã ghép Google: chỉ đường bằng place_id, không cần tọa độ (server không lấy lại tọa độ
+ *    Google đã hết hạn cho màn này).
+ * 2. `sourceUrl` là link Google Maps (tìm theo tên, có với mọi địa điểm từ bài viết): mở
+ *    link đó, Google tự tìm đúng chỗ, thường sát hơn tọa độ AI.
+ * 3. Còn lại (bản ghi OSM cũ): chỉ đường tới tọa độ riêng, Apple Maps trên iOS.
  */
 function directionsUrl(place: PlaceDetail): string {
   if (place.googlePlaceId) {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}&destination_place_id=${encodeURIComponent(place.googlePlaceId)}`;
   }
-  if (!place.coordinates) return place.sourceUrl;
+  if (isGoogleMapsUrl(place.sourceUrl) || !place.coordinates) return place.sourceUrl;
   const { lat, lng } = place.coordinates;
   if (Platform.OS === 'ios') {
     return `https://maps.apple.com/?daddr=${lat},${lng}&q=${encodeURIComponent(place.name)}`;
   }
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}
+
+function isGoogleMapsUrl(url: string): boolean {
+  return /^https:\/\/(www\.)?google\.[a-z.]+\/maps(\/|\?|$)/.test(url) || url.startsWith('https://maps.google.');
 }
 
 const styles = StyleSheet.create({
@@ -243,6 +273,8 @@ const styles = StyleSheet.create({
   title: { ...Type.title1, color: Colors.light.text },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
   addressText: { ...Type.subhead, color: Colors.light.textSecondary, flex: 1 },
+  addressMissing: { color: Colors.light.textDisabled },
+  miniMap: { height: 160, borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
   hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
