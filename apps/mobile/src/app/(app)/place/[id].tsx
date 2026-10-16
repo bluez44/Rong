@@ -1,6 +1,6 @@
 import type { PlaceCategory, PlaceDetail } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
@@ -118,7 +118,6 @@ function Summary({ place }: { place: PlaceDetail }) {
 
 function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string }) {
   const openDirections = () => Linking.openURL(directionsUrl(place));
-  const sourceIsGoogle = isGoogleMapsUrl(place.sourceUrl);
 
   return (
     <>
@@ -160,15 +159,8 @@ function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string 
 
       <GoogleSection place={place} />
 
-      <View style={styles.attribution}>
-        <Text style={styles.attributionText}>Thông tin địa điểm: {place.attribution}</Text>
-        {/* Link Google Maps đã nằm ở nút "Chỉ đường"; chỉ còn hiện link nguồn khác (bản ghi OSM cũ). */}
-        {place.googlePlaceId || sourceIsGoogle ? null : (
-          <Text style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL(place.sourceUrl)}>
-            {place.sourceUrl.includes('openstreetmap.org') ? 'Xem bản ghi gốc trên OpenStreetMap' : 'Xem nguồn'}
-          </Text>
-        )}
-      </View>
+      {/* Link Google Maps (`sourceUrl`) nằm ở nút "Chỉ đường". */}
+      <Text style={styles.attributionText}>Thông tin địa điểm: {place.attribution}</Text>
     </>
   );
 }
@@ -225,27 +217,15 @@ function GoogleSection({ place }: { place: PlaceDetail }) {
 }
 
 /**
- * Thứ tự ưu tiên:
- * 1. Đã ghép Google: chỉ đường bằng place_id, không cần tọa độ (server không lấy lại tọa độ
- *    Google đã hết hạn cho màn này).
- * 2. `sourceUrl` là link Google Maps (tìm theo tên, có với mọi địa điểm từ bài viết): mở
- *    link đó, Google tự tìm đúng chỗ, thường sát hơn tọa độ AI.
- * 3. Còn lại (bản ghi OSM cũ): chỉ đường tới tọa độ riêng, Apple Maps trên iOS.
+ * Đã ghép Google: chỉ đường bằng place_id, không cần tọa độ (server không lấy lại tọa độ
+ * Google đã hết hạn cho màn này). Chưa ghép: `sourceUrl` là link Google Maps tìm theo tên,
+ * Google tự tìm đúng chỗ, thường sát hơn tọa độ AI.
  */
 function directionsUrl(place: PlaceDetail): string {
   if (place.googlePlaceId) {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}&destination_place_id=${encodeURIComponent(place.googlePlaceId)}`;
   }
-  if (isGoogleMapsUrl(place.sourceUrl) || !place.coordinates) return place.sourceUrl;
-  const { lat, lng } = place.coordinates;
-  if (Platform.OS === 'ios') {
-    return `https://maps.apple.com/?daddr=${lat},${lng}&q=${encodeURIComponent(place.name)}`;
-  }
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-}
-
-function isGoogleMapsUrl(url: string): boolean {
-  return /^https:\/\/(www\.)?google\.[a-z.]+\/maps(\/|\?|$)/.test(url) || url.startsWith('https://maps.google.');
+  return place.sourceUrl;
 }
 
 const styles = StyleSheet.create({
@@ -287,7 +267,5 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.one },
   sectionTitle: { ...Type.headline, color: Colors.light.text },
   body: { ...Type.callout, color: Colors.light.text },
-  attribution: { gap: Spacing.one },
   attributionText: { ...Type.footnote, color: Colors.light.textSecondary },
-  link: { ...Type.footnote, color: Colors.light.primary },
 });
