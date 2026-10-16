@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 
-import { KeyboardAvoider } from '@/components/screen';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 
@@ -29,70 +29,52 @@ type ActionSheetProps = {
  * (Android chỉ hiện tối đa ba nút). Chọn một hành động thì đóng bảng trước.
  */
 export function ActionSheet({ visible, title, message, actions = [], children, onClose }: ActionSheetProps) {
-  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      {/* Bàn phím mở thì đẩy cả bảng lên, để ô nhập trong `children` không bị che. */}
-      <KeyboardAvoider>
-      <Pressable style={styles.backdrop} accessibilityRole="button" accessibilityLabel="Đóng" onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.three }]} accessibilityViewIsModal>
-        <View style={styles.grabber} />
-        {title ? (
-          <Text style={styles.title} accessibilityRole="header">
-            {title}
-          </Text>
-        ) : null}
-        {message ? <Text style={styles.message}>{message}</Text> : null}
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
-          {actions.map((action) => (
-            <Pressable
-              key={action.label}
-              accessibilityRole="button"
-              onPress={() => {
-                onClose();
-                action.onPress();
-              }}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-              {action.icon ? (
-                <Icon name={action.icon} size={20} color={action.destructive ? Colors.light.danger : Colors.light.primary} />
-              ) : null}
-              <View style={styles.flex}>
-                <Text style={[styles.label, action.destructive && { color: Colors.light.danger }]}>{action.label}</Text>
-                {action.detail ? <Text style={styles.detail}>{action.detail}</Text> : null}
-              </View>
-            </Pressable>
-          ))}
-          {children}
-        </ScrollView>
-        <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}>
-          <Text style={styles.cancelLabel}>Đóng</Text>
-        </Pressable>
-      </View>
-      </KeyboardAvoider>
-    </Modal>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      header={
+        title || message ? (
+          <>
+            {title ? (
+              <Text style={styles.title} accessibilityRole="header">
+                {title}
+              </Text>
+            ) : null}
+            {message ? <Text style={styles.message}>{message}</Text> : null}
+          </>
+        ) : null
+      }>
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+        {actions.map((action) => (
+          <Pressable
+            key={action.label}
+            accessibilityRole="button"
+            onPress={() => {
+              onClose();
+              action.onPress();
+            }}
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            {action.icon ? (
+              <Icon name={action.icon} size={20} color={action.destructive ? Colors.light.danger : Colors.light.primary} />
+            ) : null}
+            <View style={styles.flex}>
+              <Text style={[styles.label, action.destructive && { color: Colors.light.danger }]}>{action.label}</Text>
+              {action.detail ? <Text style={styles.detail}>{action.detail}</Text> : null}
+            </View>
+          </Pressable>
+        ))}
+        {children}
+      </ScrollView>
+      <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}>
+        <Text style={styles.cancelLabel}>Đóng</Text>
+      </Pressable>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: {
-    maxHeight: '80%',
-    paddingTop: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: Colors.light.surface,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 36,
-    height: 5,
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.light.hairline,
-    marginBottom: Spacing.three,
-  },
   title: { ...Type.headline, color: Colors.light.text },
   message: { ...Type.subhead, color: Colors.light.textSecondary, marginTop: 2 },
   list: { marginTop: Spacing.two },
