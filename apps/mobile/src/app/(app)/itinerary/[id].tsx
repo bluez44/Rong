@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   RefreshControl,
   Share,
@@ -30,6 +29,7 @@ import { ItineraryEditor } from '@/components/itinerary-editor';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
@@ -561,53 +561,41 @@ function AiTipsAccess({ tips }: { tips: string[] }) {
         </Pressable>
       </Animated.View>
 
-      <Modal
+      <BottomSheet
         visible={visible}
-        transparent
-        animationType="slide"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={() => setVisible(false)}>
-        <View style={styles.tipsModalBackdrop}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Đóng mẹo Rong AI"
-            onPress={() => setVisible(false)}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[styles.tipsModalCard, { paddingBottom: Math.max(insets.bottom, Spacing.four) }]}>
-            <View style={styles.tipsModalHeader}>
-              <View style={styles.tipsModalTitleGroup}>
-                <View style={styles.tipsModalIcon}>
-                  <Icon name="sparkles" size={17} color={Palette.forest900} />
-                </View>
-                <View>
-                  <Text style={styles.tipsModalEyebrow}>RONG AI · GỢI Ý</Text>
-                  <Text style={styles.tipsTitle} accessibilityRole="header">Mẹo cho chuyến đi</Text>
-                </View>
+        onClose={() => setVisible(false)}
+        style={styles.tipsSheet}
+        header={
+          <View style={styles.tipsModalHeader}>
+            <View style={styles.tipsModalTitleGroup}>
+              <View style={styles.tipsModalIcon}>
+                <Icon name="sparkles" size={17} color={Palette.forest900} />
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Đóng"
-                onPress={() => setVisible(false)}
-                hitSlop={8}
-                style={({ pressed }) => [styles.tipsCloseButton, pressed && styles.pressed]}>
-                <Icon name="close" size={18} color={Palette.charcoal} />
-              </Pressable>
+              <View>
+                <Text style={styles.tipsModalEyebrow}>RONG AI · GỢI Ý</Text>
+                <Text style={styles.tipsTitle} accessibilityRole="header">Mẹo cho chuyến đi</Text>
+              </View>
             </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tipsModalList}>
-              {tips.map((tip, index) => (
-                <View key={`${index}-${tip}`} style={styles.tipRow}>
-                  <View style={styles.tipBullet}><Text style={styles.tipBulletText}>{index + 1}</Text></View>
-                  <Text style={styles.tipItem}>{tip}</Text>
-                </View>
-              ))}
-              <Text style={styles.tipDisclaimer}>Gợi ý từ Rong AI, hãy kiểm tra lại trước khi khởi hành.</Text>
-            </ScrollView>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Đóng"
+              onPress={() => setVisible(false)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.tipsCloseButton, pressed && styles.pressed]}>
+              <Icon name="close" size={18} color={Palette.charcoal} />
+            </Pressable>
           </View>
-        </View>
-      </Modal>
+        }>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tipsModalList}>
+          {tips.map((tip, index) => (
+            <View key={`${index}-${tip}`} style={styles.tipRow}>
+              <View style={styles.tipBullet}><Text style={styles.tipBulletText}>{index + 1}</Text></View>
+              <Text style={styles.tipItem}>{tip}</Text>
+            </View>
+          ))}
+          <Text style={styles.tipDisclaimer}>Gợi ý từ Rong AI, hãy kiểm tra lại trước khi khởi hành.</Text>
+        </ScrollView>
+      </BottomSheet>
     </>
   );
 }
@@ -1347,15 +1335,8 @@ const styles = StyleSheet.create({
     borderColor: Palette.forest700,
     ...Shadow.glass,
   },
-  tipsModalBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(22, 35, 29, 0.38)',
-  },
-  tipsModalCard: {
-    maxHeight: '78%',
-    paddingTop: Spacing.four,
-    paddingHorizontal: Spacing.four,
+  // Nền, bo góc riêng của sheet mẹo; nền tối, thanh nắm, vùng an toàn do BottomSheet lo.
+  tipsSheet: {
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,
     backgroundColor: Palette.parchment50,
