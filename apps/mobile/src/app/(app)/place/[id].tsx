@@ -1,4 +1,5 @@
-import type { PlaceCategory, PlaceDetail } from '@rong/shared-types';
+import type { PlaceCategory, PlaceDetail, PlaceImage } from '@rong/shared-types';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -53,6 +54,7 @@ export default function PlaceDetailScreen() {
       <ScrollView
         scrollEnabled={!mapTouched}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
+        {place?.image ? <ArticleImage image={place.image} /> : null}
         <View style={styles.header}>
           {category ? (
             <View style={styles.category}>
@@ -99,6 +101,33 @@ export default function PlaceDetailScreen() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** Ảnh từ bài viết (hotlink), kèm tên trang nguồn. Tải lỗi thì ẩn cả khối. */
+function ArticleImage({ image }: { image: PlaceImage }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <View style={styles.photoBlock}>
+      <Image
+        source={{ uri: image.url }}
+        style={styles.photo}
+        contentFit="cover"
+        transition={200}
+        accessible={false}
+        onError={() => setFailed(true)}
+      />
+      <Text style={styles.photoCredit} accessibilityRole="link" onPress={() => Linking.openURL(image.sourceUrl)}>
+        Ảnh: {hostname(image.sourceUrl)}
+      </Text>
+    </View>
+  );
+}
+
+/** "zalopay.vn" từ link bài viết, bỏ "www.". */
+function hostname(url: string): string {
+  const match = /^https?:\/\/([^/?#]+)/i.exec(url);
+  return (match?.[1] ?? url).replace(/^www\./i, '');
 }
 
 /** Giờ mở cửa hôm nay: dữ liệu riêng của app (giờ trong bài viết), không phải của Google. */
@@ -276,6 +305,9 @@ const styles = StyleSheet.create({
   addressText: { ...Type.subhead, color: Colors.light.textSecondary, flex: 1 },
   addressMissing: { color: Colors.light.textDisabled },
   map: { borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
+  photoBlock: { gap: Spacing.one },
+  photo: { width: '100%', aspectRatio: 16 / 9, borderRadius: Radius.lg, borderCurve: 'continuous' },
+  photoCredit: { ...Type.footnote, color: Colors.light.textSecondary },
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
   hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
