@@ -75,6 +75,11 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
         <Text style={styles.meta} numberOfLines={1}>
           {meta}
         </Text>
+        {place.description ? (
+          <Text style={styles.description} numberOfLines={selected ? undefined : 2}>
+            {place.description}
+          </Text>
+        ) : null}
         {place.address ? (
           <View style={styles.address}>
             <Icon name="pin" size={13} color={Colors.light.textSecondary} />
@@ -82,11 +87,6 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
               {place.address}
             </Text>
           </View>
-        ) : null}
-        {place.description ? (
-          <Text style={styles.description} numberOfLines={selected ? undefined : 2}>
-            {place.description}
-          </Text>
         ) : null}
         {approximate ? <ApproximateLocation compact /> : null}
         {articles && !selected ? (
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 2 },
   name: { ...Type.headline, color: Colors.light.text },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
-  address: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  address: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   addressText: { ...Type.footnote, color: Colors.light.textSecondary, flexShrink: 1 },
   description: { ...Type.footnote, color: Colors.light.textSecondary, marginTop: 2 },
   source: { ...Type.caption, color: Colors.light.textSecondary, marginTop: 2 },

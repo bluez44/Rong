@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import type { ComponentProps } from 'react';
-import type { ColorValue, StyleProp, ViewStyle } from 'react-native';
+import { Text, View, type ColorValue, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
@@ -36,7 +36,8 @@ const ICONS = {
   swap: { ios: 'arrow.triangle.2.circlepath', android: 'swap_horiz', web: 'swap_horiz' },
   trash: { ios: 'trash', android: 'delete', web: 'delete' },
   tray: { ios: 'tray', android: 'inbox', web: 'inbox' },
-  heartFill: { ios: 'heart.fill', android: 'favorite', web: 'favorite' },
+  // Font Material Symbols của expo-symbols chỉ có dạng viền: Android và web vẽ ký tự trong FILLED.
+  heartFill: { ios: 'heart.fill' },
   // Danh mục địa điểm, khớp PlaceCategory.
   check_in: { ios: 'camera', android: 'photo_camera', web: 'photo_camera' },
   food: { ios: 'fork.knife', android: 'restaurant', web: 'restaurant' },
@@ -64,6 +65,9 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
+/** Ký tự thay cho icon không có dạng tô kín ngoài iOS. */
+const FILLED: Partial<Record<IconName, string>> = { heartFill: '♥' };
+
 type IconProps = {
   name: IconName;
   size?: number;
@@ -81,6 +85,16 @@ export function Icon({ name, size = 20, color = Colors.light.textSecondary, styl
       style={[{ width: size, height: size }, style]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      fallback={
+        FILLED[name] ? (
+          <View
+            style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants">
+            <Text style={{ color, fontSize: size, lineHeight: size }}>{FILLED[name]}</Text>
+          </View>
+        ) : null
+      }
     />
   );
 }
