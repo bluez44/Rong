@@ -149,6 +149,16 @@ export default function ItineraryScreen() {
         ) : null}
       </View>
 
+      {/* Tên, ngày, badges và tab ngày đứng yên dưới thanh trên; phần còn lại cuộn. */}
+      {data && !editing ? (
+        <ItineraryStickyHeader
+          itinerary={data}
+          regionName={regionName}
+          selectedDayIndex={selectedDayIndex}
+          onSelectDay={setSelectedDayIndex}
+        />
+      ) : null}
+
       <ScrollViewContainer
         contentContainerStyle={[
           styles.content,
@@ -234,7 +244,6 @@ export default function ItineraryScreen() {
             itinerary={data}
             regionName={regionName}
             selectedDayIndex={selectedDayIndex}
-            onSelectDay={setSelectedDayIndex}
             onStartEdit={() => setEditing(true)}
           />
         ) : null}
@@ -242,6 +251,92 @@ export default function ItineraryScreen() {
 
       {data && !editing && data.tips.length > 0 ? <AiTipsAccess tips={data.tips} /> : null}
     </Screen>
+  );
+}
+
+type ItineraryStickyHeaderProps = {
+  itinerary: Itinerary;
+  regionName?: string;
+  selectedDayIndex: number;
+  onSelectDay: (index: number) => void;
+};
+
+/** Phần đầu cố định của chế độ xem: tên, ngày đi, badges và tab chuyển ngày. */
+function ItineraryStickyHeader({ itinerary, regionName, selectedDayIndex, onSelectDay }: ItineraryStickyHeaderProps) {
+  const { input } = itinerary;
+  const people = [`${input.adults} người lớn`, input.children ? `${input.children} trẻ em` : null]
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <View style={styles.stickyHeader}>
+      <View style={styles.destinationHeader}>
+        <View style={styles.titleRow}>
+          <ThemedText type="display" style={styles.destinationTitle}>
+            {regionName ?? 'Lịch trình'}
+          </ThemedText>
+          <View style={styles.destinationBadge}>
+            <View style={styles.badgePulseDot} />
+            <Text style={styles.destinationBadgeText} numberOfLines={1}>
+              Chuyến đi
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.tripDateRow}>
+          {formatDateRange(input.startsAt, input.endsAt)} · {itinerary.days.length} ngày
+        </Text>
+
+        <View style={styles.tripTagList}>
+          <View style={styles.tripTag}>
+            <Text style={styles.tripTagText} numberOfLines={1}>
+              {TRAVEL_PARTY_LABELS[input.travelParty]} • {people}
+            </Text>
+          </View>
+          <View style={styles.tripTag}>
+            <Text style={styles.tripTagText} numberOfLines={1}>
+              {BUDGET_LABELS[input.budgetTier]}
+            </Text>
+          </View>
+          <View style={[styles.tripTag, styles.tripTagAccent]}>
+            <Icon name="sparkles" size={12} color={Palette.forest700} />
+            <Text style={[styles.tripTagText, styles.tripTagAccentText]} numberOfLines={1}>
+              {PLANNER_LABELS[itinerary.planner]}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.dayNavScroll}
+        contentContainerStyle={styles.dayNavTabs}>
+        {itinerary.days.map((day, idx) => {
+          const active = idx === selectedDayIndex;
+          return (
+            <Pressable
+              key={day.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => onSelectDay(idx)}
+              style={[styles.dayTab, active ? styles.dayTabActive : styles.dayTabInactive]}>
+              {active ? <View style={styles.dayTabDot} /> : null}
+              <Text style={[styles.dayTabText, active && styles.dayTabTextActive]}>
+                Ngày {idx + 1} • {formatPlanDate(day.date)}
+              </Text>
+              <View
+                style={[styles.dayCountBadge, active && styles.dayCountBadgeActive]}>
+                <Text
+                  style={[styles.dayCountText, active && styles.dayCountTextActive]}>
+                  {day.items.length} điểm
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -269,7 +364,6 @@ type ItineraryViewBodyProps = {
   itinerary: Itinerary;
   regionName?: string;
   selectedDayIndex: number;
-  onSelectDay: (index: number) => void;
   onStartEdit: () => void;
 };
 
@@ -277,14 +371,8 @@ function ItineraryViewBody({
   itinerary,
   regionName,
   selectedDayIndex,
-  onSelectDay,
   onStartEdit,
 }: ItineraryViewBodyProps) {
-  const { input } = itinerary;
-  const people = [`${input.adults} người lớn`, input.children ? `${input.children} trẻ em` : null]
-    .filter(Boolean)
-    .join(', ');
-
   const currentDay = itinerary.days[selectedDayIndex] ?? itinerary.days[0];
   const totalActivities = itinerary.days.reduce((total, day) => total + day.items.length, 0);
   const routeStops = currentDay?.items
@@ -299,40 +387,6 @@ function ItineraryViewBody({
 
   return (
     <>
-      {/* 1. Destination Title & Metadata Area */}
-      <View style={styles.destinationHeader}>
-        <View style={styles.titleRow}>
-          <ThemedText type="display" style={styles.destinationTitle}>
-            {regionName ?? 'Lịch trình'}
-          </ThemedText>
-          <View style={styles.destinationBadge}>
-            <View style={styles.badgePulseDot} />
-            <Text style={styles.destinationBadgeText}>Chuyến đi</Text>
-          </View>
-        </View>
-
-        <Text style={styles.tripDateRow}>
-          {formatDateRange(input.startsAt, input.endsAt)} · {itinerary.days.length} ngày
-        </Text>
-
-        <View style={styles.tripTagList}>
-          <View style={styles.tripTag}>
-            <Text style={styles.tripTagText}>
-              {TRAVEL_PARTY_LABELS[input.travelParty]} • {people}
-            </Text>
-          </View>
-          <View style={styles.tripTag}>
-            <Text style={styles.tripTagText}>{BUDGET_LABELS[input.budgetTier]}</Text>
-          </View>
-          <View style={[styles.tripTag, styles.tripTagAccent]}>
-            <Icon name="sparkles" size={12} color={Palette.forest700} />
-            <Text style={[styles.tripTagText, { color: Palette.forest700, fontWeight: '600' }]}>
-              {PLANNER_LABELS[itinerary.planner]}
-            </Text>
-          </View>
-        </View>
-      </View>
-
       {/* 2. Route summary */}
       <View style={styles.miniOverviewCard}>
         <View style={styles.routeMiniBar}>
@@ -354,11 +408,12 @@ function ItineraryViewBody({
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Xem bản đồ vùng"
+            accessibilityLabel={currentDay ? `Xem bản đồ ngày ${selectedDayIndex + 1}` : 'Xem bản đồ'}
+            disabled={!currentDay}
             onPress={() =>
               router.push({
-                pathname: '/region/[id]',
-                params: { id: itinerary.regionId, ...(regionName && { name: regionName }) },
+                pathname: '/itinerary/day-map',
+                params: { id: itinerary.id, day: String(selectedDayIndex) },
               })
             }
             style={styles.viewMapBtn}>
@@ -407,38 +462,8 @@ function ItineraryViewBody({
         </View>
       </View>
 
-      {/* 4. Day Navigation Tabs (Horizontal Scroll) */}
+      {/* 4. Selected day */}
       <View style={styles.dayNavSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dayNavTabs}>
-          {itinerary.days.map((day, idx) => {
-            const active = idx === selectedDayIndex;
-            return (
-              <Pressable
-                key={day.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                onPress={() => onSelectDay(idx)}
-                style={[styles.dayTab, active ? styles.dayTabActive : styles.dayTabInactive]}>
-                {active ? <View style={styles.dayTabDot} /> : null}
-                <Text style={[styles.dayTabText, active && styles.dayTabTextActive]}>
-                  Ngày {idx + 1} • {formatPlanDate(day.date)}
-                </Text>
-                <View
-                  style={[styles.dayCountBadge, active && styles.dayCountBadgeActive]}>
-                  <Text
-                    style={[styles.dayCountText, active && styles.dayCountTextActive]}>
-                    {day.items.length} điểm
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Selected Day Header */}
         {currentDay ? (
           <View style={styles.currentDayHeadlineRow}>
             <View>
@@ -760,6 +785,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.4 },
   content: {
     paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.three,
     gap: Spacing.four,
   },
   loading: { paddingVertical: Spacing.six },
@@ -767,7 +793,15 @@ const styles = StyleSheet.create({
   hint: { ...Type.footnote, color: Colors.light.textSecondary },
   pressed: { opacity: 0.8 },
 
-  /* 1. Destination Header */
+  /* 1. Destination Header (cố định) */
+  stickyHeader: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.three,
+    gap: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.mist200,
+    backgroundColor: Palette.parchment50,
+  },
   destinationHeader: {
     gap: Spacing.two,
     paddingTop: Spacing.one,
@@ -783,6 +817,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   destinationBadge: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
@@ -815,7 +850,10 @@ const styles = StyleSheet.create({
     gap: Spacing.one + 2,
     marginTop: Spacing.one,
   },
+  // Mỗi badge một dòng; cả hàng badges vẫn xuống dòng được.
   tripTag: {
+    flexShrink: 0,
+    maxWidth: '100%',
     backgroundColor: 'rgba(230, 234, 229, 0.7)',
     paddingHorizontal: Spacing.three,
     paddingVertical: 5,
@@ -831,6 +869,11 @@ const styles = StyleSheet.create({
     ...Type.caption,
     color: Colors.light.textSecondary,
     fontWeight: '500',
+    flexShrink: 1,
+  },
+  tripTagAccentText: {
+    color: Palette.forest700,
+    fontWeight: '600',
   },
 
   /* 2. Visual Weather & Route Mini Card */
@@ -979,8 +1022,13 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     marginTop: Spacing.one,
   },
+  // Tràn ra hai mép màn hình để tab cuộn ngang không bị cắt ở lề.
+  dayNavScroll: {
+    marginHorizontal: -Spacing.four,
+  },
   dayNavTabs: {
     gap: Spacing.two,
+    paddingHorizontal: Spacing.four,
   },
   dayTab: {
     flexDirection: 'row',
@@ -990,9 +1038,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two + 1,
     borderRadius: Radius.md,
   },
+  // Không đổ bóng: elevation trên Android vẽ thành viền xám quanh tab.
   dayTabActive: {
     backgroundColor: Palette.forest900,
-    ...Shadow.card,
   },
   dayTabInactive: {
     backgroundColor: Palette.surface,
