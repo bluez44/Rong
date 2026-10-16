@@ -84,6 +84,13 @@ export interface PlaceListItem {
   googlePlaceId?: string | null;
 }
 
+/** Ảnh lấy từ bài viết (hotlink, không lưu file), kèm bài nguồn để ghi công. */
+export interface PlaceImage {
+  url: string;
+  /** Bài viết chứa ảnh. */
+  sourceUrl: string;
+}
+
 /** Bài viết trên web mà kết quả AI dựa vào. */
 export interface ArticleSource {
   title: string;

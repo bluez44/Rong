@@ -1,21 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WebSource } from '../../langchain/web-search.js';
+import type { ArticleImage, WebSource } from '../../langchain/web-search.js';
 import {
   articlesMentioning,
   extractPublishedDate,
   fetchPublishedDate,
   groundedAddress,
+  groundedImage,
   normalizeForMatch,
 } from './web-grounding.js';
 
-const source = (uri: string, content: string, title = 'Bài viết'): WebSource => ({
+const source = (
+  uri: string,
+  content: string,
+  title = 'Bài viết',
+  images: ArticleImage[] = [],
+): WebSource => ({
   title,
   uri,
   content,
   publishedAt: null,
-  images: [],
+  images,
 });
+const img = (url: string, alt: string, heading: string | null = null): ArticleImage => ({ url, alt, heading });
 
 describe('normalizeForMatch', () => {
   it('bỏ dấu, đ, hoa thường và dấu câu', () => {
@@ -75,6 +82,50 @@ describe('groundedAddress', () => {
 
   it('chỉ khớp nguyên từ: "2 Trần" không khớp "12 Trần"', () => {
     expect(groundedAddress('2 Lê Lợi', [source('c', 'Địa chỉ: 12 Lê Lợi')])).toBeNull();
+  });
+});
+
+describe('groundedImage', () => {
+  it('khớp theo alt, không phân biệt dấu và hoa thường, trả kèm bài nguồn', () => {
+    const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/1.jpg', 'NHÀ MỤC VỤ DON BOSCO')])];
+    expect(groundedImage('Nhà mục vụ Don Bosco', 'Đà Lạt', articles)).toEqual({
+      url: 'https://a.vn/1.jpg',
+      sourceUrl: 'https://a.vn',
+    });
+  });
+
+  it('khớp theo tiêu đề mục khi alt không có tên', () => {
+    const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/2.jpg', 'Ảnh 2', '2. Dinh Tỉnh trưởng - đẹp nhất')])];
+    expect(groundedImage('Dinh Tỉnh trưởng', 'Đà Lạt', articles)).toEqual({
+      url: 'https://a.vn/2.jpg',
+      sourceUrl: 'https://a.vn',
+    });
+  });
+
+  it('ảnh khớp alt ở bài sau thắng ảnh chỉ khớp tiêu đề ở bài trước', () => {
+    const articles = [
+      source('https://a.vn', '...', 'Bài A', [img('https://a.vn/chung.jpg', 'Săn mây', 'Săn mây đồi chè Cầu Đất')]),
+      source('https://b.vn', '...', 'Bài B', [img('https://b.vn/doi-che.jpg', 'Đồi chè Cầu Đất')]),
+    ];
+    expect(groundedImage('Đồi chè Cầu Đất', 'Đà Lạt', articles)).toEqual({
+      url: 'https://b.vn/doi-che.jpg',
+      sourceUrl: 'https://b.vn',
+    });
+  });
+
+  it('chấp nhận tên kèm tên vùng ở cuối', () => {
+    const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/dinh.jpg', 'Dinh Tỉnh trưởng')])];
+    expect(groundedImage('Dinh Tỉnh trưởng Đà Lạt', 'Đà Lạt, Lâm Đồng', articles)?.url).toBe('https://a.vn/dinh.jpg');
+  });
+
+  it('chỉ khớp nguyên từ', () => {
+    const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/x.jpg', 'hồ xuânhương')])];
+    expect(groundedImage('Hồ Xuân', 'Đà Lạt', articles)).toBeNull();
+  });
+
+  it('không ảnh nào khớp, hoặc bài không có ảnh, thì null', () => {
+    expect(groundedImage('Chợ Đà Lạt', 'Lâm Đồng', [source('https://a.vn', '...', 'Bài', [img('https://a.vn/x.jpg', 'Quán khác')])])).toBeNull();
+    expect(groundedImage('Chợ Đà Lạt', 'Lâm Đồng', [source('https://a.vn', 'Chợ Đà Lạt')])).toBeNull();
   });
 });
 

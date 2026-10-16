@@ -1,3 +1,5 @@
+import type { PlaceImage } from '@rong/shared-types';
+
 import type { WebSource } from '../../langchain/web-search.js';
 
 /**
@@ -54,6 +56,32 @@ export function groundedAddress(
   )
     ? trimmed
     : null;
+}
+
+/**
+ * Ảnh của địa điểm trong các bài đã nhắc nó: ảnh có alt chứa tên (nguyên từ, bỏ dấu),
+ * không có thì ảnh nằm dưới tiêu đề mục chứa tên. Ưu tiên alt ở mọi bài trước, vì tiêu đề
+ * mục chung chung ("Săn mây đồi chè…") dễ khớp nhầm địa điểm khác. Không khớp thì null.
+ */
+export function groundedImage(
+  title: string,
+  regionName: string,
+  articles: WebSource[],
+): PlaceImage | null {
+  const names = nameVariants(title, regionName).map((name) => ` ${name} `);
+  if (names.length === 0) return null;
+  const mentions = (text: string | null) =>
+    text !== null &&
+    names.some((name) => ` ${normalizeForMatch(text)} `.includes(name));
+  for (const field of ['alt', 'heading'] as const) {
+    for (const article of articles) {
+      const image = article.images.find((candidate) =>
+        mentions(candidate[field]),
+      );
+      if (image) return { url: image.url, sourceUrl: article.uri };
+    }
+  }
+  return null;
 }
 
 function forAddressMatch(text: string): string {
