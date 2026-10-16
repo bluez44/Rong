@@ -32,6 +32,7 @@ import {
   articlesMentioning,
   fetchPublishedDate,
   groundedAddress,
+  groundedImage,
 } from './web-grounding.js';
 import { pickGoogleMatch } from './web-place-match.js';
 
@@ -184,6 +185,7 @@ export class WebPlacesService {
           name: place.title.trim(),
           category: place.category,
           address: groundedAddress(place.address, articles),
+          image: groundedImage(place.title, regionName, articles),
           description: place.description.trim() || null,
           openingHours: openingHours(place.openHours),
           // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.
@@ -200,8 +202,9 @@ export class WebPlacesService {
         this.config.refreshDays,
       );
       const matched = inputs.filter((p) => p.location.source === 'google');
+      const withImage = inputs.filter((p) => p.image !== null);
       this.logger.log(
-        `"${regionName}": lưu ${inputs.length}/${found.places.length} địa điểm (${matched.length} ghép Google) trong ${Date.now() - started} ms`,
+        `"${regionName}": lưu ${inputs.length}/${found.places.length} địa điểm (${matched.length} ghép Google, ${withImage.length} có ảnh) trong ${Date.now() - started} ms`,
       );
     } catch (error) {
       this.logger.error(
@@ -310,6 +313,7 @@ function toItem(row: StoredPlaceRow, regionName: string): PlaceListItem[] {
       locationSource: row.location_source === 'google' ? 'google' : 'ai',
       googlePlaceId: row.google_place_id,
       articles: row.articles,
+      image: row.image,
     },
   ];
 }

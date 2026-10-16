@@ -80,6 +80,8 @@ export interface PlaceListItem {
   locationSource: LocationSource;
   /** Các bài viết có nhắc tới địa điểm này (rỗng với địa điểm người dùng thêm). */
   articles: ArticleSource[];
+  /** Ảnh từ bài viết, null nếu không bài nào có ảnh khớp địa điểm (và với dòng nguồn Google). */
+  image: PlaceImage | null;
   /** Có khi đã ghép được với Google Places. */
   googlePlaceId?: string | null;
 }

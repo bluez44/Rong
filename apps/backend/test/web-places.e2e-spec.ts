@@ -16,6 +16,7 @@ import {
 
 import { AppModule } from '../src/app.module.js';
 import { PlaceSearchService as AgentPlaceSearch } from '../src/langchain/place-search.service.js';
+import type { ArticleImage } from '../src/langchain/web-search.js';
 import { GooglePlacesService } from '../src/modules/google/google-places.service.js';
 import { GoogleLocationJanitor } from '../src/modules/places/google-location-janitor.js';
 import { PlaceLocationService } from '../src/modules/places/place-location.service.js';
@@ -171,6 +172,7 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       description: 'Mô tả',
       openingHours: '07:00-17:00',
       articles: [article],
+      image: null,
       location,
     });
 
@@ -433,14 +435,43 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         ['E2E wp Quán E'],
       );
     });
+
+    it('ảnh: lưu theo danh sách của vùng, làm mới không có ảnh thì null', async () => {
+      const store = app.get(RegionPlaceStore);
+      const image = {
+        url: 'https://img.wp.test/a.jpg',
+        sourceUrl: 'https://a.test/1',
+      };
+      const location = { source: 'ai' as const, lat: 11.94, lng: 108.44 };
+      await store.replace(
+        regionId,
+        [{ ...input('E2E wp Ảnh Store', location), image }],
+        [article],
+        30,
+      );
+      expect((await store.list(regionId, null)).map((r) => r.image)).toEqual([
+        image,
+      ]);
+
+      await store.replace(
+        regionId,
+        [input('E2E wp Ảnh Store', location)],
+        [article],
+        30,
+      );
+      expect((await store.list(regionId, null)).map((r) => r.image)).toEqual([
+        null,
+      ]);
+    });
   });
 
   describe('GET /regions/:id/places', () => {
-    const article = (n: number, body: string) => ({
+    const article = (n: number, body: string, images: ArticleImage[] = []) => ({
       title: `Bài ${n}`,
       uri: `https://wp.test/${n}`,
       content: body,
       publishedAt: '2026-01-01',
+      images,
     });
     const agentPlace = (title: string, category: string) => ({
       title,
@@ -593,6 +624,56 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       expect(detail.body.address).toBe('12 Trần Quốc Toản, Phường 1');
     });
 
+    it('ảnh: lấy từ bài nhắc địa điểm khi alt khớp tên; trả ở danh sách và chi tiết', async () => {
+      agent.findPlaces.mockResolvedValue({
+        places: [
+          agentPlace('E2E wp Đồi Có Ảnh', 'nature'),
+          agentPlace('E2E wp Hồ Không Ảnh', 'nature'),
+        ],
+        sources: [
+          article(4, 'E2E wp Đồi Có Ảnh và E2E wp Hồ Không Ảnh đều đẹp.', [
+            {
+              url: 'https://img.wp.test/doi.jpg',
+              alt: 'E2E wp Đồi Có Ảnh',
+              heading: null,
+            },
+            {
+              url: 'https://img.wp.test/khac.jpg',
+              alt: 'Quán khác',
+              heading: null,
+            },
+          ]),
+        ],
+      });
+      google.findPlace.mockResolvedValue([]);
+
+      const res = await get().expect(200);
+      expect(
+        res.body.items.map((i: { name: string; image: unknown }) => [
+          i.name,
+          i.image,
+        ]),
+      ).toEqual([
+        [
+          'E2E wp Đồi Có Ảnh',
+          {
+            url: 'https://img.wp.test/doi.jpg',
+            sourceUrl: 'https://wp.test/4',
+          },
+        ],
+        ['E2E wp Hồ Không Ảnh', null],
+      ]);
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/places/${res.body.items[0].id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(detail.body.image).toEqual({
+        url: 'https://img.wp.test/doi.jpg',
+        sourceUrl: 'https://wp.test/4',
+      });
+    });
+
     it('hai request song song chỉ chạy một lượt pipeline', async () => {
       agent.findPlaces.mockImplementation(async () => {
         await new Promise((r) => setTimeout(r, 300));
@@ -695,6 +776,8 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         /^https:\/\/www\.google\.com\/maps\/search\//,
       );
       expect(google.details).not.toHaveBeenCalled();
+      // Không thuộc danh sách vùng nào: không có ảnh.
+      expect(res.body.image).toBeNull();
     });
 
     it('dòng web đã ghép Google: nội dung Google trực tiếp, giữ tên từ bài viết', async () => {

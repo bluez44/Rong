@@ -7,6 +7,7 @@ import type {
   LocationSource,
   PlaceCategory,
   PlaceDetail,
+  PlaceImage,
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
@@ -35,6 +36,7 @@ interface DetailRow {
   source: 'google' | 'web';
   location_source: LocationSource;
   articles: ArticleSource[] | null;
+  image: PlaceImage | null;
 }
 
 @Injectable()
@@ -63,10 +65,14 @@ export class PlacesService {
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
               p.google_place_id, p.source, p.location_source,
-              -- Bài viết nguồn: từ danh sách của vùng có địa điểm này (hạng cao nhất).
-              (SELECT rp.articles FROM region_places rp WHERE rp.place_id = p.id
-                ORDER BY rp.rank LIMIT 1) AS articles
-         FROM places p WHERE p.id = $1`,
+              -- Bài viết nguồn và ảnh: cùng một dòng danh sách của vùng có địa điểm này (hạng cao nhất).
+              top.articles, top.image
+         FROM places p
+         LEFT JOIN LATERAL (
+           SELECT rp.articles, rp.image FROM region_places rp
+            WHERE rp.place_id = p.id ORDER BY rp.rank LIMIT 1
+         ) top ON true
+        WHERE p.id = $1`,
       [id],
     )) as DetailRow[];
 
@@ -146,5 +152,6 @@ function toListItem(
         : `https://www.google.com/maps/search/?api=1&query=${query}`),
     locationSource: row.location_source,
     articles: row.articles ?? [],
+    image: row.image ?? null,
   };
 }

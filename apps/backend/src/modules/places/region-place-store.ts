@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { ArticleSource, PlaceCategory } from '@rong/shared-types';
+import type { ArticleSource, PlaceCategory, PlaceImage } from '@rong/shared-types';
 import { DataSource, type EntityManager } from 'typeorm';
 
 import { searchKey } from '../regions/search-text.js';
@@ -14,6 +14,8 @@ export interface WebPlaceInput {
   /** "HH:mm-HH:mm" (cú pháp opening_hours OSM hợp lệ), null nếu không rõ. */
   openingHours: string | null;
   articles: ArticleSource[];
+  /** Ảnh từ bài viết (`groundedImage`), null nếu không có. */
+  image: PlaceImage | null;
   location:
     | { source: 'google'; placeId: string; lat: number; lng: number }
     | { source: 'ai'; lat: number; lng: number };
@@ -38,6 +40,7 @@ export interface StoredPlaceRow {
   opening_hours: string | null;
   rank: number;
   articles: ArticleSource[];
+  image: PlaceImage | null;
 }
 
 /**
@@ -106,8 +109,14 @@ export class RegionPlaceStore {
         if (seen.has(id)) continue; // hai tên trong bài cùng ra một place_id
         seen.add(id);
         await m.query(
-          `INSERT INTO region_places (region_id, place_id, rank, articles) VALUES ($1, $2, $3, $4::jsonb)`,
-          [regionId, id, rank, JSON.stringify(places[rank].articles)],
+          `INSERT INTO region_places (region_id, place_id, rank, articles, image) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`,
+          [
+            regionId,
+            id,
+            rank,
+            JSON.stringify(places[rank].articles),
+            places[rank].image ? JSON.stringify(places[rank].image) : null,
+          ],
         );
       }
       await m.query(
@@ -127,7 +136,7 @@ export class RegionPlaceStore {
       `SELECT p.id, p.name, p.category, p.address, p.description, p.location_source, p.google_place_id,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_Y(p.location) END AS lat,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_X(p.location) END AS lng,
-              p.tags->>'opening_hours' AS opening_hours, rp.rank, rp.articles
+              p.tags->>'opening_hours' AS opening_hours, rp.rank, rp.articles, rp.image
          FROM region_places rp JOIN places p ON p.id = rp.place_id
         WHERE rp.region_id = $1
           AND ($2::place_category[] IS NULL OR p.category = ANY($2::place_category[]))

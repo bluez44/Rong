@@ -111,6 +111,11 @@ Dữ liệu:
   Không còn ghép `place_id` theo tên.
 - Dòng `web`/`google` có `sourceUrl` là link Google Maps; `locationSource` cho biết tọa độ từ đâu.
 - `places.address` lưu địa chỉ lấy từ bài viết (nguồn riêng của Rong), không lưu địa chỉ Google. Chỉ giữ địa chỉ Gemini trả về khi phần số nhà + đường có trong một bài đã nhắc địa điểm (`groundedAddress` trong `web-grounding.ts`), không thì `NULL`. Dòng Google-only giữ `address = NULL`; chi tiết Google vẫn lấy trực tiếp ở mỗi lần mở.
+- `region_places.image` lưu một ảnh `{ url, sourceUrl }` lấy từ bài viết (hotlink, không tải về). `searchWeb` tách
+  ảnh `![alt](url)` kèm tiêu đề mục khỏi markdown Tavily trước khi cắt bài (`extractImages` trong
+  `langchain/web-search.ts`); `groundedImage` (`web-grounding.ts`) chọn ảnh có alt, rồi tiêu đề mục, chứa tên địa
+  điểm trong các bài đã nhắc nó. Không khớp thì `NULL`, client hiện icon danh mục. Danh sách cũ có ảnh khi tự làm
+  mới.
 - Client phải hiển thị "Google Maps", tách phần Google khỏi dữ liệu của app, và ghi
   tên tác giả ảnh/đánh giá kèm link (`author.uri`, `googleMapsUri`).
 
