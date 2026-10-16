@@ -1,4 +1,6 @@
 import type { PlaceListItem } from '@rong/shared-types';
+import { Image } from 'expo-image';
+import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApproximateLocation } from '@/components/ui/approximate-location';
@@ -23,8 +25,8 @@ type PlaceRowProps = {
 };
 
 /**
- * Một địa điểm trong bottom sheet (FR-2.9). Luôn trên nền đặc. Thumbnail là
- * glyph danh mục, không dùng ảnh Google (PRD 7.4).
+ * Một địa điểm trong bottom sheet (FR-2.9). Luôn trên nền đặc. Thumbnail là ảnh từ bài
+ * viết nếu có, không thì glyph danh mục; không dùng ảnh Google (PRD 7.4).
  *
  * Mỗi mục kèm số bài viết nhắc tới, và danh sách bài kèm ngày đăng khi chọn dòng.
  */
@@ -43,6 +45,9 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
   ];
   const articles = place.articles.length > 0 ? place.articles : null;
   const approximate = place.locationSource === 'ai';
+  // Ảnh từ bài viết; tải lỗi (link chết, chặn hotlink) thì quay về icon danh mục.
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = place.image && !imageFailed ? place.image : null;
   const meta = [CATEGORY_LABELS[place.category], hoursLabel(place.hours)].filter(Boolean).join(' · ');
   const extras = [
     articles ? `theo ${articles.length} bài viết` : null,
@@ -66,7 +71,18 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
       onPress={onPress}
       style={({ pressed }) => [styles.row, (pressed || selected) && styles.highlighted]}>
       <View style={styles.thumb}>
-        <Icon name={place.category} size={22} color={Colors.light.primary} />
+        {image ? (
+          <Image
+            source={{ uri: image.url }}
+            style={styles.thumbImage}
+            contentFit="cover"
+            transition={150}
+            accessible={false}
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <Icon name={place.category} size={22} color={Colors.light.primary} />
+        )}
       </View>
       <View style={styles.body}>
         <Text style={styles.name} numberOfLines={1}>
@@ -196,8 +212,10 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     backgroundColor: Colors.light.backgroundSelected,
   },
+  thumbImage: { width: '100%', height: '100%' },
   body: { flex: 1, gap: 2 },
   name: { ...Type.headline, color: Colors.light.text },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
