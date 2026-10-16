@@ -154,7 +154,9 @@ export function extractImages(markdown: string): ArticleImage[] {
   let heading: string | null = null;
   for (const line of markdown.split('\n')) {
     const text = line.trim();
-    const title = /^#{1,6}\s+(.+)$/.exec(text) ?? /^\*\*(.+)\*\*$/.exec(text);
+    // Dòng in đậm chỉ là tiêu đề khi đánh số ("**1. Tên**"); "**Giá vé**" là nhãn trong mục.
+    const title =
+      /^#{1,6}\s+(.+)$/.exec(text) ?? /^\*\*(\s*\d+[.)].+)\*\*$/.exec(text);
     if (title && !text.includes('![')) {
       heading = title[1].replace(/\*\*/g, '').trim();
       continue;

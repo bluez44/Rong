@@ -58,8 +58,9 @@ export interface ArticleImage {
 
 `extractImages(markdown)` đọc **toàn bộ** `raw_content` trước khi cắt:
 
-- Đi từng dòng, nhớ tiêu đề gần nhất: dòng bắt đầu bằng `#`, hoặc dòng chỉ gồm một đoạn in đậm `**…**` (bài ZaloPay
-  dùng kiểu này cho tiêu đề địa điểm).
+- Đi từng dòng, nhớ tiêu đề gần nhất: dòng bắt đầu bằng `#`, hoặc dòng chỉ gồm một đoạn in đậm **có đánh số**
+  `**1. …**` / `**1) …**` (bài ZaloPay dùng kiểu này cho tiêu đề địa điểm). Dòng in đậm không đánh số
+  (`**Giá vé**`) là nhãn trong mục, không đổi tiêu đề.
 - Lấy mọi `![alt](url)` (bỏ phần title `"…"` nếu có trong ngoặc).
 - Bỏ ảnh: URL không phải `http(s)`, đuôi `.svg` / `.gif`, alt rỗng, alt hoặc URL chứa `logo`, `icon`, `avatar`,
   `banner` (không phân biệt hoa thường).
@@ -80,9 +81,11 @@ export function groundedImage(
 
 - `articles` là các bài đã nhắc địa điểm (kết quả `articlesMentioning`), theo thứ tự hiện có.
 - Dùng lại `nameVariants(title, regionName)` và `normalizeForMatch` như `articlesMentioning`.
-- Một ảnh khớp khi alt **hoặc** tiêu đề mục của nó (đã chuẩn hóa, bọc khoảng trắng hai đầu) chứa một biến thể tên
-  (bọc khoảng trắng hai đầu), tức khớp nguyên từ. Ưu tiên ảnh khớp theo alt, rồi mới tới ảnh khớp theo tiêu đề.
-- Trả ảnh khớp đầu tiên, theo thứ tự bài rồi thứ tự ảnh trong bài, kèm `sourceUrl` là `uri` của bài đó.
+- So khớp trên chuỗi đã chuẩn hóa, nguyên từ. Ba bậc tin cậy, xét hết bậc trên (ở mọi bài) rồi mới xuống bậc dưới:
+  1. alt **đúng bằng** một biến thể tên;
+  2. tiêu đề mục chứa ảnh có tên;
+  3. alt chỉ **chứa** tên ("Quán cà phê view Hồ Xuân Hương", ảnh "bài liên quan") — dễ là ảnh nơi khác nên xếp cuối.
+- Cùng bậc thì lấy ảnh đầu tiên theo thứ tự bài rồi thứ tự ảnh, kèm `sourceUrl` là `uri` của bài đó.
   Không khớp thì `null`.
 
 Khớp nguyên từ để tên không khớp vào giữa một từ khác, giống `articlesMentioning`. `nameVariants` đã bỏ biến thể

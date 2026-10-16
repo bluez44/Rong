@@ -223,6 +223,21 @@ describe('extractImages', () => {
     expect(extractImages(many)).toHaveLength(60);
   });
 
+  it('dòng in đậm không đánh số (nhãn "Giá vé") không thay tiêu đề mục', () => {
+    const md = [
+      '## 3. Hồ Xuân Hương',
+      '**Giá vé**',
+      'Miễn phí.',
+      '![Ảnh hồ](https://cdn.test/ho.jpg)',
+      '**4) Chợ Đà Lạt**',
+      '![Ảnh chợ](https://cdn.test/cho.jpg)',
+    ].join('\n');
+    expect(extractImages(md).map((i) => i.heading)).toEqual([
+      '3. Hồ Xuân Hương',
+      '4) Chợ Đà Lạt',
+    ]);
+  });
+
   it('không có ảnh thì rỗng', () => {
     expect(extractImages('Chỉ có chữ.')).toEqual([]);
   });

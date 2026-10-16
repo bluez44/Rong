@@ -113,6 +113,21 @@ describe('groundedImage', () => {
     });
   });
 
+  it('ảnh dưới tiêu đề mục của địa điểm thắng ảnh chỉ có alt nhắc tên (quán view, bài liên quan)', () => {
+    const articles = [
+      source('https://a.vn', '...', 'Bài', [
+        img('https://a.vn/quan.jpg', 'Quán cà phê view Hồ Xuân Hương', 'Top quán cà phê'),
+        img('https://a.vn/ho.jpg', 'Ảnh 3', '3. Hồ Xuân Hương'),
+      ]),
+    ];
+    expect(groundedImage('Hồ Xuân Hương', 'Đà Lạt', articles)?.url).toBe('https://a.vn/ho.jpg');
+  });
+
+  it('alt chỉ nhắc tên vẫn dùng khi không còn ảnh nào khớp hơn', () => {
+    const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/quan.jpg', 'Quán cà phê view Hồ Xuân Hương')])];
+    expect(groundedImage('Hồ Xuân Hương', 'Đà Lạt', articles)?.url).toBe('https://a.vn/quan.jpg');
+  });
+
   it('chấp nhận tên kèm tên vùng ở cuối', () => {
     const articles = [source('https://a.vn', '...', 'Bài', [img('https://a.vn/dinh.jpg', 'Dinh Tỉnh trưởng')])];
     expect(groundedImage('Dinh Tỉnh trưởng Đà Lạt', 'Đà Lạt, Lâm Đồng', articles)?.url).toBe('https://a.vn/dinh.jpg');
