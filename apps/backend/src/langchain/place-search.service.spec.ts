@@ -11,6 +11,7 @@ const source = (uri: string): WebSource => ({
   uri,
   content: `Bài ${uri}`,
   publishedAt: null,
+  images: [],
 });
 
 const place = (title: string) => ({

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createWebSearchTool,
+  extractImages,
   formatArticles,
   searchWeb,
   WEB_SEARCH_TOOL_NAME,
@@ -42,6 +43,7 @@ describe('searchWeb', () => {
         uri: 'https://a.vn/da-lat',
         content: 'Hồ Xuân Hương nằm giữa thành phố.',
         publishedAt: null,
+        images: [],
       },
       // Không có raw_content thì dùng đoạn trích.
       {
@@ -49,6 +51,7 @@ describe('searchWeb', () => {
         uri: 'https://b.vn',
         content: 'Chợ Đà Lạt',
         publishedAt: '2024-02-01',
+        images: [],
       },
     ]);
 
@@ -83,6 +86,31 @@ describe('searchWeb', () => {
       'HTTP 401',
     );
   });
+
+  it('tách ảnh từ raw_content trước khi cắt, nội dung gửi model không còn cú pháp ảnh', async () => {
+    const fetchImpl = json({
+      results: [
+        {
+          title: 'Top check-in',
+          url: 'https://c.vn/top',
+          content: 'tóm tắt',
+          raw_content:
+            '## 1. Dinh Tỉnh trưởng\n![Dinh Tỉnh trưởng](https://c.vn/dinh.jpg)\nDinh nằm trên đồi.',
+        },
+      ],
+    });
+
+    const [source] = await searchWeb('key', 'check-in Đà Lạt', fetchImpl);
+    expect(source.images).toEqual([
+      {
+        url: 'https://c.vn/dinh.jpg',
+        alt: 'Dinh Tỉnh trưởng',
+        heading: '1. Dinh Tỉnh trưởng',
+      },
+    ]);
+    expect(source.content).not.toContain('![');
+    expect(source.content).toContain('Dinh nằm trên đồi.');
+  });
 });
 
 describe('createWebSearchTool', () => {
@@ -103,7 +131,13 @@ describe('createWebSearchTool', () => {
     expect(message.content).toContain('URL: https://a.vn');
     expect(message.content).toContain('Thác A');
     expect(message.artifact).toEqual([
-      { title: 'A', uri: 'https://a.vn', content: 'Thác A', publishedAt: null },
+      {
+        title: 'A',
+        uri: 'https://a.vn',
+        content: 'Thác A',
+        publishedAt: null,
+        images: [],
+      },
     ]);
   });
 
@@ -122,15 +156,74 @@ describe('formatArticles', () => {
         uri: 'https://a.vn',
         content: 'Nội dung A',
         publishedAt: null,
+        images: [],
       },
       {
         title: 'B',
         uri: 'https://b.vn',
         content: 'Nội dung B',
         publishedAt: null,
+        images: [],
       },
     ]);
     expect(text).toContain('[1] A\nURL: https://a.vn\nNội dung A');
     expect(text).toContain('[2] B\nURL: https://b.vn\nNội dung B');
+  });
+});
+
+describe('extractImages', () => {
+  const ARTICLE = [
+    '![Ảnh bìa Đà Lạt](https://cdn.zlp.test/top.jpg)',
+    '![Logo ZaloPay](https://cdn.zlp.test/brand.png)',
+    '![](https://cdn.zlp.test/empty.jpg)',
+    '# Check in Đà Lạt',
+    '![Đà Lạt mùa hoa](https://cdn.zlp.test/cover.jpg?w=800)',
+    '**1. Nhà mục vụ Don Bosco - Địa điểm check in siêu đẹp**',
+    'Nhà mục vụ nằm ở phường 7.',
+    '![Nhà mục vụ Don Bosco](https://cdn.zlp.test/1.jpg "ảnh 1")',
+    '## 2. Dinh Tỉnh trưởng',
+    '[![Dinh Tỉnh trưởng](https://cdn.zlp.test/2.jpg)](https://zlp.test/dinh)',
+    '![Dinh Tỉnh trưởng](https://cdn.zlp.test/2.jpg)',
+    '![icon](data:image/gif;base64,R0lGOD)',
+    '![Bản đồ](https://cdn.zlp.test/map.svg)',
+    '![Ảnh động](https://cdn.zlp.test/anim.gif?x=1)',
+    '![Tác giả](https://cdn.zlp.test/avatar/a.jpg)',
+  ].join('\n');
+
+  it('lấy ảnh thật kèm alt và tiêu đề mục gần nhất, bỏ logo/icon/svg/gif/data:, alt rỗng và ảnh trùng', () => {
+    expect(extractImages(ARTICLE)).toEqual([
+      {
+        url: 'https://cdn.zlp.test/top.jpg',
+        alt: 'Ảnh bìa Đà Lạt',
+        heading: null,
+      },
+      {
+        url: 'https://cdn.zlp.test/cover.jpg?w=800',
+        alt: 'Đà Lạt mùa hoa',
+        heading: 'Check in Đà Lạt',
+      },
+      {
+        url: 'https://cdn.zlp.test/1.jpg',
+        alt: 'Nhà mục vụ Don Bosco',
+        heading: '1. Nhà mục vụ Don Bosco - Địa điểm check in siêu đẹp',
+      },
+      {
+        url: 'https://cdn.zlp.test/2.jpg',
+        alt: 'Dinh Tỉnh trưởng',
+        heading: '2. Dinh Tỉnh trưởng',
+      },
+    ]);
+  });
+
+  it('giữ tối đa 60 ảnh mỗi bài', () => {
+    const many = Array.from(
+      { length: 70 },
+      (_, i) => `![Ảnh ${i}](https://cdn.test/${i}.jpg)`,
+    ).join('\n');
+    expect(extractImages(many)).toHaveLength(60);
+  });
+
+  it('không có ảnh thì rỗng', () => {
+    expect(extractImages('Chỉ có chữ.')).toEqual([]);
   });
 });

@@ -14,6 +14,7 @@ const source = (uri: string, content: string, title = 'Bài viết'): WebSource 
   uri,
   content,
   publishedAt: null,
+  images: [],
 });
 
 describe('normalizeForMatch', () => {

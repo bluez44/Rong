@@ -6,10 +6,21 @@ import * as z from 'zod';
 export interface WebSource {
   title: string;
   uri: string;
-  /** Đúng phần nội dung đã gửi cho model (đã cắt), để đối chiếu địa điểm model trả về. */
+  /** Đúng phần nội dung đã gửi cho model (đã cắt, bỏ ảnh), để đối chiếu địa điểm model trả về. */
   content: string;
   /** Tavily chỉ có ngày đăng với một số trang (chủ yếu tin tức). */
   publishedAt: string | null;
+  /** Ảnh trong toàn bộ bài (trước khi cắt). Rỗng khi Tavily không trả `raw_content`. */
+  images: ArticleImage[];
+}
+
+/** Một ảnh `![alt](url)` trong bài, kèm tiêu đề mục chứa nó để gán cho địa điểm. */
+export interface ArticleImage {
+  url: string;
+  /** Alt text, đã trim. */
+  alt: string;
+  /** Tiêu đề mục gần nhất phía trên ảnh (dòng `#…` hoặc dòng chỉ gồm `**…**`), null nếu chưa có. */
+  heading: string | null;
 }
 
 interface TavilyResult {
@@ -29,6 +40,12 @@ const RESULTS_PER_QUERY = 4;
  * vài chục nghìn ký tự). Prompt càng dài, Gemini đọc càng lâu.
  */
 const MAX_ARTICLE_CHARS = 2500;
+/** Bài "top N địa điểm" hiếm khi quá 60 ảnh; giới hạn để một trang lạ không phình bộ nhớ. */
+const MAX_IMAGES_PER_ARTICLE = 60;
+/** `![alt](url)` hoặc `![alt](url "title")`, có thể nằm trong `[…](link)`. */
+const IMAGE_MARKDOWN = /!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
+/** Ảnh không phải ảnh chụp địa điểm. */
+const NOT_PHOTO = /logo|icon|avatar|banner/i;
 const TIMEOUT_MS = 10_000;
 
 const logger = new Logger('WebSearch');
@@ -74,8 +91,9 @@ export async function searchWeb(
   return results.map((result) => ({
     title: result.title,
     uri: result.url,
-    content: truncate(result.raw_content || result.content),
+    content: truncate(stripImages(result.raw_content || result.content)),
     publishedAt: result.published_date || null,
+    images: result.raw_content ? extractImages(result.raw_content) : [],
   }));
 }
 
@@ -124,4 +142,38 @@ function truncate(text: string): string {
   return clean.length > MAX_ARTICLE_CHARS
     ? `${clean.slice(0, MAX_ARTICLE_CHARS)}…`
     : clean;
+}
+
+/**
+ * Ảnh trong markdown của bài (đọc cả bài, trước khi cắt), kèm tiêu đề mục gần nhất.
+ * Bỏ ảnh không phải http(s), svg/gif, alt rỗng, logo/icon/avatar/banner và ảnh trùng URL.
+ */
+export function extractImages(markdown: string): ArticleImage[] {
+  const images: ArticleImage[] = [];
+  const seen = new Set<string>();
+  let heading: string | null = null;
+  for (const line of markdown.split('\n')) {
+    const text = line.trim();
+    const title = /^#{1,6}\s+(.+)$/.exec(text) ?? /^\*\*(.+)\*\*$/.exec(text);
+    if (title && !text.includes('![')) {
+      heading = title[1].replace(/\*\*/g, '').trim();
+      continue;
+    }
+    for (const [, rawAlt, url] of text.matchAll(IMAGE_MARKDOWN)) {
+      const alt = rawAlt.trim();
+      if (!/^https?:\/\//i.test(url) || /\.(svg|gif)(\?|#|$)/i.test(url))
+        continue;
+      if (!alt || NOT_PHOTO.test(alt) || NOT_PHOTO.test(url) || seen.has(url))
+        continue;
+      seen.add(url);
+      images.push({ url, alt, heading });
+      if (images.length >= MAX_IMAGES_PER_ARTICLE) return images;
+    }
+  }
+  return images;
+}
+
+/** Bỏ cú pháp ảnh khỏi nội dung gửi model: link ảnh dài, model không cần. */
+function stripImages(text: string): string {
+  return text.replace(IMAGE_MARKDOWN, ' ');
 }

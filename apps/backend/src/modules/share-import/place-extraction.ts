@@ -79,7 +79,7 @@ export async function extractPlaces(
 ): Promise<ExtractedPlace[]> {
   if (!input.trim()) return [];
   const { places } = await extract(EXTRACTION_PROMPT, `Nội dung:\n${input}`);
-  const source = [{ title: '', uri: '', content: input, publishedAt: null }];
+  const source = [{ title: '', uri: '', content: input, publishedAt: null, images: [] }];
   const seen = new Set<string>();
   const result: ExtractedPlace[] = [];
   for (const place of places) {
