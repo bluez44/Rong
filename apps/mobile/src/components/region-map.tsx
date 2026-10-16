@@ -124,7 +124,7 @@ function PlaceMarker({ place, selected, onPress }: { place: PlaceListItem; selec
         e.stopPropagation();
         onPress();
       }}>
-      <MapMarker category={place.category} selected={selected} label={place.name} approximate={place.locationSource === 'ai'} />
+      <MapMarker icon={place.category} selected={selected} label={place.name} approximate={place.locationSource === 'ai'} />
     </Marker>
   );
 }

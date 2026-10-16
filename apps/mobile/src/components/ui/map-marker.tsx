@@ -1,12 +1,14 @@
-import type { PlaceCategory } from '@rong/shared-types';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Glass } from '@/components/glass';
-import { Icon } from '@/components/ui/icon';
+import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 
 type MapMarkerProps = {
-  category: PlaceCategory;
+  /** Thường là danh mục địa điểm (mỗi `PlaceCategory` là một icon). */
+  icon: IconName;
+  /** Số thứ tự (bản đồ ngày của lịch trình), vẽ thay cho icon. */
+  number?: number;
   selected?: boolean;
   /** Tên hiện trên viên kính khi marker đang chọn. */
   label?: string;
@@ -15,7 +17,7 @@ type MapMarkerProps = {
 };
 
 /** Nội dung vẽ bên trong `<Marker>`. Không dùng ảnh Google (FR-2.2). */
-export function MapMarker({ category, selected, label, approximate }: MapMarkerProps) {
+export function MapMarker({ icon, number, selected, label, approximate }: MapMarkerProps) {
   const size = selected ? 48 : 36;
   return (
     <View style={styles.wrap}>
@@ -34,7 +36,11 @@ export function MapMarker({ category, selected, label, approximate }: MapMarkerP
           selected ? styles.dotSelected : styles.dotDefault,
           approximate && styles.dotApproximate,
         ]}>
-        <Icon name={category} size={selected ? 24 : 18} color={selected ? Colors.light.onPrimary : Colors.light.primary} />
+        {number !== undefined ? (
+          <Text style={[styles.number, { color: selected ? Colors.light.onPrimary : Colors.light.primary }]}>{number}</Text>
+        ) : (
+          <Icon name={icon} size={selected ? 24 : 18} color={selected ? Colors.light.onPrimary : Colors.light.primary} />
+        )}
       </View>
     </View>
   );
@@ -47,5 +53,6 @@ const styles = StyleSheet.create({
   dot: { borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   dotDefault: { backgroundColor: Colors.light.surface, borderColor: Colors.light.surface },
   dotSelected: { backgroundColor: Colors.light.primary, borderColor: Colors.light.surface },
+  number: { ...Type.headline },
   dotApproximate: { borderStyle: 'dashed', borderColor: Colors.light.warning, opacity: 0.85 },
 });

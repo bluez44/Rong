@@ -22,6 +22,7 @@ export default function AppLayout() {
         <Stack.Screen name="place/google/[googlePlaceId]" />
         <Stack.Screen name="itinerary/new" />
         <Stack.Screen name="itinerary/[id]" />
+        <Stack.Screen name="itinerary/day-map" />
         <Stack.Screen name="saved" />
         <Stack.Screen name="share-import/[id]" />
       </Stack>
