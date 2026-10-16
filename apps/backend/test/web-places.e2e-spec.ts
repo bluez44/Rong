@@ -107,9 +107,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
   ): Promise<string> => {
     const [row] = (await db.query(
       `INSERT INTO places (source, name, category, google_place_id, location, location_source,
-                           location_expires_at, composite_score)
+                           location_expires_at)
        VALUES ('web', $1, 'nature', $2, ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326), $3,
-               CASE WHEN $4::int IS NULL THEN NULL ELSE now() + make_interval(days => $4::int) END, 0)
+               CASE WHEN $4::int IS NULL THEN NULL ELSE now() + make_interval(days => $4::int) END)
        RETURNING id`,
       [name, googlePlaceId, googlePlaceId ? 'google' : 'ai', expiresInDays],
     )) as Array<{ id: string }>;
@@ -217,9 +217,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
 
     it('trùng place_id với dòng người dùng đã lưu thì dùng lại dòng đó, giữ tên', async () => {
       const [saved] = (await db.query(
-        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
+        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at)
          VALUES ('google', 'wp-saved', 'E2E wp Tên người dùng', 'food', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
-                 'google', now() + interval '30 days', 0)
+                 'google', now() + interval '30 days')
          RETURNING id`,
       )) as Array<{ id: string }>;
 
@@ -385,9 +385,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
 
     it('dòng Google người dùng đã lưu không nhận địa chỉ từ bài viết (PRD 7.4)', async () => {
       const [saved] = (await db.query(
-        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
+        `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at)
          VALUES ('google', 'wp-addr-saved', 'E2E wp Google đã lưu', 'food', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326),
-                 'google', now() + interval '30 days', 0)
+                 'google', now() + interval '30 days')
          RETURNING id`,
       )) as Array<{ id: string }>;
 
@@ -731,58 +731,6 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         locationSource: 'google',
       });
       expect(google.locate).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('dòng OSM cũ', () => {
-    const osmRow = async (): Promise<string> => {
-      const [row] = (await db.query(
-        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
-         VALUES ('node', -97001, 'E2E wp OSM cũ', 'nature', ST_SetSRID(ST_MakePoint(108.44, 11.94), 4326), 50)
-         ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
-         RETURNING id`,
-      )) as Array<{ id: string }>;
-      return row.id;
-    };
-
-    it('GET /places/:id vẫn trả chi tiết của dòng osm đã có, không gọi Google', async () => {
-      const id = await osmRow();
-      const res = await request(app.getHttpServer())
-        .get(`/api/places/${id}`)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-      expect(res.body).toMatchObject({
-        id,
-        name: 'E2E wp OSM cũ',
-        locationSource: 'osm',
-        googleStatus: 'not_found',
-      });
-      expect(google.details).not.toHaveBeenCalled();
-    });
-
-    it('lịch trình tham chiếu dòng osm vẫn tạo và đọc lại được', async () => {
-      const id = await osmRow();
-      const created = await request(app.getHttpServer())
-        .post('/api/itineraries')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          regionId,
-          planningMode: 'manual',
-          startsAt: '2026-10-05T08:00:00+07:00',
-          endsAt: '2026-10-05T18:00:00+07:00',
-          travelParty: 'friends',
-          adults: 2,
-          children: 0,
-          selectedPlaceIds: [id],
-        })
-        .expect(201);
-      const res = await request(app.getHttpServer())
-        .get(`/api/itineraries/${created.body.id}`)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
-      expect(res.body.unscheduled).toEqual([
-        expect.objectContaining({ placeId: id, name: 'E2E wp OSM cũ' }),
-      ]);
     });
   });
 });

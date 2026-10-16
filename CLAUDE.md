@@ -109,7 +109,7 @@ Other behavior:
 ### Share-to-app (F4)
 `modules/share-import`: `POST /share-imports` takes a shared link or text and returns 202; a background job fetches metadata (`LinkMetadataService`), extracts places with Gemini, and matches each one to a `web` place or Google. The client polls `GET /share-imports/:id` and saves the user's picks with `POST /share-imports/:id/save`. Jobs cap at 30 s; interrupted ones are marked `INTERRUPTED`.
 
-`places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days) and legacy `source = 'osm'` rows (kept because saved places and old itineraries reference them, never listed). Google rows are never ranked: anything that lists or suggests places reads the region's `region_places`, never `places` by bbox. Call `PlaceLocationService.ensure` before using Google coordinates (`location_source = 'google'`).
+`places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days). The legacy `source = 'osm'` rows and their columns are gone (migration `DropUnusedPlaceColumns`, which refuses to run while any OSM row remains). Google rows are never ranked: anything that lists or suggests places reads the region's `region_places`, never `places` by bbox. Call `PlaceLocationService.ensure` before using Google coordinates (`location_source = 'google'`).
 
 ## Deploy
 - `apps/backend/Dockerfile` builds from the repo root.

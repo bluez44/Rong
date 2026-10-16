@@ -6,8 +6,8 @@ import { withItineraryPlaceData } from './itinerary-place-data.js';
 
 type Row = {
   id: string;
-  source: 'osm' | 'google' | 'web';
-  location_source: 'osm' | 'google' | 'ai';
+  source: 'google' | 'web';
+  location_source: 'google' | 'ai';
   address: string | null;
   lat: number | null;
   lng: number | null;
@@ -158,7 +158,7 @@ describe('withItineraryPlaceData', () => {
     expect(placeOf(result, 1).coordinates).toBeNull();
   });
 
-  it('dòng tọa độ AI / OSM giữ tọa độ trong ảnh chụp', async () => {
+  it('dòng tọa độ AI giữ tọa độ trong ảnh chụp', async () => {
     const { db: d } = db([
       {
         id: 'a',
@@ -168,18 +168,9 @@ describe('withItineraryPlaceData', () => {
         lat: null,
         lng: null,
       },
-      {
-        id: 'o',
-        source: 'osm',
-        location_source: 'osm',
-        address: null,
-        lat: null,
-        lng: null,
-      },
     ]);
-    const result = await withItineraryPlaceData(d, days(item('a'), item('o')));
+    const result = await withItineraryPlaceData(d, days(item('a')));
     expect(placeOf(result, 0).coordinates).toEqual({ lat: 11.9, lng: 108.4 });
-    expect(placeOf(result, 1).coordinates).toEqual({ lat: 11.9, lng: 108.4 });
   });
 
   it('mục không có địa điểm: không truy vấn, trả nguyên', async () => {

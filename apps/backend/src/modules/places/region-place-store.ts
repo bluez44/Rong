@@ -33,7 +33,7 @@ export interface StoredPlaceRow {
   description: string | null;
   lat: number | null;
   lng: number | null;
-  location_source: 'google' | 'ai' | 'osm';
+  location_source: 'google' | 'ai';
   google_place_id: string | null;
   opening_hours: string | null;
   rank: number;
@@ -175,10 +175,10 @@ export class RegionPlaceStore {
       }
       const [row] = (await m.query(
         `INSERT INTO places (source, name, category, description, address, tags, google_place_id, location, location_source,
-                             location_expires_at, composite_score)
+                             location_expires_at)
          VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, $6,
                  ST_SetSRID(ST_MakePoint($7::float8, $8::float8), 4326), 'google',
-                 now() + make_interval(days => $9::int), 0)
+                 now() + make_interval(days => $9::int))
          RETURNING id`,
         [place.name, place.category, place.description, address, tags, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS],
       )) as Array<{ id: string }>;
@@ -195,8 +195,8 @@ export class RegionPlaceStore {
       return aiRowId;
     }
     const [row] = (await m.query(
-      `INSERT INTO places (source, name, category, description, address, tags, location, location_source, composite_score)
-       VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326), 'ai', 0)
+      `INSERT INTO places (source, name, category, description, address, tags, location, location_source)
+       VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326), 'ai')
        RETURNING id`,
       [place.name, place.category, place.description, address, tags, location.lng, location.lat],
     )) as Array<{ id: string }>;

@@ -31,9 +31,9 @@ export class GooglePlaceRowsService {
     runner: Pick<DataSource, 'query'> = this.db,
   ): Promise<string> {
     const [row] = (await runner.query(
-      `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at, composite_score)
+      `INSERT INTO places (source, google_place_id, name, category, location, location_source, location_expires_at)
        VALUES ('google', $1, $2, $3::place_category, ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326), 'google',
-               $7::timestamptz + make_interval(days => $6::int), 0)
+               $7::timestamptz + make_interval(days => $6::int))
        ON CONFLICT (google_place_id) WHERE source IN ('google', 'web')
        DO UPDATE SET
          location = CASE WHEN places.location IS NULL OR EXCLUDED.location_expires_at > places.location_expires_at

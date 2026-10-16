@@ -96,9 +96,8 @@ export interface ArticleSource {
  * Tọa độ của một địa điểm lấy từ đâu:
  * - `google`: ghép được với Google Places (hạn 30 ngày, PRD 7.4).
  * - `ai`: không tìm thấy trên Google Maps; AI ước đoán từ bài viết — chỉ gần đúng.
- * - `osm`: dòng danh mục OSM cũ (không còn được liệt kê).
  */
-export type LocationSource = 'google' | 'ai' | 'osm';
+export type LocationSource = 'google' | 'ai';
 
 export interface GoogleAuthorAttribution {
   name: string;

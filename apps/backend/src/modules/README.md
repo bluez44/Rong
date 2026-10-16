@@ -225,7 +225,7 @@ Cổng duy nhất tải link do người dùng đưa vào, nên là bề mặt S
 
 ## `places.source` và dòng Google
 
-`places` có ba loại dòng, phân biệt bằng cột `source`:
+`places` có hai loại dòng, phân biệt bằng cột `source`:
 
 - `web` — danh sách địa điểm tổng hợp từ bài viết (xem "Danh sách địa điểm của vùng"). Chỉ loại này được liệt
   kê, gợi ý hay dùng làm điểm bổ sung khi lập lịch, **qua `region_places` của vùng**; không truy vấn danh sách
@@ -233,7 +233,10 @@ Cổng duy nhất tải link do người dùng đưa vào, nên là bề mặt S
 - `google` — chỉ tạo khi người dùng chọn một địa điểm Google (chia sẻ vào app, tìm kiếm). Lưu `google_place_id`
   (vô thời hạn), tên do người dùng đặt, và tọa độ Google có hạn `location_expires_at`. Không bao giờ được xếp
   hạng (PRD 7.4).
-- `osm` — danh mục OSM cũ, không còn được tạo hay liệt kê; giữ lại vì "Muốn đi" và lịch trình cũ tham chiếu.
+
+Dòng `osm` của danh mục OSM/Wikidata cũ đã bỏ hẳn (migration `DropUnusedPlaceColumns`, cùng các cột `osm_type`,
+`osm_id`, `wikidata_id`, `sitelinks`, `composite_score`, `google_matched_at`). Migration dừng lại nếu DB còn dòng
+OSM, vì xóa chúng sẽ xóa theo "Muốn đi" và địa điểm nhóm trỏ tới.
 
 Mỗi `google_place_id` chỉ có một dòng `web` hoặc `google` (`uq_place_google`). Tọa độ Google (dòng `google`, và
 dòng `web` có `location_source = 'google'`) hết hạn sau 30 ngày; với dòng từ chia sẻ là 30 ngày sau `created_at`

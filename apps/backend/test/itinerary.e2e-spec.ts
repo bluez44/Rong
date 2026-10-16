@@ -79,8 +79,8 @@ describe('Lịch trình (e2e)', () => {
     const ranked = [...places].sort((a, b) => b[5] - a[5]);
     for (const [rank, [key, category, lat, lng, hours]] of ranked.entries()) {
       const [row] = (await db.query(
-        `INSERT INTO places (source, name, category, location, location_source, tags, composite_score)
-         VALUES ('web', $1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), 'ai', $5, 0)
+        `INSERT INTO places (source, name, category, location, location_source, tags)
+         VALUES ('web', $1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), 'ai', $5)
          RETURNING id`,
         [
           `E2E it ${key}`,

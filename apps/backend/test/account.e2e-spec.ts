@@ -68,9 +68,8 @@ describe('Tài khoản (e2e)', () => {
       `SELECT id FROM regions WHERE source_key = 'vn:destination:da-lat'`,
     )) as Array<{ id: string }>;
     const [{ id: placeId }] = (await db.query(
-      `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
-       VALUES ('node', -9300, 'E2E account', 'nature', ST_SetSRID(ST_MakePoint(108.4, 11.9), 4326), 50)
-       ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+      `INSERT INTO places (source, name, category, location, location_source)
+       VALUES ('web', 'E2E account', 'nature', ST_SetSRID(ST_MakePoint(108.4, 11.9), 4326), 'ai')
        RETURNING id`,
     )) as Array<{ id: string }>;
     await db.query(
@@ -101,6 +100,6 @@ describe('Tài khoản (e2e)', () => {
       .get('/api/users/me')
       .set('Authorization', `Bearer ${token}`)
       .expect(401);
-    await db.query(`DELETE FROM places WHERE osm_id = -9300`);
+    await db.query(`DELETE FROM places WHERE id = $1`, [placeId]);
   });
 });

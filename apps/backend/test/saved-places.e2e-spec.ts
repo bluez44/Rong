@@ -48,13 +48,12 @@ describe('Muốn đi (e2e)', () => {
     daLat = regions.find((r) => r.source_key.endsWith('da-lat'))!.id;
     hoiAn = regions.find((r) => r.source_key.endsWith('hoi-an'))!.id;
 
-    for (const [i, name] of ['Hồ Xuân Hương', 'Chùa Cầu'].entries()) {
+    for (const name of ['Hồ Xuân Hương', 'Chùa Cầu']) {
       const [row] = (await db.query(
-        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
-         VALUES ('node', $1, $2, 'culture', ST_SetSRID(ST_MakePoint(108.4, 11.9), 4326), 50)
-         ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+        `INSERT INTO places (source, name, category, location, location_source)
+         VALUES ('web', $1, 'culture', ST_SetSRID(ST_MakePoint(108.4, 11.9), 4326), 'ai')
          RETURNING id`,
-        [-9100 - i, `E2E ${name}`],
+        [`E2E ${name}`],
       )) as Array<{ id: string }>;
       ids.push(row.id);
     }
@@ -64,9 +63,9 @@ describe('Muốn đi (e2e)', () => {
     await db?.query(
       `DELETE FROM users WHERE display_name IN ('e2e-saved', 'e2e-saved-other')`,
     );
-    await db?.query(
-      `DELETE FROM places WHERE osm_id <= -9100 AND osm_id > -9200`,
-    );
+    if (ids.length) {
+      await db?.query(`DELETE FROM places WHERE id = ANY($1::uuid[])`, [ids]);
+    }
     await app?.close();
   });
 

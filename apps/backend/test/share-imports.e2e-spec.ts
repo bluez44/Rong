@@ -82,9 +82,9 @@ describe('Chia sẻ vào app (e2e)', () => {
 
     await db.query(`DELETE FROM places WHERE name LIKE 'E2E share %'`);
     const [place] = (await db.query(
-      `INSERT INTO places (source, name, category, location, location_source, composite_score)
+      `INSERT INTO places (source, name, category, location, location_source)
        VALUES ('web', 'E2E share Bánh căn Nhà Chung', 'food',
-               ST_SetSRID(ST_MakePoint(108.4384, 11.9421), 4326), 'ai', 0)
+               ST_SetSRID(ST_MakePoint(108.4384, 11.9421), 4326), 'ai')
        RETURNING id`,
     )) as Array<{ id: string }>;
     webPlace = place.id;

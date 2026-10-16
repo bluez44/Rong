@@ -73,12 +73,11 @@ interface PlaceRow {
   id: string;
   name: string;
   category: PlaceCategory;
-  source: 'osm' | 'google' | 'web';
-  location_source: 'osm' | 'google' | 'ai';
+  source: 'google' | 'web';
+  location_source: 'google' | 'ai';
   lat: number;
   lng: number;
   address: string | null;
-  composite_score: number;
   description: string | null;
   opening_hours: string | null;
 }
@@ -591,7 +590,8 @@ export class ItinerariesService {
       `${PLACE_SELECT} WHERE p.id = ANY($1::uuid[])`,
       [ids],
     )) as PlaceRow[];
-    return rows.map((r) => toCandidate(r, mandatory));
+    // Địa điểm người dùng chọn không có thứ hạng trong danh sách vùng: điểm 0.
+    return rows.map((r) => toCandidate(r, mandatory, 0));
   }
 
   /**
@@ -613,18 +613,20 @@ export class ItinerariesService {
         LIMIT $3`,
       [regionId, categories, limit],
     )) as PlaceRow[];
-    return rows.map((r, i) =>
-      toCandidate({ ...r, composite_score: Math.max(0, 100 - i * 2) }, false),
-    );
+    return rows.map((r, i) => toCandidate(r, false, Math.max(0, 100 - i * 2)));
   }
 }
 
 const PLACE_SELECT = `
   SELECT p.id, p.name, p.category, p.source, p.location_source, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
-         p.address, p.composite_score, p.description, p.tags->>'opening_hours' AS opening_hours
+         p.address, p.description, p.tags->>'opening_hours' AS opening_hours
     FROM places p`;
 
-function toCandidate(row: PlaceRow, mandatory: boolean): Candidate {
+function toCandidate(
+  row: PlaceRow,
+  mandatory: boolean,
+  score: number,
+): Candidate {
   return {
     id: row.id,
     name: row.name,
@@ -632,7 +634,7 @@ function toCandidate(row: PlaceRow, mandatory: boolean): Candidate {
     address: row.source === 'google' ? null : row.address,
     lat: Number(row.lat),
     lng: Number(row.lng),
-    score: Number(row.composite_score),
+    score,
     description: row.description,
     openingHours: row.opening_hours,
     mandatory,

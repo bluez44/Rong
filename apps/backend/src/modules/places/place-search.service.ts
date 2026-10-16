@@ -42,7 +42,7 @@ interface HitRow {
   id: string;
   name: string;
   category: PlaceCategory;
-  source: 'osm' | 'google' | 'web';
+  source: 'google' | 'web';
   google_place_id: string | null;
   address: string | null;
   lat: number | null;

@@ -5,7 +5,6 @@ import {
   Entity,
   Index,
   PrimaryGeneratedColumn,
-  Unique,
   UpdateDateColumn,
   type Point,
 } from 'typeorm';
@@ -22,23 +21,14 @@ export const PLACE_CATEGORIES: PlaceCategory[] = [
 ];
 
 /**
- * Địa điểm trong danh mục riêng. Tên và tọa độ lấy từ OpenStreetMap, mô tả và
- * độ phổ biến từ Wikidata — không có trường nào đến từ Google (PRD 7.4).
- * Dòng `source = 'google'` (F4) chỉ có `googlePlaceId`, tên từ nội dung người dùng chia sẻ và tọa độ Google hạn 30 ngày.
+ * Địa điểm riêng của app (PRD 7.4: từ Google chỉ lưu `googlePlaceId` và tọa độ hạn 30 ngày).
+ * - `source = 'web'`: từ bài viết, tên/mô tả/địa chỉ/giờ do AI tổng hợp.
+ * - `source = 'google'` (F4): người dùng lưu, tên theo nội dung người dùng chia sẻ.
  */
 @Entity('places')
-@Unique('uq_place_osm', ['osmType', 'osmId'])
-@Index('idx_place_score', ['compositeScore', 'id'])
 export class Place {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
-
-  /** 'node' | 'way' | 'relation' */
-  @Column({ name: 'osm_type', type: 'text', nullable: true })
-  osmType!: string | null;
-
-  @Column({ name: 'osm_id', type: 'bigint', nullable: true })
-  osmId!: string | null;
 
   @Column({ name: 'name', type: 'text' })
   name!: string;
@@ -65,28 +55,21 @@ export class Place {
   })
   location!: Point | null;
 
-  /** 'osm' (cũ, không còn liệt kê) | 'google' (người dùng lưu) | 'web' (từ bài viết). */
-  @Column({ name: 'source', type: 'text', default: 'osm' })
-  source!: 'osm' | 'google' | 'web';
+  /** 'google' (người dùng lưu) | 'web' (từ bài viết). */
+  @Column({ name: 'source', type: 'text' })
+  source!: 'google' | 'web';
 
-  /** Tọa độ từ đâu: Google (hạn `location_expires_at`), AI ước đoán, hay OSM. */
-  @Column({ name: 'location_source', type: 'text', default: 'osm' })
-  locationSource!: 'osm' | 'google' | 'ai';
+  /** Tọa độ từ đâu: Google (hạn `location_expires_at`) hay AI ước đoán. */
+  @Column({ name: 'location_source', type: 'text' })
+  locationSource!: 'google' | 'ai';
 
   /** Chỉ dòng Google: tọa độ Google hết hạn lúc này (tối đa 30 ngày). */
   @Column({ name: 'location_expires_at', type: 'timestamptz', nullable: true })
   locationExpiresAt!: Date | null;
 
-  /** Một phần tag OSM hữu ích để hiển thị (opening_hours, website, name:en…). */
+  /** Thông tin phụ dạng tag; hiện chỉ có `opening_hours` (giờ trong bài viết). */
   @Column({ name: 'tags', type: 'jsonb', default: {} })
   tags!: Record<string, string>;
-
-  @Column({ name: 'wikidata_id', type: 'text', nullable: true })
-  wikidataId!: string | null;
-
-  /** Số phiên bản ngôn ngữ Wikipedia có bài về địa điểm — tín hiệu độ nổi tiếng. */
-  @Column({ name: 'sitelinks', type: 'int', nullable: true })
-  sitelinks!: number | null;
 
   @Column({ name: 'description', type: 'text', nullable: true })
   description!: string | null;
@@ -94,14 +77,6 @@ export class Place {
   /** Khóa ghép sang Google Places — trường Google duy nhất được lưu (PRD 7.4). */
   @Column({ name: 'google_place_id', type: 'text', nullable: true })
   googlePlaceId!: string | null;
-
-  /** Lần thử ghép place_id gần nhất, kể cả khi không tìm thấy. */
-  @Column({ name: 'google_matched_at', type: 'timestamptz', nullable: true })
-  googleMatchedAt!: Date | null;
-
-  /** Điểm tổng hợp 0–100 của dòng OSM cũ; dòng `web`/`google` là 0. */
-  @Column({ name: 'composite_score', type: 'smallint' })
-  compositeScore!: number;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;

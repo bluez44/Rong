@@ -17,7 +17,6 @@ import {
 import { hoursToday } from './opening-hours.js';
 
 const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
-  osm: '© OpenStreetMap contributors (ODbL) · Wikidata (CC0)',
   google: 'Google Maps',
   web: 'Tổng hợp từ bài viết (AI) · Google Maps',
 };
@@ -32,10 +31,8 @@ interface DetailRow {
   description: string | null;
   opening_hours: string | null;
   website: string | null;
-  osm_type: string | null;
-  osm_id: string | null;
   google_place_id: string | null;
-  source: 'osm' | 'google' | 'web';
+  source: 'google' | 'web';
   location_source: LocationSource;
   articles: ArticleSource[] | null;
 }
@@ -56,13 +53,13 @@ export class PlacesService {
    */
   async getDetail(id: string): Promise<PlaceDetail> {
     // Không gọi Google lấy lại tọa độ: dòng đã ghép Google chỉ đường bằng
-    // place_id; dòng AI/OSM có tọa độ riêng. Tọa độ Google hết hạn trả null.
+    // place_id; dòng AI có tọa độ riêng. Tọa độ Google hết hạn trả null.
     const [row] = (await this.db.query(
       `SELECT p.id, p.name, p.category,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_Y(p.location) END AS lat,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_X(p.location) END AS lng,
               p.address,
-              p.description, p.osm_type, p.osm_id,
+              p.description,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
               p.google_place_id, p.source, p.location_source,
@@ -82,18 +79,10 @@ export class PlacesService {
     }
 
     const { status, content } = await this.googleContent(row);
-    const item = toListItem(row);
+    const item = toListItem(row, content);
     if (row.source === 'google' && content?.name) {
       // Tên trong places là của người chia sẻ đầu tiên: có tên Google thì hiện tên đó (trực tiếp, không lưu).
       item.name = content.name;
-    }
-    if (row.source !== 'osm') {
-      const query = encodeURIComponent(row.name);
-      item.sourceUrl =
-        content?.googleMapsUri ??
-        (row.google_place_id
-          ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
-          : `https://www.google.com/maps/search/?api=1&query=${query}`);
     }
     return {
       ...item,
@@ -108,7 +97,7 @@ export class PlacesService {
     status: GoogleContentStatus;
     content: GooglePlaceContent | null;
   }> {
-    // Chưa ghép được Google (tọa độ AI, dòng OSM cũ): không gọi Google.
+    // Chưa ghép được Google (tọa độ AI): không gọi Google.
     if (row.google_place_id === null) {
       return { status: 'not_found', content: null };
     }
@@ -133,7 +122,9 @@ export class PlacesService {
 
 function toListItem(
   row: DetailRow,
+  content: GooglePlaceContent | null,
 ): Omit<PlaceDetail, 'attribution' | 'googleStatus' | 'google'> {
+  const query = encodeURIComponent(row.name);
   return {
     id: row.id,
     name: row.name,
@@ -148,8 +139,11 @@ function toListItem(
     openingHours: row.opening_hours,
     website: row.website,
     hours: hoursToday(row.opening_hours),
-    // Dòng OSM cũ: link bản ghi gốc (ODbL). Dòng web/google được đặt link Google Maps ở getDetail.
-    sourceUrl: `https://www.openstreetmap.org/${row.osm_type}/${row.osm_id}`,
+    sourceUrl:
+      content?.googleMapsUri ??
+      (row.google_place_id
+        ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
+        : `https://www.google.com/maps/search/?api=1&query=${query}`),
     locationSource: row.location_source,
     articles: row.articles ?? [],
   };

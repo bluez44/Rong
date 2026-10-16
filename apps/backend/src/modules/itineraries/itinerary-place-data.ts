@@ -26,8 +26,8 @@ export async function withItineraryPlaceData(
     [ids],
   )) as Array<{
     id: string;
-    source: 'osm' | 'google' | 'web';
-    location_source: 'osm' | 'google' | 'ai';
+    source: 'google' | 'web';
+    location_source: 'google' | 'ai';
     address: string | null;
     lat: number | null;
     lng: number | null;

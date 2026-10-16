@@ -55,13 +55,12 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       `SELECT id FROM regions WHERE source_key = 'vn:destination:da-lat'`,
     )) as Array<{ id: string }>;
 
-    for (const [i, name] of ['Hồ Tuyền Lâm', 'Đồi chè Cầu Đất'].entries()) {
+    for (const name of ['Hồ Tuyền Lâm', 'Đồi chè Cầu Đất']) {
       const [row] = (await db.query(
-        `INSERT INTO places (osm_type, osm_id, name, category, location, composite_score)
-         VALUES ('node', $1, $2, 'nature', ST_SetSRID(ST_MakePoint(108.43, 11.9), 4326), 50)
-         ON CONFLICT (osm_type, osm_id) DO UPDATE SET name = EXCLUDED.name
+        `INSERT INTO places (source, name, category, location, location_source)
+         VALUES ('web', $1, 'nature', ST_SetSRID(ST_MakePoint(108.43, 11.9), 4326), 'ai')
          RETURNING id`,
-        [-9200 - i, `E2E ${name}`],
+        [`E2E ${name}`],
       )) as Array<{ id: string }>;
       placeIds.push(row.id);
     }
@@ -69,9 +68,11 @@ describe('Nhóm & chia sẻ (e2e)', () => {
 
   afterAll(async () => {
     await db?.query(`DELETE FROM users WHERE display_name LIKE 'e2e-groups-%'`);
-    await db?.query(
-      `DELETE FROM places WHERE osm_id <= -9200 AND osm_id > -9300`,
-    );
+    if (placeIds.length) {
+      await db?.query(`DELETE FROM places WHERE id = ANY($1::uuid[])`, [
+        placeIds,
+      ]);
+    }
     await app?.close();
   });
 
