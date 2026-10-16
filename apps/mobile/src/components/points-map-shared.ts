@@ -23,6 +23,11 @@ export type PointsMapProps = {
   /** false: bản đồ tĩnh, không kéo/zoom được, chạm vào gọi `onPress`. */
   interactive?: boolean;
   onPress?: () => void;
+  /**
+   * Bản đồ tương tác nằm trong ScrollView: báo lúc ngón tay chạm/rời bản đồ để màn cha tạm
+   * tắt cuộn, nếu không Android giành cử chỉ kéo dọc cho ScrollView.
+   */
+  onTouchActiveChange?: (active: boolean) => void;
   /** Khoảng chừa quanh các điểm khi zoom vừa, ví dụ phần bị thẻ chi tiết che. */
   edgePadding?: { top: number; right: number; bottom: number; left: number };
   style?: StyleProp<ViewStyle>;

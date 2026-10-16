@@ -14,7 +14,16 @@ const DEFAULT_PADDING = { top: 48, right: 48, bottom: 48, left: 48 };
  * chi tiết địa điểm và bản đồ ngày của lịch trình, để đổi nhà cung cấp bản đồ chỉ
  * phải sửa ở đây và `region-map.tsx`.
  */
-export function PointsMap({ points, selectedKey, onSelect, interactive = true, onPress, edgePadding, style }: PointsMapProps) {
+export function PointsMap({
+  points,
+  selectedKey,
+  onSelect,
+  interactive = true,
+  onPress,
+  onTouchActiveChange,
+  edgePadding,
+  style,
+}: PointsMapProps) {
   const map = useRef<MapView>(null);
   const padding = edgePadding ?? DEFAULT_PADDING;
   const first = points[0];
@@ -65,7 +74,17 @@ export function PointsMap({ points, selectedKey, onSelect, interactive = true, o
     </MapView>
   );
 
-  if (interactive) return <View style={style}>{mapView}</View>;
+  if (interactive) {
+    return (
+      <View
+        style={style}
+        onTouchStart={onTouchActiveChange && (() => onTouchActiveChange(true))}
+        onTouchEnd={onTouchActiveChange && (() => onTouchActiveChange(false))}
+        onTouchCancel={onTouchActiveChange && (() => onTouchActiveChange(false))}>
+        {mapView}
+      </View>
+    );
+  }
   // Bản đồ tĩnh: một lớp phủ nhận chạm để bản đồ không giành cử chỉ cuộn của màn hình.
   return (
     <View style={style}>

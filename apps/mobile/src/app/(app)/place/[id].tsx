@@ -1,6 +1,7 @@
 import type { PlaceCategory, PlaceDetail } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
@@ -29,6 +30,8 @@ export default function PlaceDetailScreen() {
   const insets = useSafeAreaInsets();
   const detail = usePlaceDetail(params.id);
   const place = detail.place;
+  // Ngón tay đang trên bản đồ thì tắt cuộn trang để kéo dọc di chuyển bản đồ.
+  const [mapTouched, setMapTouched] = useState(false);
 
   const name = place?.name ?? params.name ?? 'Địa điểm';
   const category = place?.category ?? (params.category && params.category in CATEGORY_LABELS ? params.category : null);
@@ -47,7 +50,9 @@ export default function PlaceDetailScreen() {
         ) : null}
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
+      <ScrollView
+        scrollEnabled={!mapTouched}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
         <View style={styles.header}>
           {category ? (
             <View style={styles.category}>
@@ -90,7 +95,7 @@ export default function PlaceDetailScreen() {
           </Notice>
         ) : null}
 
-        {place ? <PlaceBody place={place} regionId={params.regionId} /> : null}
+        {place ? <PlaceBody place={place} regionId={params.regionId} onMapTouch={setMapTouched} /> : null}
       </ScrollView>
     </Screen>
   );
@@ -116,36 +121,49 @@ function Summary({ place }: { place: PlaceDetail }) {
   );
 }
 
-function PlaceBody({ place, regionId }: { place: PlaceDetail; regionId?: string }) {
-  const openDirections = () => Linking.openURL(directionsUrl(place));
+function PlaceBody({
+  place,
+  regionId,
+  onMapTouch,
+}: {
+  place: PlaceDetail;
+  regionId?: string;
+  onMapTouch: (active: boolean) => void;
+}) {
+  const { height } = useWindowDimensions();
 
   return (
     <>
       <View style={styles.actionGroup}>
-        {regionId ? <TripButton place={place} regionId={regionId} /> : null}
+        {/* Bản đồ vuốt/zoom được; chạm vào không mở Google Maps, việc đó để nút "Chỉ đường". */}
+        {place.coordinates ? (
+          <PointsMap
+            points={[
+              {
+                key: place.id,
+                lat: place.coordinates.lat,
+                lng: place.coordinates.lng,
+                icon: place.category,
+                label: place.name,
+                approximate: place.locationSource === 'ai',
+              },
+            ]}
+            selectedKey={place.id}
+            onTouchActiveChange={onMapTouch}
+            style={[styles.map, { height: Math.round(height * MAP_HEIGHT_RATIO) }]}
+          />
+        ) : null}
         <View style={styles.actions}>
-          <Button label="Chỉ đường" variant={regionId ? 'glass' : 'primary'} onPress={openDirections} style={styles.action} />
+          <Button
+            label="Chỉ đường"
+            variant={regionId ? 'glass' : 'primary'}
+            onPress={() => Linking.openURL(directionsUrl(place))}
+            style={styles.action}
+          />
           {place.website ? <Button label="Trang web" variant="glass" onPress={() => Linking.openURL(place.website!)} style={styles.action} /> : null}
         </View>
+        {regionId ? <TripButton place={place} regionId={regionId} /> : null}
       </View>
-
-      {place.coordinates ? (
-        <PointsMap
-          points={[
-            {
-              key: place.id,
-              lat: place.coordinates.lat,
-              lng: place.coordinates.lng,
-              icon: place.category,
-              label: place.name,
-              approximate: place.locationSource === 'ai',
-            },
-          ]}
-          interactive={false}
-          onPress={openDirections}
-          style={styles.miniMap}
-        />
-      ) : null}
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}
 
@@ -228,6 +246,9 @@ function directionsUrl(place: PlaceDetail): string {
   return place.sourceUrl;
 }
 
+/** Bản đồ cao tối thiểu nửa màn hình. */
+const MAP_HEIGHT_RATIO = 0.5;
+
 const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
@@ -254,7 +275,7 @@ const styles = StyleSheet.create({
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
   addressText: { ...Type.subhead, color: Colors.light.textSecondary, flex: 1 },
   addressMissing: { color: Colors.light.textDisabled },
-  miniMap: { height: 160, borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
+  map: { borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
   hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
   meta: { ...Type.subhead, color: Colors.light.textSecondary },
