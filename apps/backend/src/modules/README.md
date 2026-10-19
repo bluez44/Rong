@@ -189,6 +189,30 @@ Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, 
 Nơi người dùng đã đi: suy ra từ lịch trình đã kết thúc (`inferred`), người dùng xác nhận lại sau chuyến đi
 (`confirmed`/`rejected`). Bộ gợi ý trang chủ bỏ các nơi `inferred` + `confirmed`.
 
+## Gợi ý trang chủ (`recommendations/`)
+
+Spec `docs/superpowers/specs/2026-10-19-home-recommendations-design.md`. `GET /api/recommendations` trả bảng tin
+gợi ý: 3 bản nháp lịch trình cho mỗi (người dùng, khung giờ 6:00/15:00, chủ đề), lấy từ kho bản nháp chung
+`itinerary_drafts` dùng lại giữa nhiều người dùng (theo `pool_key`). Bản nháp sinh bằng thuật toán (`heuristic`),
+chỉ nâng cấp bằng Gemini (`upgrade-draft`) khi được xem nhiều (`view_count ≥ 5`) hoặc lưu nhiều (`save_count ≥ 2`).
+
+- Bộ gợi ý chỉ chọn vùng có danh sách địa điểm **`ready`** (`region_place_lists.status`); không vùng nào khác được
+  tự tạo danh sách khi đang tính gợi ý. Chỉ job theo lịch `warm-featured-regions` được gọi
+  `WebPlacesService.listForRegion()` để tạo trước danh sách cho các vùng nổi bật.
+- Hàng đợi BullMQ: `recommendations` (job thường) và `recommendations-ai` (job gọi Gemini, có limiter riêng để
+  không bị job thường chặn). Tắt bằng `RECOMMENDATIONS_ENABLED=false`, hoặc tự động tắt khi `NODE_ENV=test`
+  (e2e): job chạy ngay trong process (`RecommendationsQueue`), không có lịch chạy theo cron
+  (`RecommendationScheduler`, 4 lịch: làm mới 6:00/15:00, sinh chủ đề thứ Hai 3:00, làm nóng vùng nổi bật 2:00,
+  dọn dữ liệu cũ 4:30, múi giờ `Asia/Ho_Chi_Minh`).
+- Ảnh cho thẻ gợi ý (`region-images.ts`): Unsplash (`UNSPLASH_ACCESS_KEY`, tùy chọn) → ảnh hạng cao nhất của vùng
+  lấy từ bài viết (có nguồn) → không có ảnh. Lưu vào `region_images`; cột `blocked` dùng để gỡ một ảnh mà không bị
+  job làm mới ghi đè lại.
+- Script `scripts/enqueue-recommendation-job.ts` đẩy tay một job vào hàng đợi để kiểm tra (`npx tsx
+  scripts/enqueue-recommendation-job.ts refresh-window`), cần Redis chạy (`pnpm infra:up`).
+
+**Lệch PRD:** bản nháp gợi ý không trừ lượt dùng AI của người dùng (FR-6.5) — kho bản nháp dùng chung giữa nhiều
+người nên không gắn được vào hạn mức của riêng ai.
+
 ## Chia sẻ vào app (F4)
 
 `share-import/` nhận link (hoặc đoạn văn bản chia sẻ) từ TikTok, YouTube, Facebook, Instagram hay bài báo,
