@@ -51,6 +51,24 @@ export function updatePreferences(patch: Partial<Preferences>): void {
   store.set(JSON.stringify(next)).catch(() => {});
 }
 
+/**
+ * Xoá sở thích khỏi máy khi đăng xuất / xoá tài khoản (F11). Cập nhật `current`
+ * và ghi đĩa như `updatePreferences`, nhưng KHÔNG gọi `listeners`: bộ đồng bộ
+ * sở thích của tài khoản vừa đăng xuất (`InterestsSync`) có thể còn đăng ký
+ * tới khi React dọn effect xong; nếu hàm này cũng phát tin như một lần người
+ * dùng đổi sở thích, bộ đó sẽ tưởng là một lần sửa thật và gửi mảng rỗng lên
+ * chính tài khoản vừa đăng xuất. Tài khoản đăng nhập kế tiếp đọc giá trị này
+ * qua `getPreferences()` khi `InterestsSync` của họ khởi động, không cần được
+ * báo riêng; màn hình đang hiện sở thích (nếu có) cũng render lại đúng giá trị
+ * mới ngay sau đó vì toàn bộ cây (app) bị tháo cùng lúc với trạng thái đăng
+ * xuất, không cần `usePreferences` tự kích thêm.
+ */
+export function resetInterestsOnSignOut(): void {
+  const next = { ...(current ?? DEFAULTS), interests: [], interestsDirty: false };
+  current = next;
+  store.set(JSON.stringify(next)).catch(() => {});
+}
+
 export function subscribePreferences(listener: () => void) {
   listeners.add(listener);
   return () => {

@@ -18,6 +18,12 @@ const same = (a: PlaceCategory[], b: PlaceCategory[]) =>
 export function InterestsSync() {
   const { status, authFetch, updateInterests } = useAuth();
   const synced = useRef<PlaceCategory[] | null>(null);
+  // Sở thích mà effect dưới đây đã biết/đã xử lý lần gần nhất. Dùng để lọc
+  // những lần subscribePreferences báo thay đổi nhưng không đụng tới
+  // `interests` (ví dụ push() tự đổi cờ `interestsDirty`): nếu không lọc,
+  // push() → updatePreferences → phát tin → listener → push() sẽ tự gọi lại
+  // chính nó vô hạn (đệ quy không bao giờ dừng, tràn ngăn xếp).
+  const lastSeen = useRef<PlaceCategory[] | null>(null);
   // authFetch/updateInterests đổi định danh mỗi khi session đổi (ví dụ làm mới
   // token lúc đang chờ hẹn giờ gửi): đọc qua ref cập nhật sau mỗi lần render
   // (không được ghi ref ngay trong lúc render), để effect dưới đây không phải
@@ -37,8 +43,11 @@ export function InterestsSync() {
     const push = (interests: PlaceCategory[]) => {
       // Đánh dấu dơ ngay khi xếp hàng gửi, không chờ hẹn giờ chạy xong: hẹn giờ
       // bị huỷ giữa chừng (tắt app, đăng xuất...) thì sở thích vẫn được gửi lại
-      // ở lần mở app sau nhờ cờ này.
-      updatePreferences({ interestsDirty: true });
+      // ở lần mở app sau nhờ cờ này. Chỉ đổi khi đang sạch: updatePreferences
+      // luôn phát tin dù giá trị không đổi, nên không tự gọi khi đã dơ — vừa đỡ
+      // phát tin vô ích, vừa là chặn kép cho push() không tự gọi lại chính nó
+      // (lastSeen ở listener dưới đây đã chặn vòng đó rồi).
+      if (!getPreferences()?.interestsDirty) updatePreferences({ interestsDirty: true });
       clearTimeout(timer);
       timer = setTimeout(async () => {
         try {
@@ -57,18 +66,20 @@ export function InterestsSync() {
       while (!getPreferences() && !cancelled) await new Promise((r) => setTimeout(r, 50));
       const local = getPreferences();
       if (!local || cancelled) return;
+      // Biết sẵn giá trị hiện tại trước khi push() có thể tự phát tin đổi cờ,
+      // để listener dưới đây nhận ra đó không phải một thay đổi sở thích thật.
+      lastSeen.current = local.interests;
       try {
         const me = await authFetchRef.current<UserProfile>('/users/me');
         if (cancelled) return;
         const server = me.interests ?? [];
-        // Chỉ coi là "có sở thích chưa gửi" khi máy thực sự còn sở thích: nếu
-        // không thì không có gì để đẩy lên (tránh đẩy nhầm mảng rỗng che mất
-        // sở thích thật của tài khoản — xem báo cáo, kịch bản đổi tài khoản).
-        if (local.interests.length > 0 && (local.interestsDirty || server.length === 0)) {
+        if (local.interestsDirty || (server.length === 0 && local.interests.length > 0)) {
           synced.current = server;
           push(local.interests);
         } else {
           synced.current = server;
+          // Kéo bản server về máy; listener ở dưới tự cập nhật lastSeen khi
+          // thấy updatePreferences này (interests thực sự đổi).
           if (!same(server, local.interests)) updatePreferences({ interests: server, interestsDirty: false });
         }
       } catch {
@@ -78,7 +89,13 @@ export function InterestsSync() {
 
     const unsubscribe = subscribePreferences(() => {
       const local = getPreferences();
-      if (!local || synced.current === null) return;
+      if (!local) return;
+      // interests không đổi so với lần biết gần nhất: đây là một lần phát tin
+      // chỉ đổi cờ (do push() tự đổi, hoặc do chỗ khác), không phải người dùng
+      // vừa bấm chip — bỏ qua, không gọi push() (chặn vòng lặp vô hạn).
+      if (lastSeen.current !== null && same(local.interests, lastSeen.current)) return;
+      lastSeen.current = local.interests;
+      if (synced.current === null) return;
       if (!same(local.interests, synced.current)) push(local.interests);
     });
     void start();
