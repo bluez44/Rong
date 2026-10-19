@@ -19,6 +19,19 @@ Mọi màn hình mới phải chừa vùng an toàn (tai thỏ, thanh home) và 
 - Danh sách có ô tìm kiếm: thêm `keyboardShouldPersistTaps="handled"` và `keyboardDismissMode="on-drag"`.
 - Kiểm tra trên cả iOS và Android khi bàn phím mở: ô đang gõ, nút gửi và thông báo lỗi phải nhìn thấy được.
 
+## Thanh tab nổi
+
+Thanh tab (`src/app/(app)/(tabs)/_layout.tsx`, `src/components/floating-tab-bar.tsx`) nằm đè lên nội dung màn tab,
+không chiếm chỗ. Không được để nó che hẳn thứ gì:
+
+- Màn tab bọc bằng `<Screen edges={['top']}>`, nội dung nằm trong `ScrollView`/`FlatList` với
+  `paddingBottom: useTabBarInset()` ở `contentContainerStyle`. Nội dung được cuộn xuống dưới thanh, nhưng mục cuối
+  luôn cuộn lên được tới trên thanh.
+- Không đặt nút, ô nhập hay thông báo neo cố định ở đáy màn tab (`position: 'absolute'`, `bottom`). Cần nút nổi thì
+  đặt nó cách đáy ít nhất `useTabBarInset()`.
+- Bottom sheet và action sheet vẽ qua `SheetHost` ở `(app)/_layout.tsx`, nằm trên thanh tab: không cần chừa.
+- Thanh tab tự ẩn khi bàn phím mở (`useKeyboardVisible`), để không nằm đè ô đang gõ.
+
 ## Cử chỉ và danh sách cuộn
 
 - Thứ cuộn được (`ScrollView`, `FlatList`) nằm trong hoặc cạnh một `GestureDetector` (ví dụ `PlaceSheet` ở

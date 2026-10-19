@@ -188,5 +188,4 @@ export type TypeStyle = keyof typeof Type;
 /** Vùng chạm tối thiểu. */
 export const MinTouch = 44;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;

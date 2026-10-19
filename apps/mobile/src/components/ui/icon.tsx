@@ -61,6 +61,9 @@ const ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'share', web: 'share' },
   mail: { ios: 'envelope', android: 'mail', web: 'mail' },
   lock: { ios: 'lock.fill', android: 'lock', web: 'lock' },
+  // Thanh tab
+  suitcase: { ios: 'suitcase', android: 'luggage', web: 'luggage' },
+  account: { ios: 'person.crop.circle', android: 'account_circle', web: 'account_circle' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;
