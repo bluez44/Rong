@@ -3,12 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module.js';
+import { API_PREFIX, API_PREFIX_OPTIONS } from './global-prefix.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix(API_PREFIX, API_PREFIX_OPTIONS);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

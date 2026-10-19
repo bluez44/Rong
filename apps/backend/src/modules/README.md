@@ -13,7 +13,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `google/` | 7.4 | **Cổng duy nhất** gọi Google Places (Routes để sau) |
 | `share-import/` | F4 | Nhận link mạng xã hội, trích xuất và khớp địa điểm |
 | `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình (AI hoặc tự sắp xếp), lưu và xem lại. Chi phí (F7), chỉnh sửa (F8) để sau |
-| `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động |
+| `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động; trang mời `/invite/:token` và `/.well-known/assetlinks.json` (xem "Link mời mở từ Zalo/Messenger") |
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
 | `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
 | `health/` | — | Kiểm tra sức khỏe service và kết nối PostGIS |
@@ -227,6 +227,18 @@ Cổng duy nhất tải link do người dùng đưa vào, nên là bề mặt S
 - Kết nối được ghim vào IP công khai đã kiểm tra bằng `undici` `Agent` (`lookup` ghim), nên không bị DNS
   rebinding giữa lúc kiểm tra và lúc kết nối.
 - `META_OEMBED_TOKEN` (tùy chọn) bật oEmbed của Facebook / Instagram.
+
+## Link mời mở từ Zalo/Messenger (F10)
+
+App chia sẻ link `https://<domain>/invite/<token>` (spec `2026-10-19-mobile-groups-invite-design.md`). Hai route
+đứng **ngoài** prefix `api` (`src/global-prefix.ts`; e2e tests dựng prefix bằng cùng hằng số), không cần đăng nhập:
+
+- `GET /invite/:token` (`invite-page.controller.ts`): trang HTML dựng bằng `invite-page.ts` từ
+  `InvitesService.preview` — tên nhóm, người mời, quyền, hạn, nút tải APK
+  (`github.com/bluez44/Rong/releases/latest`), nút `rong://invite/<token>`. Tên nhóm/người mời được escape. Link
+  hết hạn/thu hồi (410) hay không có (404) vẫn trả HTML với đúng status đó.
+- `GET /.well-known/assetlinks.json`: Digital Asset Links cho `vn.rong.app`, fingerprint lấy từ
+  `ANDROID_APP_LINK_SHA256` (cách nhau dấu phẩy). Máy đã cài app và Android xác minh được thì link mở thẳng app.
 
 ## `places.source` và dòng Google
 

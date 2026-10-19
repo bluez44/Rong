@@ -81,6 +81,12 @@ export interface PlaceSearchConfig {
   detailsDailyLimit: number;
 }
 
+/** Link mời nhóm (F10): xác minh Android App Links cho `/invite/:token`. */
+export interface InviteLinksConfig {
+  /** SHA-256 chứng chỉ ký APK, cho `/.well-known/assetlinks.json`. Rỗng thì Android mở trang web thay vì app. */
+  androidSha256: string[];
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -93,6 +99,7 @@ export interface AppConfig {
   shareImport: ShareImportConfig;
   placeSearch: PlaceSearchConfig;
   webPlaces: WebPlacesConfig;
+  inviteLinks: InviteLinksConfig;
 }
 
 class MissingEnvError extends Error {
@@ -208,6 +215,12 @@ export function loadConfig(): AppConfig {
     placeSearch: {
       dailyLimit: positiveInt('PLACE_SEARCH_DAILY_LIMIT', 60),
       detailsDailyLimit: positiveInt('PLACE_DETAILS_DAILY_LIMIT', 150),
+    },
+    inviteLinks: {
+      androidSha256: (process.env.ANDROID_APP_LINK_SHA256 ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
     },
   };
 }
