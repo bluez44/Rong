@@ -273,7 +273,7 @@ function Interests() {
           <Text style={styles.aiPillText}>AI gợi ý</Text>
         </View>
       </View>
-      <Text style={styles.sectionDescription}>Chọn điều bạn thích để Rong ưu tiên khi gợi ý điểm đến. Sở thích chỉ lưu trên thiết bị này.</Text>
+      <Text style={styles.sectionDescription}>Chọn điều bạn thích để Rong ưu tiên khi gợi ý điểm đến. Sở thích được lưu vào tài khoản để gợi ý lịch trình ở trang chủ.</Text>
       <View style={styles.chips}>
         {INTERESTS.map((category) => (
           <Chip
