@@ -64,6 +64,12 @@ export class ThemeGenerator {
     // Lỗi Gemini ném ra ngoài: BullMQ thử lại; hết lượt thì chủ đề cũ vẫn còn.
     const result = await this.langchain.suggestThemes(SYSTEM_PROMPT, request);
     const themes = sanitizeThemes(result.themes ?? [], new Set(regions.map((r) => r.id)));
+    if (themes.length === 0) {
+      this.logger.log(
+        `Chủ đề riêng cho ${userId}: Gemini không trả về chủ đề hợp lệ, giữ bộ cũ.`,
+      );
+      return 0;
+    }
 
     await this.db.transaction(async (m) => {
       await m.query(`DELETE FROM user_themes WHERE user_id = $1`, [userId]);
