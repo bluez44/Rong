@@ -1,4 +1,4 @@
-import type { AuthTokens, RegisterResult, UserProfile } from '@rong/shared-types';
+import type { AuthTokens, PlaceCategory, RegisterResult, UserProfile } from '@rong/shared-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ApiError, apiFetch, type RequestOptions } from '@/lib/api';
@@ -24,6 +24,8 @@ type AuthContextValue = {
   authFetch: <T>(path: string, options?: Omit<RequestOptions, 'token'>) => Promise<T>;
   /** Đổi tên hiển thị trên server rồi cập nhật phiên đang lưu. */
   updateDisplayName: (displayName: string) => Promise<void>;
+  /** Gửi sở thích lên server (gợi ý trang chủ) rồi cập nhật phiên đang lưu. */
+  updateInterests: (interests: PlaceCategory[]) => Promise<void>;
   /** F11: xóa tài khoản và toàn bộ dữ liệu, rồi đăng xuất. */
   deleteAccount: () => Promise<void>;
 };
@@ -166,6 +168,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authFetch,
       updateDisplayName: async (displayName) => {
         const user = await authFetch<UserProfile>('/users/me', { method: 'PATCH', body: { displayName } });
+        const current = sessionRef.current;
+        if (!current) return;
+        const next = { ...current, user };
+        await saveSession(next);
+        applySession(next);
+      },
+      updateInterests: async (interests) => {
+        const user = await authFetch<UserProfile>('/users/me', { method: 'PATCH', body: { interests } });
         const current = sessionRef.current;
         if (!current) return;
         const next = { ...current, user };
