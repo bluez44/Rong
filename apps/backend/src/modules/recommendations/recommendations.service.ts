@@ -101,10 +101,11 @@ export class RecommendationsService {
 
   async draft(userId: string, id: string): Promise<ItineraryDraft> {
     const rec = await this.own(userId, id);
-    const first = (await this.db.query(
+    // TypeORM trả DELETE/UPDATE dạng [rows, rowCount], khác INSERT/SELECT.
+    const [first] = (await this.db.query(
       `UPDATE user_recommendations SET viewed_at = now() WHERE id = $1 AND viewed_at IS NULL RETURNING id`,
       [id],
-    )) as unknown[];
+    )) as [unknown[], number];
     if (first.length > 0) {
       await this.db.query(`UPDATE itinerary_drafts SET view_count = view_count + 1 WHERE id = $1`, [rec.draft_id]);
       await this.maybeUpgrade(rec.draft_id);
