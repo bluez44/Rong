@@ -24,11 +24,12 @@ export class UsersController {
   }
 
   @Patch('me')
-  update(
+  async update(
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateProfileDto,
   ): Promise<UserProfile> {
-    return this.users.updateProfile(user.userId, dto.displayName);
+    const { profile } = await this.users.updateProfile(user.userId, dto);
+    return profile;
   }
 
   /** F11: xóa tài khoản và toàn bộ dữ liệu (lịch trình, "Muốn đi", cách đăng nhập). */
