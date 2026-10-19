@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { LangchainService } from '../src/langchain/langchain.service.js';
 import { RecommendationBuilder } from '../src/modules/recommendations/recommendation-builder.js';
+import { UnsplashClient } from '../src/modules/recommendations/unsplash.client.js';
 import { windowFor } from '../src/modules/recommendations/window.js';
 import {
   cleanupRecommendationRegions,
@@ -28,6 +29,8 @@ describe('RecommendationBuilder (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(LangchainService)
       .useValue({ planItinerary, suggestThemes })
+      .overrideProvider(UnsplashClient)
+      .useValue({ enabled: false, searchLandscape: async () => null })
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
