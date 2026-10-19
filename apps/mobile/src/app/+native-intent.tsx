@@ -1,5 +1,18 @@
-/** URL do expo-share-intent mở app (F4) không phải một màn: về trang chủ, `useIncomingShare` lo phần còn lại. */
+import { inviteTokenFromPath } from '@/lib/invite-link';
+import { setPendingInvite } from '@/lib/pending-invite';
+
+/**
+ * URL mở app từ bên ngoài.
+ * - URL do expo-share-intent mở app (F4) không phải một màn: về trang chủ, `useIncomingShare` lo phần còn lại.
+ * - Link mời nhóm (`https://<domain>/invite/<t>`, `rong://invite/<t>`): giữ token rồi về trang chủ; màn chấp nhận lời
+ *   mời mở khi người dùng đã vào được app (xem `lib/pending-invite.ts`), kể cả khi phải đăng nhập trước.
+ */
 export function redirectSystemPath({ path }: { path: string; initial: boolean }): string {
   if (path.includes('dataUrl=')) return '/';
+  const token = inviteTokenFromPath(path);
+  if (token) {
+    setPendingInvite(token);
+    return '/';
+  }
   return path;
 }
