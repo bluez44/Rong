@@ -10,6 +10,8 @@ import {
 } from './queue/recommendations.processor.js';
 import { RecommendationBuilder } from './recommendation-builder.js';
 import { RecommendationJobs } from './recommendation-jobs.js';
+import { RecommendationsController } from './recommendations.controller.js';
+import { RecommendationsService } from './recommendations.service.js';
 import { ThemeCatalog } from './theme-catalog.js';
 
 /**
@@ -18,6 +20,7 @@ import { ThemeCatalog } from './theme-catalog.js';
  */
 @Module({
   imports: [ItinerariesModule, VisitsModule],
+  controllers: [RecommendationsController],
   providers: [
     DraftPool,
     ThemeCatalog,
@@ -26,7 +29,8 @@ import { ThemeCatalog } from './theme-catalog.js';
     { provide: JOB_RUNNER, useExisting: RecommendationJobs },
     RecommendationsProcessor,
     RecommendationsAiProcessor,
+    RecommendationsService,
   ],
-  exports: [RecommendationJobs, JOB_RUNNER],
+  exports: [RecommendationJobs, JOB_RUNNER, RecommendationsService],
 })
 export class RecommendationsModule {}
