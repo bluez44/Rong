@@ -9,6 +9,8 @@ import type {
   ItineraryWarning,
   PlaceAlternative,
   PlaceCategory,
+  PlannerKind,
+  UnscheduledPlace,
 } from '@rong/shared-types';
 import { DataSource, Repository, type EntityManager } from 'typeorm';
 
@@ -77,6 +79,46 @@ export class ItinerariesService {
         }),
       );
       await this.logToGroup(m, it, ownerId, 'itinerary_added', plan.regionName);
+      return it;
+    });
+    return this.respond(saved, { isCreator: true, groupRole: null });
+  }
+
+  /**
+   * Lưu một lịch đã xếp sẵn (bản nháp gợi ý ở trang chủ). Không trừ lượt AI:
+   * bản nháp do hệ thống tạo (spec 2026-10-19-home-recommendations).
+   */
+  async createFromPlan(
+    ownerId: string,
+    p: {
+      input: ItineraryInput;
+      days: ItineraryDay[];
+      unscheduled: UnscheduledPlace[];
+      warnings: ItineraryWarning[];
+      tips: string[];
+      planner: PlannerKind;
+      groupId: string | null;
+    },
+  ): Promise<ItineraryResponse> {
+    if (p.groupId) await this.access.requireGroupRole(ownerId, p.groupId, 'editor');
+    const region = await this.planner.regionName(p.input.regionId);
+    const saved = await this.db.transaction(async (m) => {
+      const it = await m.save(
+        this.itineraries.create({
+          ownerId,
+          regionId: p.input.regionId,
+          groupId: p.groupId,
+          planner: p.planner,
+          startsAt: new Date(Date.parse(p.input.startsAt)),
+          endsAt: new Date(Date.parse(p.input.endsAt)),
+          input: p.input,
+          days: p.days,
+          unscheduled: p.unscheduled,
+          warnings: p.warnings,
+          tips: p.tips,
+        }),
+      );
+      await this.logToGroup(m, it, ownerId, 'itinerary_added', region);
       return it;
     });
     return this.respond(saved, { isCreator: true, groupRole: null });
