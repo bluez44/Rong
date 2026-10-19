@@ -82,6 +82,10 @@ export class Itinerary {
   @Column({ name: 'ai_edits_remaining', type: 'smallint', default: 3 })
   aiEditsRemaining!: number;
 
+  /** Lúc người dùng xác nhận "đã đến những nơi nào" sau chuyến đi; null = chưa hỏi. */
+  @Column({ name: 'visit_reviewed_at', type: 'timestamptz', nullable: true })
+  visitReviewedAt!: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 
