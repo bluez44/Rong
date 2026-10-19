@@ -2,7 +2,7 @@ import type { AuthTokens, PlaceCategory, RegisterResult, UserProfile } from '@ro
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ApiError, apiFetch, type RequestOptions } from '@/lib/api';
-import { updatePreferences } from '@/lib/preferences';
+import { resetInterestsOnSignOut } from '@/lib/preferences';
 import { clearSession, loadSession, saveSession, type Session } from '@/lib/session-storage';
 
 type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -163,8 +163,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('signedOut');
         // Sở thích là của tài khoản vừa đăng xuất: xoá khỏi máy để người dùng
         // kế tiếp đăng nhập trên máy này không bị đẩy nhầm sở thích cũ lên
-        // tài khoản của họ. Giữ nguyên `onboarded`.
-        updatePreferences({ interests: [], interestsDirty: false });
+        // tài khoản của họ. Giữ nguyên `onboarded`. Dùng hàm không phát tin
+        // (xem comment trong preferences.ts) để tránh InterestsSync của chính
+        // tài khoản vừa đăng xuất gửi nhầm mảng rỗng lên server của họ.
+        resetInterestsOnSignOut();
         // Thu hồi refresh token trên server; mất mạng thì thôi, token tự hết hạn sau 60 ngày.
         if (refreshToken) {
           apiFetch<void>('/auth/logout', { method: 'POST', body: { refreshToken } }).catch(() => undefined);
@@ -195,7 +197,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('signedOut');
         // Tài khoản không còn nữa: xoá sở thích khỏi máy, không để lại cho
         // người dùng kế tiếp đăng nhập trên máy này. Giữ nguyên `onboarded`.
-        updatePreferences({ interests: [], interestsDirty: false });
+        // Hàm không phát tin — xem comment ở signOut và trong preferences.ts.
+        resetInterestsOnSignOut();
       },
     }),
     [status, session, sessionExpired, startSession, applySession, authFetch],
