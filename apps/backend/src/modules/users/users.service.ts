@@ -1,6 +1,6 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { UserProfile } from '@rong/shared-types';
+import type { PlaceCategory, UserProfile } from '@rong/shared-types';
 import { Repository } from 'typeorm';
 
 import type { AuthIdentity } from '../auth/entities/auth-identity.entity.js';
@@ -21,6 +21,7 @@ export function toProfile(user: User, identities: AuthIdentity[]): UserProfile {
     email: primary?.email ?? null,
     emailVerified: primary?.emailVerifiedAt != null,
     createdAt: user.createdAt.toISOString(),
+    interests: user.interests ?? [],
   };
 }
 
@@ -43,13 +44,38 @@ export class UsersService {
     return toProfile(user, user.identities ?? []);
   }
 
+  /**
+   * Đổi tên hiển thị và/hoặc sở thích. `interestsChanged` để nơi gọi đẩy job
+   * sinh lại chủ đề gợi ý (spec 2026-10-19-home-recommendations).
+   */
   async updateProfile(
     userId: string,
-    displayName: string,
-  ): Promise<UserProfile> {
-    const { affected } = await this.users.update(userId, { displayName });
-    if (!affected) throw new UnauthorizedException();
-    return this.getProfile(userId);
+    patch: { displayName?: string; interests?: PlaceCategory[] },
+  ): Promise<{ profile: UserProfile; interestsChanged: boolean }> {
+    if (patch.displayName === undefined && patch.interests === undefined) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'EMPTY_UPDATE',
+        message: 'Không có gì để cập nhật.',
+      });
+    }
+    const user = await this.users.findOneBy({ id: userId });
+    if (!user) throw new UnauthorizedException();
+
+    const interests =
+      patch.interests === undefined ? undefined : [...new Set(patch.interests)];
+    const interestsChanged =
+      interests !== undefined &&
+      (interests.length !== user.interests.length ||
+        interests.some((c) => !user.interests.includes(c)));
+
+    await this.users.update(userId, {
+      ...(patch.displayName !== undefined && {
+        displayName: patch.displayName,
+      }),
+      ...(interests !== undefined && { interests }),
+    });
+    return { profile: await this.getProfile(userId), interestsChanged };
   }
 
   /**

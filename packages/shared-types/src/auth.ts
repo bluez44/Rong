@@ -1,3 +1,5 @@
+import type { PlaceCategory } from './place.js';
+
 /**
  * Hợp đồng xác thực giữa backend, app di động và web — PRD F11.
  */
@@ -7,6 +9,8 @@ export interface UserProfile {
   email: string | null;
   emailVerified: boolean;
   createdAt: string;
+  /** Sở thích chọn ở onboarding / Tài khoản; dùng cho gợi ý ở trang chủ. */
+  interests: PlaceCategory[];
 }
 
 export interface AuthTokens {

@@ -62,6 +62,48 @@ describe('Tài khoản (e2e)', () => {
     }
   });
 
+  it('lưu sở thích mà không đổi tên, bỏ trùng', async () => {
+    const { token } = await newUser();
+    const res = await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ interests: ['cafe', 'nature', 'cafe'] })
+      .expect(200);
+    expect(res.body.displayName).toBe('e2e-account');
+    expect(res.body.interests).toEqual(['cafe', 'nature']);
+
+    const me = await request(app.getHttpServer())
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(me.body.interests).toEqual(['cafe', 'nature']);
+  });
+
+  it('body rỗng → EMPTY_UPDATE; danh mục lạ → 400', async () => {
+    const { token } = await newUser();
+    const empty = await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+      .expect(400);
+    expect(empty.body.code).toBe('EMPTY_UPDATE');
+
+    await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ interests: ['beach'] })
+      .expect(400);
+  });
+
+  it('người dùng mới có interests rỗng', async () => {
+    const { token } = await newUser();
+    const me = await request(app.getHttpServer())
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(me.body.interests).toEqual([]);
+  });
+
   it('xóa tài khoản xóa luôn lịch trình và "Muốn đi"', async () => {
     const { id, token } = await newUser();
     const [{ id: regionId }] = (await db.query(
