@@ -87,6 +87,14 @@ export interface InviteLinksConfig {
   androidSha256: string[];
 }
 
+/** Gợi ý lịch trình trang chủ (spec 2026-10-19-home-recommendations). */
+export interface RecommendationsConfig {
+  /** Dùng BullMQ + Redis. Tắt (hoặc NODE_ENV=test) thì job chạy ngay trong process, không có lịch cron. */
+  queueEnabled: boolean;
+  /** Unsplash Search API; trống thì chỉ dùng ảnh từ bài viết. */
+  unsplashAccessKey: string | null;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -100,6 +108,7 @@ export interface AppConfig {
   placeSearch: PlaceSearchConfig;
   webPlaces: WebPlacesConfig;
   inviteLinks: InviteLinksConfig;
+  recommendations: RecommendationsConfig;
 }
 
 class MissingEnvError extends Error {
@@ -222,5 +231,14 @@ export function loadConfig(): AppConfig {
         .map((value) => value.trim())
         .filter(Boolean),
     },
+    recommendations: {
+      queueEnabled: recommendationsQueueEnabled(process.env),
+      unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY || null,
+    },
   };
+}
+
+/** e2e (vitest đặt NODE_ENV=test) luôn chạy job trong process, không cần Redis. */
+export function recommendationsQueueEnabled(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV !== 'test' && env.RECOMMENDATIONS_ENABLED !== 'false';
 }

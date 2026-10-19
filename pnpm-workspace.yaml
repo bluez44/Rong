@@ -15,6 +15,8 @@ allowBuilds:
   unrs-resolver: true
   # sharp (toi uu anh cua Next) khong can build tu nguon tren dev machine.
   sharp: false
+  # Bộ mã hoá msgpack nhanh hơn cho bullmq/ioredis, có fallback JS thuần nếu không build.
+  msgpackr-extract: false
 
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.27'
