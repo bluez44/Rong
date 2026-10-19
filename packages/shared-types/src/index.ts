@@ -5,3 +5,4 @@ export * from './itinerary';
 export * from './group';
 export * from './pagination';
 export * from './share-import';
+export * from './recommendation';

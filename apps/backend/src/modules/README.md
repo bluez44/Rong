@@ -184,6 +184,11 @@ Quy trình AI (`itineraries/`):
 
 Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, giờ thông thường: `planning/rules.ts`.
 
+## Nơi đã đi (`visits/`)
+
+Nơi người dùng đã đi: suy ra từ lịch trình đã kết thúc (`inferred`), người dùng xác nhận lại sau chuyến đi
+(`confirmed`/`rejected`). Bộ gợi ý trang chủ bỏ các nơi `inferred` + `confirmed`.
+
 ## Chia sẻ vào app (F4)
 
 `share-import/` nhận link (hoặc đoạn văn bản chia sẻ) từ TikTok, YouTube, Facebook, Instagram hay bài báo,
