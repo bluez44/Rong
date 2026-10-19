@@ -495,7 +495,7 @@ thành callback `onOpenDayMap(dayIndex)`. Màn lịch trình hiện tại không
 - Hàng chip từ `feed.themes`. Chip `personal` có dòng phụ nhỏ là `regionHint`. Chip đang chọn chỉ trong state.
 - Khu vực "Gợi ý cho bạn" + dòng phụ "Làm mới lúc HH:mm" (`nextRefreshAt`). 3 thẻ dọc, giữ style thẻ hiện tại:
   - ảnh vùng; dòng ghi công nhỏ ("Ảnh: <author> / Unsplash" hoặc tên miền của `sourceUrl`), bấm mở link; không có ảnh →
-    mảng màu theo chủ đề;
+    mảng màu (gradient) theo chủ đề đang chọn, ánh xạ từ icon của chủ đề (ba thẻ cùng chủ đề cùng màu);
   - nhãn vùng, tiêu đề, "N ngày M đêm", `reason`; nhãn "Quay lại" khi `revisit`;
   - ô chi phí và thời tiết ghi "Đang cập nhật";
   - không có nút bookmark; thẻ có `savedItineraryId` hiện nhãn "Đã lưu" và bấm mở `/itinerary/<id>`.

@@ -336,7 +336,8 @@ git commit -m "refactor(mobile): extract itinerary view components for reuse"
     retry: () => void;
     reload: () => void;
   };
-  export function RecommendationCard(props: { card: RecommendationCard; onPress: () => void }): JSX.Element;
+  export function RecommendationCard(props: { card: RecommendationCard; themeIcon: string; onPress: () => void }): JSX.Element;
+  export function themeGradient(icon: string): [string, string];
   export function RecommendationCardSkeleton(): JSX.Element;
   export function ThemeChips(props: { themes: RecommendationTheme[]; selected: string; onSelect: (key: string) => void }): JSX.Element;
   ```
@@ -455,10 +456,39 @@ function credit(image: RegionImage): { text: string; url: string | null } {
   return { text: `Ảnh: ${host}`, url: image.sourceUrl };
 }
 
+/** Mảng màu khi vùng chưa có ảnh: theo chủ đề (icon của chủ đề), chỉ dùng token Palette. */
+const THEME_GRADIENTS: Record<string, [string, string]> = {
+  forest: [Palette.forest700, Palette.forest900],
+  nature: [Palette.pine500, Palette.pine900],
+  sun: [Palette.turmeric500, Palette.terracotta700],
+  kayak: [Palette.pine500, Palette.forest900],
+  cafe: [Palette.terracotta500, Palette.turmeric700],
+  food: [Palette.persimmon500, Palette.persimmon700],
+  culture: [Palette.terracotta700, Palette.charcoalMuted],
+  nightlife: [Palette.lavender700, Palette.charcoal],
+  kids: [Palette.lavender400, Palette.lavender700],
+  motorcycle: [Palette.amber700, Palette.charcoalMuted],
+  explore: [Palette.pine700, Palette.forest900],
+  sparkles: [Palette.forest700, Palette.forest900],
+};
+
+export function themeGradient(icon: string): [string, string] {
+  return THEME_GRADIENTS[icon] ?? THEME_GRADIENTS.sparkles;
+}
+
 const duration = (card: Card) =>
   card.nightCount > 0 ? `${card.dayCount} ngày ${card.nightCount} đêm` : `${card.dayCount} ngày`;
 
-export function RecommendationCard({ card, onPress }: { card: Card; onPress: () => void }) {
+export function RecommendationCard({
+  card,
+  themeIcon,
+  onPress,
+}: {
+  card: Card;
+  /** Icon của chủ đề đang chọn: quyết định mảng màu khi vùng không có ảnh. */
+  themeIcon: string;
+  onPress: () => void;
+}) {
   const photo = card.image ? credit(card.image) : null;
   return (
     <Pressable
@@ -470,7 +500,7 @@ export function RecommendationCard({ card, onPress }: { card: Card; onPress: () 
         {card.image ? (
           <Image source={card.image.url} style={styles.cardImage} contentFit="cover" transition={250} />
         ) : (
-          <LinearGradient colors={[Palette.forest700, Palette.forest900]} style={styles.cardImage} />
+          <LinearGradient colors={themeGradient(themeIcon)} style={styles.cardImage} />
         )}
         <View style={styles.imageOverlay} />
 
@@ -568,10 +598,10 @@ const styles = StyleSheet.create({
 ```
 
 Trước khi viết, kiểm tra:
-- `expo-linear-gradient` có trong `apps/mobile/package.json`; nếu không, thay `LinearGradient` bằng `<View style={[styles.cardImage, { backgroundColor: Palette.forest700 }]} />`.
+- `expo-linear-gradient` có trong `apps/mobile/package.json`; nếu không, cài bằng `cd apps/mobile && npx expo install expo-linear-gradient` (thêm vào commit của task).
 - Các token dùng ở trên (`Palette.forest700`, `Palette.parchment200`, `Type.caption`, `Radius.sm`, `Shadow`) có trong `constants/theme.ts`; thay bằng token gần nhất nếu thiếu, không viết màu hex mới.
 
-Mảng màu khi không có ảnh dùng một gradient chung (spec nói "theo chủ đề"; thẻ không mang icon chủ đề nên dùng một màu nhận diện thương hiệu là đủ cho lượt này).
+Mảng màu khi không có ảnh đổi theo chủ đề đang chọn (người dùng chốt 2026-10-19): ánh xạ từ icon của chủ đề, vì icon có ở cả chủ đề cố định lẫn chủ đề riêng. Ba thẻ của cùng một chủ đề dùng chung một màu; đổi chip thì đổi màu. Nếu token nào trong `THEME_GRADIENTS` không có trong `constants/theme.ts`, thay bằng token gần nhất, không thêm mã hex.
 
 - [ ] **Step 3: `components/theme-chips.tsx`**
 
@@ -716,6 +746,7 @@ import { formatTime } from '@/lib/trip-format';
                   <RecommendationCard
                     key={card.id}
                     card={card}
+                    themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
                     onPress={() =>
                       card.savedItineraryId
                         ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
