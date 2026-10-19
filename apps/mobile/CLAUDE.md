@@ -31,6 +31,8 @@ không chiếm chỗ. Không được để nó che hẳn thứ gì:
   đặt nó cách đáy ít nhất `useTabBarInset()`.
 - Bottom sheet và action sheet vẽ qua `SheetHost` ở `(app)/_layout.tsx`, nằm trên thanh tab: không cần chừa.
 - Thanh tab tự ẩn khi bàn phím mở (`useKeyboardVisible`), để không nằm đè ô đang gõ.
+- Với `asChild` của `expo-router/ui` (`TabList`, `TabTrigger`), component con không được nhận `style` dạng mảng: Slot
+  của Radix bỏ mất style đó ở bản release (bản dev báo lỗi). Đặt style lên chính `TabList`/`TabTrigger`, hoặc flatten.
 
 ## Cử chỉ và danh sách cuộn
 
