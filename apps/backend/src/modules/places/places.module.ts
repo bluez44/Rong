@@ -55,6 +55,6 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
         config.getOrThrow<AppConfig['webPlaces']>('webPlaces'),
     },
   ],
-  exports: [PlaceLocationService, GooglePlaceRowsService, RegionPlaceStore],
+  exports: [PlaceLocationService, GooglePlaceRowsService, RegionPlaceStore, WebPlacesService],
 })
 export class PlacesModule {}
