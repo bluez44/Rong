@@ -16,7 +16,7 @@ function toApiError(error: unknown): ApiError {
 }
 
 /** Tải một tài nguyên; gọi `reload` để tải lại mà vẫn giữ dữ liệu cũ trên màn hình. */
-function useResource<T>(path: string) {
+export function useResource<T>(path: string) {
   const { authFetch } = useAuth();
   const [state, setState] = useState<LoadState<T>>({ status: 'loading', data: null, error: null });
   const latest = useRef(0);

@@ -64,6 +64,10 @@ const ICONS = {
   // Thanh tab
   suitcase: { ios: 'suitcase', android: 'luggage', web: 'luggage' },
   account: { ios: 'person.crop.circle', android: 'account_circle', web: 'account_circle' },
+  group: { ios: 'person.2', android: 'group', web: 'group' },
+  // Nhóm
+  link: { ios: 'link', android: 'link', web: 'link' },
+  logout: { ios: 'rectangle.portrait.and.arrow.right', android: 'logout', web: 'logout' },
 } satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;
