@@ -34,7 +34,7 @@ export class RecommendationsQueue {
   ) {}
 
   get usesRedis(): boolean {
-    return this.main !== undefined;
+    return this.main !== undefined && this.ai !== undefined;
   }
 
   async enqueue(
@@ -99,6 +99,14 @@ export class RecommendationsQueue {
     while (this.running.size > 0) await Promise.allSettled(this.running);
   }
 
+  /**
+   * Khác biệt với BullMQ (chấp nhận được):
+   * - Job `completed` không tự hết hạn sau 1 ngày; chỉ ảnh hưởng một process chạy lâu với
+   *   `RECOMMENDATIONS_ENABLED=false`, và mỗi khung giờ dùng job id khác nên không kẹt.
+   * - Job `failed` KHÔNG chặn enqueue lại (BullMQ coi enqueue lại một jobId đang `failed` là
+   *   no-op, giữ nguyên job cũ). Ở đây enqueue lại sau khi lỗi mà không gọi `remove()` trước sẽ
+   *   chạy lại ngay — cách retry đơn giản cho chế độ trong process, không cần remove() trước.
+   */
   private runInline(job: RecommendationJob): void {
     const id = jobIdOf(job) ?? `anonymous_${++this.anonymous}`;
     const current = this.inline.get(id);
