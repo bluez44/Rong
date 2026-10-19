@@ -1,3 +1,4 @@
+import type { PlaceCategory } from '@rong/shared-types';
 import {
   Column,
   CreateDateColumn,
@@ -8,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { PLACE_CATEGORIES } from '../../places/entities/place.entity.js';
 import type { AuthIdentity } from '../../auth/entities/auth-identity.entity.js';
 
 /**
@@ -36,6 +38,17 @@ export class User {
 
   @Column({ name: 'last_seen_at', type: 'timestamptz', default: () => 'now()' })
   lastSeenAt!: Date;
+
+  /** Sở thích chọn ở onboarding / Tài khoản (spec 2026-10-19-home-recommendations). */
+  @Column({
+    name: 'interests',
+    type: 'enum',
+    enum: PLACE_CATEGORIES,
+    enumName: 'place_category',
+    array: true,
+    default: '{}',
+  })
+  interests!: PlaceCategory[];
 
   @OneToMany('AuthIdentity', (identity: AuthIdentity) => identity.user)
   identities?: AuthIdentity[];
