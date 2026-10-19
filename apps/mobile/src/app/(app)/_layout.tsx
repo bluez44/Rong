@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { SheetHost } from '@/components/ui/sheet-portal';
+import { usePendingInviteRedirect } from '@/lib/pending-invite';
 import { SavedPlacesProvider } from '@/lib/saved-places';
 import { useIncomingShare } from '@/lib/share-intent';
 
@@ -9,11 +10,18 @@ function IncomingShare() {
   return null;
 }
 
+/** Link mời nhóm nhận lúc chưa đăng nhập (hay lúc đang dùng app) được mở ở đây. */
+function PendingInvite() {
+  usePendingInviteRedirect();
+  return null;
+}
+
 export default function AppLayout() {
   return (
     // Danh sách "Muốn đi" dùng chung cho các tab và màn đẩy lên, theo phiên đăng nhập.
     <SavedPlacesProvider>
       <IncomingShare />
+      <PendingInvite />
       {/* Bottom sheet vẽ ở đây, phủ mọi màn của nhóm, trong các provider mà nội dung sheet dùng. */}
       <SheetHost>
         <Stack screenOptions={{ headerShown: false }}>
@@ -29,6 +37,7 @@ export default function AppLayout() {
           <Stack.Screen name="saved" />
           <Stack.Screen name="share-import/[id]" />
           <Stack.Screen name="group/[id]" />
+          <Stack.Screen name="invite/[token]" />
         </Stack>
       </SheetHost>
     </SavedPlacesProvider>

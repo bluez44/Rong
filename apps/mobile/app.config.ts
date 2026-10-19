@@ -33,6 +33,16 @@ const config: ExpoConfig = {
       backgroundImage: './assets/images/android-icon-background.png',
     },
     predictiveBackGestureEnabled: false,
+    // Link mời nhóm (F10) mở thẳng app. Android xác minh qua /.well-known/assetlinks.json của backend
+    // (env ANDROID_APP_LINK_SHA256 = SHA-256 chứng chỉ ký APK). Đổi phần này phải build APK mới.
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [{ scheme: 'https', host: 'www.rongthongdong.name.vn', pathPrefix: '/invite/' }],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
     config: {
       googleMaps: {
         apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY,
