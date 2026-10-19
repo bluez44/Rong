@@ -13,6 +13,7 @@ import { RegionsModule } from './modules/regions/regions.module.js';
 import { SavedPlacesModule } from './modules/saved-places/saved-places.module.js';
 import { ShareImportModule } from './modules/share-import/share-import.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { VisitsModule } from './modules/visits/visits.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { UsersModule } from './modules/users/users.module.js';
     SavedPlacesModule,
     ShareImportModule,
     GroupsModule,
+    VisitsModule,
     HealthModule,
     LangchainModule,
   ],

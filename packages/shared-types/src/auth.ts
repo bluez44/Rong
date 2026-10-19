@@ -1,4 +1,4 @@
-import type { PlaceCategory } from './place.js';
+import type { PlaceCategory } from './place';
 
 /**
  * Hợp đồng xác thực giữa backend, app di động và web — PRD F11.
