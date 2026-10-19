@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { LangchainService } from '../src/langchain/langchain.service.js';
 import { RecommendationsQueue } from '../src/modules/recommendations/queue/recommendations-queue.js';
+import { UnsplashClient } from '../src/modules/recommendations/unsplash.client.js';
 import {
   cleanupRecommendationRegions,
   seedRecommendationRegions,
@@ -29,6 +30,8 @@ describe('Gợi ý trang chủ (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(LangchainService)
       .useValue({ planItinerary, suggestThemes })
+      .overrideProvider(UnsplashClient)
+      .useValue({ enabled: false, searchLandscape: async () => null })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
