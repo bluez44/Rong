@@ -6,7 +6,7 @@ import { Glass } from '@/components/glass';
 import { Spacing } from '@/constants/theme';
 
 /**
- * Ba tab chính với thanh tab nổi (kính, tách khỏi đáy màn hình). Nội dung tab cuộn xuống dưới thanh, nên màn tab
+ * Bốn tab chính với thanh tab nổi (kính, tách khỏi đáy màn hình). Nội dung tab cuộn xuống dưới thanh, nên màn tab
  * chừa `useTabBarInset()` ở cuối. Các màn đẩy lên từ tab (tìm kiếm, bản đồ, lịch trình) nằm ở Stack cha nên che thanh tab.
  */
 export default function TabsLayout() {
@@ -23,6 +23,9 @@ export default function TabsLayout() {
           </TabTrigger>
           <TabTrigger name="trips" href="/trips" asChild>
             <TabButton label="Chuyến đi" icon="suitcase" />
+          </TabTrigger>
+          <TabTrigger name="groups" href="/groups" asChild>
+            <TabButton label="Nhóm" icon="group" />
           </TabTrigger>
           <TabTrigger name="account" href="/account" asChild>
             <TabButton label="Tài khoản" icon="account" />
