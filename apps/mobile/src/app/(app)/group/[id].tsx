@@ -39,7 +39,7 @@ export default function GroupScreen() {
               title={group.error.status === 404 ? 'Không tìm thấy nhóm này' : 'Chưa tải được nhóm'}
               action={
                 group.error.status === 404 ? (
-                  <Button label="Về danh sách nhóm" variant="plain" size="sm" onPress={() => router.replace('/groups')} />
+                  <Button label="Về danh sách nhóm" variant="plain" size="sm" onPress={() => router.dismissTo('/groups')} />
                 ) : (
                   <Button label="Thử lại" variant="plain" size="sm" onPress={group.reload} />
                 )
@@ -78,7 +78,8 @@ function GroupBody({ group, reload, bottomInset }: { group: GroupDetail; reload:
     }
   };
 
-  const backToGroups = () => router.replace('/groups');
+  // dismissTo chứ không replace: quay về tab Nhóm có sẵn, không chồng thêm một bộ tab.
+  const backToGroups = () => router.dismissTo('/groups');
 
   const confirm = (title: string, message: string, label: string, action: () => void) =>
     Alert.alert(title, message, [

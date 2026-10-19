@@ -54,7 +54,7 @@ export default function InviteScreen() {
           <Notice tone="danger" title="Không vào được nhóm">
             {state.message}
           </Notice>
-          <Button label="Về trang chủ" variant="plain" onPress={() => router.replace('/')} />
+          <Button label="Về trang chủ" variant="plain" onPress={() => router.dismissTo('/')} />
         </View>
       ) : null}
 
@@ -81,7 +81,7 @@ export default function InviteScreen() {
           </View>
           <View style={styles.actions}>
             <Button label="Tham gia nhóm" size="lg" onPress={join} loading={joining} />
-            <Button label="Để sau" variant="plain" onPress={() => router.replace('/groups')} disabled={joining} />
+            <Button label="Để sau" variant="plain" onPress={() => router.dismissTo('/groups')} disabled={joining} />
           </View>
         </View>
       ) : null}
