@@ -32,6 +32,7 @@ pnpm start:dev                # http://localhost:3001/api, try GET /api/health
 pnpm test                     # unit tests (*.spec.ts under src/, vitest)
 pnpm test:e2e                 # test/*.e2e-spec.ts against a real, migrated database
 pnpm bench:places             # test/places.live-spec.ts: builds one region's list with real Tavily/Gemini/Google (costs money; PLACES_LIVE_REGION=<source_key>)
+RECOMMENDATIONS_ENABLED=false pnpm start:dev   # skip the recommendations BullMQ queue/cron when Redis isn't running
 pnpm lint                     # oxlint --type-aware
 pnpm typecheck
 pnpm format                   # prettier
@@ -111,10 +112,20 @@ Other behavior:
 
 `places` also holds rows with `source = 'google'` (a `google_place_id` plus coordinates that expire after 30 days). The legacy `source = 'osm'` rows and their columns are gone (migration `DropUnusedPlaceColumns`, which refuses to run while any OSM row remains). Google rows are never ranked: anything that lists or suggests places reads the region's `region_places`, never `places` by bbox. Call `PlaceLocationService.ensure` before using Google coordinates (`location_source = 'google'`).
 
+### Home recommendations
+`modules/recommendations` (spec `docs/superpowers/specs/2026-10-19-home-recommendations-design.md`) builds `GET /api/recommendations`'s home feed: 3 draft itineraries per (user, 6:00/15:00 window, theme), drawn from a shared `itinerary_drafts` pool built heuristically and upgraded to Gemini only once a draft is viewed or saved enough.
+- Only regions with a `ready` place list (`region_place_lists.status`) are eligible; only the scheduled `warm-featured-regions` job is allowed to build a list on demand.
+- Jobs run on two BullMQ queues, `recommendations` and `recommendations-ai` (Gemini work, rate-limited separately). `RECOMMENDATIONS_ENABLED=false`, or `NODE_ENV=test` in e2e, runs jobs inline in-process instead, with no cron schedule.
+- Region card images come from Unsplash, falling back to an attributed article photo (`region_images.blocked` to unpublish one).
+- PRD deviation (FR-6.5): building a draft does not spend the user's AI-generation quota, since the draft pool is shared across users.
+
+Redis is required in dev for the recommendations queue (`pnpm infra:up`); set `RECOMMENDATIONS_ENABLED=false` (see Commands) to run without it.
+
 ## Deploy
 - `apps/backend/Dockerfile` builds from the repo root.
 - `infra/prod/` holds the EC2 + Caddy + Docker Compose setup; see its README.
 - The GitHub Actions workflow `.github/workflows/deploy-backend.yml` is currently commented out.
+- Home recommendations need Redis: `infra/prod/docker-compose.yml` has no Redis service yet — add one before deploying.
 
 ## Other apps
 - `apps/web` is Next.js 16 and has breaking changes compared with older versions. Read `apps/web/AGENTS.md` and the docs in `node_modules/next/dist/docs/` before editing it.
