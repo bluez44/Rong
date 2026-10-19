@@ -81,6 +81,8 @@ Hiện trạng liên quan (đã kiểm tra trong code):
 | — | Chạy nền | BullMQ (`@nestjs/bullmq`) cho cả lập lịch lẫn xử lý job |
 | — | Hệ số vùng đã đi | × 0,3 |
 | — | Bookmark trên thẻ | Bỏ |
+| — | Thẻ không có ảnh | Mảng màu theo chủ đề đang chọn |
+| — | Khớp spec với kế hoạch (2026-10-19) | Xem trước chỉ chọn ngày + số ngày; lưu không gửi ngày; thêm `params`, `exclude_place_ids`; hai hàng đợi; chạy job trong process khi không có Redis; "gần đây" = 9 thẻ gần nhất |
 
 ## Kiến trúc tổng quan
 
@@ -92,12 +94,18 @@ mobile index.tsx ──GET /recommendations?theme──► RecommendationsContro
         ▼
 recommendation/[id].tsx ──GET/POST preview/save──► RecommendationsService ──► ItineraryPlanner.planTrip()
 
-BullMQ queue "recommendations" (Redis)
-  scheduler 0 6,15 * * *  ──► refresh-window ──► build-user-set × người dùng hoạt động
-  scheduler 0 3 * * 1     ──► generate-user-themes (theo lô)
-  scheduler 0 2 * * *     ──► warm-featured-regions
-  scheduler 30 4 * * *    ──► cleanup
-  theo sự kiện            ──► upgrade-draft, generate-user-themes, fetch-region-image
+BullMQ (Redis), hai queue:
+  "recommendations"     (concurrency 4)
+    scheduler 0 6,15 * * *  ──► refresh-window ──► build-user-set × người dùng hoạt động
+    scheduler 0 3 * * 1     ──► refresh-themes ──► generate-user-themes × người dùng hoạt động
+    scheduler 0 2 * * *     ──► warm-featured-regions
+    scheduler 30 4 * * *    ──► cleanup
+    theo sự kiện            ──► build-user-set, fetch-region-image
+  "recommendations-ai"  (concurrency 2, limiter 10 job/phút — job gọi Gemini)
+    theo sự kiện / lịch     ──► upgrade-draft, generate-user-themes
+
+Không có Redis (NODE_ENV=test hoặc RECOMMENDATIONS_ENABLED=false): RecommendationsQueue chạy job ngay trong process,
+vẫn chống trùng theo job id, không có lịch cron, không tự thử lại.
 ```
 
 Module mới: `apps/backend/src/modules/recommendations/`. Cập nhật `src/modules/README.md` khi thêm module.
@@ -186,6 +194,7 @@ Quốc, Đà Nẵng – Hội An, TP.HCM) và vài vùng khác, theo `source_key
 | `input` | jsonb NOT NULL | `ItineraryInput`: `selectedPlaceIds: []`, `planningMode: 'ai'`, `allowAiSuggestions: true`, `preferredCategories` = categories, `startsAt`/`endsAt` theo ngày gốc |
 | `days`, `unscheduled`, `warnings`, `tips`, `cost` | jsonb NOT NULL | cùng cấu trúc với `itineraries` |
 | `place_ids` | uuid[] NOT NULL | mọi `placeId` trong `days`; index GIN |
+| `exclude_place_ids` | uuid[] NOT NULL DEFAULT '{}' | địa điểm đã loại khi tạo biến thể này (nơi người tạo đã đi); `upgrade-draft` loại lại đúng tập này |
 | `planner` | text CHECK IN (`heuristic`, `ai`) | |
 | `view_count`, `save_count` | integer NOT NULL DEFAULT 0 | |
 | `upgraded_at` | timestamptz null | |
@@ -193,7 +202,7 @@ Quốc, Đà Nẵng – Hội An, TP.HCM) và vài vùng khác, theo `source_key
 
 **Ngày gốc:** mọi bản nháp xếp với ngày bắt đầu là thứ Bảy cố định `2026-01-03` (giờ bắt đầu và kết thúc lấy theo
 thông số). Khi trả về cho người dùng, mọi `date`, `startsAt`, `endsAt`, giờ của từng mục được dời đúng số ngày từ ngày
-gốc sang `starts_at` của gợi ý (hàm thuần `shiftDraftDates`). Giờ mở cửa theo thứ trong tuần được giữ đúng vì ngày gốc
+gốc sang `starts_at` của gợi ý (hàm thuần `shiftPlan`). Giờ mở cửa theo thứ trong tuần được giữ đúng vì ngày gốc
 và ngày thật cùng là thứ Bảy.
 
 ### `user_recommendations`
@@ -207,7 +216,8 @@ và ngày thật cùng là thứ Bảy.
 | `slot` | smallint NOT NULL CHECK 0–2 | |
 | `draft_id` | uuid FK `itinerary_drafts` ON DELETE CASCADE | bản nháp hiện tại (đổi khi xem trước với thông số khác) |
 | `region_id` | uuid FK `regions` ON DELETE CASCADE | |
-| `starts_at` | timestamptz NOT NULL | thứ Bảy kế tiếp |
+| `starts_at` | timestamptz NOT NULL | 8:00 thứ Bảy kế tiếp; xem trước đổi ngày thì cập nhật. Nguồn duy nhất của ngày đi khi lưu |
+| `params` | jsonb NOT NULL | `TripParams` của gợi ý: `{ travelParty, adults, children, pace, budgetTier, daysCount }`. Số người không nằm trong `pool_key` nên lưu ở đây; xem trước đổi thông số thì cập nhật |
 | `reason` | jsonb NOT NULL | `{ matchedInterests: PlaceCategory[], newPlaceCount: number, revisit: boolean, savedCount: number }` |
 | `score` | real NOT NULL | |
 | `viewed_at` | timestamptz null | |
@@ -266,7 +276,8 @@ planTrip(input: ItineraryInput, options?: {
      `stay`, `food` nếu chủ đề không có categories);
    - điểm = `newPlaces + 3 × số địa điểm "Muốn đi" chưa đi trong vùng`;
    - vùng có ít nhất một địa điểm đã đi: **× 0,3**;
-   - vùng có trong 3 bộ gợi ý gần nhất của người dùng (mọi chủ đề): **× 0,5**;
+   - vùng có trong 9 dòng `user_recommendations` gần nhất của người dùng, trước khung giờ hiện tại (mọi chủ đề; xấp
+     xỉ 3 bộ × 3 thẻ): **× 0,5**;
    - loại vùng có `newPlaces < số điểm cần` (`targetStopsPerDay × số ngày`).
    Lấy 3 vùng điểm cao nhất (3 vùng khác nhau). Ít hơn 3 thì trả ít thẻ hơn.
 6. **Bản nháp cho từng vùng.** Tính `pool_key`. Tìm `itinerary_drafts` có `pool_key` khớp và
@@ -343,8 +354,11 @@ interface RegionImage {
 ```
 
 - `theme` không tồn tại hoặc chủ đề riêng của người khác → 400 `UNKNOWN_THEME`.
-- Chưa có bộ cho (người dùng, khung giờ, chủ đề) → `queue.add('build-user-set', ..., { jobId:
-  'user:<id>:<window>:<theme>', priority: 1 })` rồi trả `status: 'building'`.
+- Chưa có bộ cho (người dùng, khung giờ, chủ đề):
+  - job `build-user-set` (job id `user_<id>_<window>_<theme>`) đã xong mà không ra thẻ nào → `ready` với `items: []`;
+  - job đang chờ/chạy → `building`;
+  - chưa có job, hoặc job lỗi → đẩy job (`priority: 1`) rồi trả `building`.
+- `?retry=1`: xóa job lỗi (hoặc job đã xong mà rỗng) cùng job id rồi đẩy lại.
 - Cập nhật `last_seen_at` (tối đa một lần mỗi giờ).
 
 ### `GET /recommendations/:id`
@@ -357,7 +371,8 @@ interface ItineraryDraft {
   draftId: string;
   regionId: string;
   regionName: string;
-  input: ItineraryInput;            // ngày đã dời sang starts_at
+  params: TripParams;               // thông số hiện tại, để màn "Chỉnh thông tin" điền sẵn
+  input: ItineraryInput;            // ngày đã dời sang starts_at; adults/children lấy từ params
   days: ItineraryDay[];
   unscheduled: UnscheduledPlace[];
   warnings: ItineraryWarning[];
@@ -372,16 +387,23 @@ Không phải của người gọi → 404 `RECOMMENDATION_NOT_FOUND`.
 
 ### `POST /recommendations/:id/preview`
 
-Body `{ startsAt, endsAt, travelParty, adults, children, pace, budgetTier }` (validate như `CreateItineraryDto`).
+Body `PreviewDraftRequest` = `{ startDate: 'YYYY-MM-DD', daysCount: 1–7, travelParty, adults, children, pace,
+budgetTier }`.
 
-- Cùng số ngày và cùng các thông số khác → chỉ dời ngày bản nháp hiện tại.
+Chỉ chọn **ngày** và **số ngày**, không chọn giờ: mọi bản nháp trong kho xếp cố định 8:00 ngày đầu → 18:00 ngày cuối để
+dùng chung được; cho chọn giờ thì giờ người dùng chọn sẽ không có tác dụng.
+
+- Cùng `daysCount`, `travelParty`, `pace`, `budgetTier` → giữ bản nháp, chỉ cập nhật `starts_at` và `params` (số người).
 - Khác → tính `pool_key` mới, tìm trong kho hoặc `planTrip(..., { forceHeuristic: true })` đồng bộ (không qua hàng
-  đợi), lưu vào kho, cập nhật `user_recommendations.draft_id` và `starts_at`. Trả `ItineraryDraft` với `draftId` mới.
-- Lỗi: `INVALID_DATES`, `TRIP_TOO_LONG`, `TRIP_TOO_SHORT`, `NOT_ENOUGH_PLACES` (như `POST /itineraries`).
+  đợi), lưu vào kho, cập nhật `user_recommendations.draft_id`, `starts_at`, `params`. Trả `ItineraryDraft` với `draftId`
+  mới.
+- Lỗi: `startDate` sai định dạng hoặc ngày không tồn tại, `daysCount` ngoài 1–7 → 400 (validation); `startDate` trước
+  hôm nay (giờ Việt Nam) → 400 `INVALID_DATES`; vùng không đủ địa điểm → 422 `NOT_ENOUGH_PLACES`.
 
 ### `POST /recommendations/:id/save`
 
-Body `{ draftId, startsAt, groupId? }`.
+Body `SaveDraftRequest` = `{ draftId, groupId? }`. Ngày đi lấy từ `user_recommendations.starts_at` (đã cập nhật khi
+xem trước), không gửi lại từ app, để ngày đang xem và ngày được lưu không thể lệch nhau.
 
 - `draftId` khác `user_recommendations.draft_id` → 404 `DRAFT_NOT_FOUND`.
 - `groupId` → `AccessService` yêu cầu vai trò `editor`.
@@ -389,6 +411,7 @@ Body `{ draftId, startsAt, groupId? }`.
   không trừ `ai_generations_used`. Tăng `save_count`, ghi `saved_itinerary_id`, kiểm tra ngưỡng `upgrade-draft`.
 - Trả `Itinerary` (201).
 - Đã lưu rồi (`saved_itinerary_id` khác null và lịch trình còn) → trả lại lịch trình đó (200), không tạo bản thứ hai.
+  Lịch trình đã lưu bị xóa → FK `ON DELETE SET NULL` xóa liên kết; lưu lại tạo lịch trình mới (201).
 
 ### `GET /visits/pending`
 
@@ -429,14 +452,30 @@ không thuộc lịch trình → 400 `INVALID_PLACES`. Ghi `visit_reviewed_at = 
 ### Hạ tầng
 
 - Thêm `@nestjs/bullmq` và `bullmq` vào `apps/backend`.
-- `RecommendationsModule`: `BullModule.forRootAsync` đọc `config.redis`; `BullModule.registerQueue({ name:
-  'recommendations' })`; một `@Processor('recommendations')` kế thừa `WorkerHost`, `process(job)` phân nhánh theo
-  `job.name`. Worker `concurrency: 4`.
+- **Hai queue.** Limiter của BullMQ áp cho cả queue, không áp riêng từng loại job; dùng chung một queue thì lúc 6:00
+  hàng trăm job `build-user-set` (không gọi AI) cũng bị giới hạn 10 job/phút. Nên:
+  - `recommendations`: `build-user-set`, `fetch-region-image`, `refresh-window`, `refresh-themes`,
+    `warm-featured-regions`, `cleanup`. Worker `concurrency: 4`.
+  - `recommendations-ai`: `upgrade-draft`, `generate-user-themes`. Worker `concurrency: 2`, `limiter: { max: 10,
+    duration: 60_000 }`.
+- `BullQueuesModule` (`BullModule.forRootAsync` đọc `config.redis` + `registerQueue` hai queue) chỉ được nạp qua
+  `ConditionalModule.registerWhen` khi hàng đợi bật (`NODE_ENV !== 'test'` và `RECOMMENDATIONS_ENABLED !== 'false'`).
+- `RecommendationsQueueModule` (`@Global`) export `RecommendationsQueue`: cửa duy nhất để đẩy job (`enqueue`,
+  `enqueueMany`, `state(jobId)`, `remove(jobId)`). Có queue BullMQ thì `addBulk`; không có thì **chạy job ngay trong
+  process** qua `RecommendationJobs`, vẫn chống trùng theo job id. `UsersModule`, `VisitsModule` inject được mà không
+  import `RecommendationsModule`. Chế độ trong process dùng cho e2e (không cần Redis; các e2e cũ khởi động `AppModule`
+  không bị kéo theo kết nối Redis) và máy dev không chạy Redis. Khác BullMQ ở chỗ: không có lịch cron, không tự thử lại,
+  trạng thái "đã xong" của job không tự hết hạn (mỗi khung giờ dùng job id mới nên không kẹt).
+- `RecommendationsModule`: `@Processor` cho từng queue kế thừa `WorkerHost`, `process(job)` gọi `RecommendationJobs.run`
+  (phân nhánh theo `job.name`). Worker chỉ được tạo khi `BullQueuesModule` được nạp.
+- Job id tự đặt không chứa `:` (BullMQ không cho): `user_<id>_<window>_<theme>`, `themes_<userId>_<ngày>`,
+  `upgrade_<draftId>`, `image_<regionId>`; ký tự lạ đổi thành `-`.
 - Lịch đăng ký trong `onModuleInit` bằng `queue.upsertJobScheduler(id, { pattern, tz: 'Asia/Ho_Chi_Minh' }, { name })`
   (lưu trong Redis, gọi lại không nhân đôi).
 - `removeOnComplete: { age: 86400 }`, `removeOnFail: { age: 7 * 86400 }`.
 - Biến môi trường mới (qua `loadConfig` và `.env.example`): `UNSPLASH_ACCESS_KEY` (tùy chọn),
-  `RECOMMENDATIONS_ENABLED` (mặc định `true`; `false` thì không đăng ký scheduler, dùng cho test và máy không có Redis).
+  `RECOMMENDATIONS_ENABLED` (mặc định `true`; `false` thì không nạp BullMQ: job chạy trong process, không có lịch cron).
+  e2e luôn ở chế độ tắt vì vitest đặt `NODE_ENV=test`.
 - Local: `pnpm infra:up` đã chạy Redis ở 6379, không cần sửa compose.
 
 ### Các job
@@ -444,11 +483,12 @@ không thuộc lịch trình → 400 `INVALID_PLACES`. Ghi `visit_reviewed_at = 
 | Job | Kích hoạt | Xử lý | Thử lại |
 |---|---|---|---|
 | `refresh-window` | `0 6,15 * * *` | Người dùng có `last_seen_at` trong 14 ngày → `addBulk` các `build-user-set` (theme `default`, `priority: 10`), lô 500 | 3 |
-| `build-user-set` | `refresh-window`, hoặc `GET /recommendations` (`priority: 1`) | Mục "Tạo bộ gợi ý". `jobId` `user:<id>:<window>:<theme>` | 2, backoff 5 s |
-| `upgrade-draft` | `view_count ≥ 5` hoặc `save_count ≥ 2`, `planner = 'heuristic'` | `planTrip(draft.input)` có Gemini, cùng `excludePlaceIds` lúc tạo (rỗng nếu là bản chung); chỉ ghi đè nếu kết quả `planner = 'ai'` và không chứa địa điểm ngoài `place_ids` cũ ∪ pool vùng. Ghi `upgraded_at`. Không đụng lịch trình đã lưu. `jobId` `upgrade:<draftId>` | 2; limiter 10/phút |
-| `generate-user-themes` | `0 3 * * 1` (theo lô người dùng hoạt động); đổi sở thích; review nơi đã đi | Xem dưới. `jobId` `themes:<userId>:<ngày>` | 2; limiter 10/phút |
+| `build-user-set` | `refresh-window`, hoặc `GET /recommendations` (`priority: 1`) | Mục "Tạo bộ gợi ý". `jobId` `user_<id>_<window>_<theme>` | 2, backoff 5 s |
+| `refresh-themes` | `0 3 * * 1` | Người dùng có `last_seen_at` trong 14 ngày → `addBulk` các `generate-user-themes` (`priority: 10`), lô 500 | 1 |
+| `upgrade-draft` (queue AI) | `view_count ≥ 5` hoặc `save_count ≥ 2`, `planner = 'heuristic'`, chưa `upgraded_at` | `planTrip(draft.input, { excludePlaceIds: draft.exclude_place_ids })` có Gemini; kết quả không phải `planner = 'ai'` → ném lỗi để thử lại. Ghi đè `days`, `tips`, `place_ids`, `planner = 'ai'`, `upgraded_at`. Không cần kiểm tra thêm địa điểm: `planTrip` chỉ đưa Gemini địa điểm của vùng, bỏ id bịa (FR-6.3) và đã loại `excludePlaceIds`. Không đụng lịch trình đã lưu. `jobId` `upgrade_<draftId>` | 2 |
+| `generate-user-themes` (queue AI) | `refresh-themes`; đổi sở thích; review nơi đã đi | Xem dưới. `jobId` `themes_<userId>_<ngày>` | 2 |
 | `warm-featured-regions` | `0 2 * * *` | Vùng nổi bật chưa có danh sách hoặc quá hạn → `WebPlacesService.listForRegion()` lần lượt | 1 |
-| `fetch-region-image` | vùng lần đầu vào gợi ý mà chưa có `region_images` | Xem dưới. `jobId` `image:<regionId>` | 2 |
+| `fetch-region-image` | vùng lần đầu vào gợi ý mà chưa có `region_images` | Xem dưới. `jobId` `image_<regionId>` | 2 |
 | `cleanup` | `30 4 * * *` | Xóa `user_recommendations` > 30 ngày; bản nháp có `list_version` cũ hơn danh sách hiện tại của vùng mà không còn gợi ý trỏ tới; `user_themes` hết hạn | 1 |
 
 ### `generate-user-themes`
@@ -459,7 +499,8 @@ không thuộc lịch trình → 400 `INVALID_PLACES`. Ghi `visit_reviewed_at = 
 - Kiểm tra bằng code: bỏ `regionIds` không có trong danh sách đã gửi; bỏ `categories` ngoài enum; bỏ chủ đề không còn
   vùng hoặc không còn danh mục; cắt `label` 40 ký tự; `icon` lạ → icon mặc định.
 - Thay toàn bộ `user_themes` của người dùng trong một transaction.
-- Gemini lỗi sau 2 lần thử → giữ chủ đề cũ (nếu còn hạn), người dùng vẫn có chủ đề cố định.
+- Gemini lỗi sau 2 lần thử → job không xóa gì, chủ đề cũ giữ nguyên. Chủ đề đã hết hạn vẫn không hiện (chỉ đọc
+  `expires_at > now()`) và bị `cleanup` xóa; người dùng vẫn có chủ đề cố định.
 
 ### `fetch-region-image`
 
@@ -508,9 +549,11 @@ thành callback `onOpenDayMap(dayIndex)`. Màn lịch trình hiện tại không
 ### Màn xem trước — `app/(app)/recommendation/[id].tsx` (mới)
 
 - `<Screen>`, nhãn "Bản nháp" trên header, dùng các component `itinerary-view` ở chế độ chỉ xem.
-- Thanh dưới: **"Chỉnh thông tin"** mở bottom sheet chứa `TripParamsFields` (tách từ `itinerary/new.tsx`: ngày giờ, đối
-  tượng đi, số người, nhịp độ, ngân sách; dùng `<KeyboardAvoider>`) → `POST /recommendations/:id/preview`;
-  **"Lưu thành chuyến của tôi"** → `POST /recommendations/:id/save` → `router.replace('/itinerary/<id>')`.
+- Thanh dưới: **"Chỉnh thông tin"** mở bottom sheet `TripParamsSheet` (ngày đi, số ngày 1–7, đối tượng đi, số người,
+  nhịp độ, ngân sách; điền sẵn từ `ItineraryDraft.params`; dùng `<KeyboardAvoider>`) → `POST
+  /recommendations/:id/preview`;
+  **"Lưu thành chuyến của tôi"** → `POST /recommendations/:id/save { draftId }` →
+  `router.replace('/itinerary/<id>')`.
 - Đã lưu (`savedItineraryId`) → nút thành "Mở lịch trình đã lưu".
 - `itinerary/day-map.tsx` nhận thêm tham số `recommendationId` (thay cho `id`) để vẽ bản đồ của bản nháp.
 
@@ -539,15 +582,16 @@ thành callback `onOpenDayMap(dayIndex)`. Màn lịch trình hiện tại không
 - `poolKey`: ổn định với thứ tự danh mục; đổi `list_version` → khóa khác.
 - Chọn biến thể trong kho: bỏ bản chứa nơi đã đi; ưu tiên bản chưa gợi ý cho người này.
 - `windowFor`: 5:59, 6:00, 14:59, 15:00, 23:59, 0:00 theo giờ Việt Nam.
-- `shiftDraftDates` và "thứ Bảy kế tiếp" (kể cả hôm nay là thứ Bảy, Chủ nhật).
+- `shiftPlan` và "thứ Bảy kế tiếp" (kể cả hôm nay là thứ Bảy, Chủ nhật).
+- Hàng đợi chạy trong process: trùng job id chỉ chạy một lần; job lỗi → `failed`, `remove` rồi đẩy lại thì chạy lại.
 - Kiểm tra đầu ra `generate-user-themes`.
 - Thứ tự tìm ảnh; không có `UNSPLASH_ACCESS_KEY`.
 
 ### e2e (`test/recommendations.e2e-spec.ts`)
 
-- Copy `beforeAll` của một spec có sẵn (prefix `api`, `ValidationPipe`). `RECOMMENDATIONS_ENABLED=false`; thay queue
-  bằng bản giả chạy processor ngay trong process (`overrideProvider`), thay `LangchainService` và client Unsplash bằng
-  bản giả. Không cần Redis.
+- Copy `beforeAll` của một spec có sẵn (prefix `api`, `ValidationPipe`). Hàng đợi tự ở chế độ chạy trong process
+  (`NODE_ENV=test`); test gọi `RecommendationsQueue.idle()` để chờ job xong. Thay `LangchainService` và `UnsplashClient`
+  bằng bản giả (`overrideProvider`). Không cần Redis.
 - Dữ liệu: vùng có `region_place_lists` `ready` và `region_places` (fixture như `web-places.e2e-spec.ts`).
 - Luồng: `GET` lần đầu `building` → lần sau `ready`, 3 thẻ; `GET /:id`; `preview` đổi thông số → `draftId` mới; `save`
   → `itineraries` có `aiEditsRemaining = 3`, `ai_generations_used` không đổi; lưu lần hai trả cùng lịch trình; hai người
