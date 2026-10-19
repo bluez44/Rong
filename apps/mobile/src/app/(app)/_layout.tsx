@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 
+import { InterestsSync } from '@/components/interests-sync';
 import { SheetHost } from '@/components/ui/sheet-portal';
 import { usePendingInviteRedirect } from '@/lib/pending-invite';
 import { SavedPlacesProvider } from '@/lib/saved-places';
@@ -22,6 +23,7 @@ export default function AppLayout() {
     <SavedPlacesProvider>
       <IncomingShare />
       <PendingInvite />
+      <InterestsSync />
       {/* Bottom sheet vẽ ở đây, phủ mọi màn của nhóm, trong các provider mà nội dung sheet dùng. */}
       <SheetHost>
         <Stack screenOptions={{ headerShown: false }}>
