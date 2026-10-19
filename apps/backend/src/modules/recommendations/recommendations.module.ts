@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ItinerariesModule } from '../itineraries/itineraries.module.js';
+import { PlacesModule } from '../places/places.module.js';
 import { VisitsModule } from '../visits/visits.module.js';
 import type { AppConfig } from '../../config/configuration.js';
 import { LangchainModule } from '../../langchain/langchain.module.js';
 import { DraftPool } from './draft-pool.js';
+import { RecommendationMaintenance } from './maintenance.js';
 import { JOB_RUNNER } from './queue/jobs.js';
 import {
   RecommendationsAiProcessor,
@@ -25,7 +27,7 @@ import { RECOMMENDATIONS_CONFIG, UnsplashClient } from './unsplash.client.js';
  * BullMQ chỉ được tạo khi `BullQueuesModule` được nạp (hàng đợi bật).
  */
 @Module({
-  imports: [ItinerariesModule, VisitsModule, LangchainModule],
+  imports: [ItinerariesModule, PlacesModule, VisitsModule, LangchainModule],
   controllers: [RecommendationsController],
   providers: [
     DraftPool,
@@ -33,6 +35,7 @@ import { RECOMMENDATIONS_CONFIG, UnsplashClient } from './unsplash.client.js';
     ThemeGenerator,
     RecommendationBuilder,
     RecommendationJobs,
+    RecommendationMaintenance,
     { provide: JOB_RUNNER, useExisting: RecommendationJobs },
     RecommendationsProcessor,
     RecommendationsAiProcessor,
@@ -46,6 +49,6 @@ import { RECOMMENDATIONS_CONFIG, UnsplashClient } from './unsplash.client.js';
         config.getOrThrow<AppConfig['recommendations']>('recommendations'),
     },
   ],
-  exports: [RecommendationJobs, JOB_RUNNER, RecommendationsService],
+  exports: [RecommendationJobs, RecommendationMaintenance, JOB_RUNNER, RecommendationsService],
 })
 export class RecommendationsModule {}
