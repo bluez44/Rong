@@ -11,12 +11,16 @@ import type { UserProfile } from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { RecommendationsQueue } from '../recommendations/queue/recommendations-queue.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UsersService } from './users.service.js';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly recommendations: RecommendationsQueue,
+  ) {}
 
   @Get('me')
   me(@CurrentUser() user: AuthUser): Promise<UserProfile> {
@@ -28,7 +32,13 @@ export class UsersController {
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateProfileDto,
   ): Promise<UserProfile> {
-    const { profile } = await this.users.updateProfile(user.userId, dto);
+    const { profile, interestsChanged } = await this.users.updateProfile(user.userId, dto);
+    if (interestsChanged) {
+      await this.recommendations.enqueue({
+        name: 'generate-user-themes',
+        data: { userId: user.userId },
+      });
+    }
     return profile;
   }
 
