@@ -28,6 +28,7 @@ export default function AppLayout() {
           <Stack.Screen name="itinerary/day-map" />
           <Stack.Screen name="saved" />
           <Stack.Screen name="share-import/[id]" />
+          <Stack.Screen name="group/[id]" />
         </Stack>
       </SheetHost>
     </SavedPlacesProvider>
