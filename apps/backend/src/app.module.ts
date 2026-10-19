@@ -9,6 +9,8 @@ import { GroupsModule } from './modules/groups/groups.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { ItinerariesModule } from './modules/itineraries/itineraries.module.js';
 import { PlacesModule } from './modules/places/places.module.js';
+import { RecommendationsQueueModule } from './modules/recommendations/queue/recommendations-queue.module.js';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module.js';
 import { RegionsModule } from './modules/regions/regions.module.js';
 import { SavedPlacesModule } from './modules/saved-places/saved-places.module.js';
 import { ShareImportModule } from './modules/share-import/share-import.module.js';
@@ -33,6 +35,8 @@ import { VisitsModule } from './modules/visits/visits.module.js';
     ShareImportModule,
     GroupsModule,
     VisitsModule,
+    RecommendationsQueueModule,
+    RecommendationsModule,
     HealthModule,
     LangchainModule,
   ],
