@@ -7,6 +7,8 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { GEMINI_ITINERARY_MODEL } from '../chat-models/gemini-itinerary.js';
 import type { ItineraryPlanType } from '../chat-models/itinerary-schema.js';
+import { GEMINI_USER_THEMES_MODEL } from '../chat-models/gemini-user-themes.js';
+import type { UserThemesPlanType } from '../chat-models/user-themes-schema.js';
 
 @Injectable()
 export class LangchainService {
@@ -16,6 +18,8 @@ export class LangchainService {
     private readonly structuredOutputModel: BaseChatModel,
     @Inject(GEMINI_ITINERARY_MODEL)
     private readonly itineraryModel: BaseChatModel,
+    @Inject(GEMINI_USER_THEMES_MODEL)
+    private readonly userThemesModel: BaseChatModel,
   ) {}
 
   async ask(question: string): Promise<any> {
@@ -72,5 +76,13 @@ export class LangchainService {
     return (await this.itineraryModel.invoke(
       `${request}\n\nPhương án đề xuất:\n${typeof draft.content === 'string' ? draft.content : JSON.stringify(draft.content)}`,
     )) as unknown as ItineraryPlanType;
+  }
+
+  /** Chủ đề khám phá riêng cho trang chủ; kết quả được kiểm tra lại ở ThemeGenerator. */
+  async suggestThemes(system: string, request: string): Promise<UserThemesPlanType> {
+    return (await this.userThemesModel.invoke([
+      new SystemMessage(system),
+      new HumanMessage(request),
+    ])) as unknown as UserThemesPlanType;
   }
 }

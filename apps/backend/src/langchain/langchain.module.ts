@@ -4,6 +4,7 @@ import { LangchainService } from './langchain.service.js';
 import { LangchainController } from './langchain.controller.js';
 import { GeminiChatStructuredOutputProvider } from '../chat-models/gemini-chat-structured-output.js';
 import { GeminiItineraryProvider } from '../chat-models/gemini-itinerary.js';
+import { GeminiUserThemesProvider } from '../chat-models/gemini-user-themes.js';
 import { PlaceSearchService } from './place-search.service.js';
 
 @Module({
@@ -11,6 +12,7 @@ import { PlaceSearchService } from './place-search.service.js';
     GeminiChatProvider,
     GeminiChatStructuredOutputProvider,
     GeminiItineraryProvider,
+    GeminiUserThemesProvider,
     LangchainService,
     PlaceSearchService,
   ],
