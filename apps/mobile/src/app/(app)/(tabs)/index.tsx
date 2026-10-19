@@ -5,11 +5,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { useAuth } from '@/auth/auth-context';
+import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { Icon, type IconName } from '@/components/ui/icon';
 import {
-  BottomTabInset,
   Colors,
   MinTouch,
   Palette,
@@ -81,6 +81,7 @@ const FEATURED_TRIPS: FeaturedTrip[] = [
 ];
 
 export default function HomeScreen() {
+  const tabBarInset = useTabBarInset();
   const { session } = useAuth();
   const name = session?.user.displayName ?? session?.user.email?.split('@')[0] ?? 'bạn';
   const [selectedMood, setSelectedMood] = useState('forest');
@@ -95,7 +96,7 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
         {/* Top Header Branding */}
         <View style={styles.header}>
           <View style={styles.brandContainer}>
@@ -298,7 +299,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50,
   },
   scrollContent: {
-    paddingBottom: BottomTabInset + Spacing.eight,
     gap: Spacing.four,
   },
   header: {

@@ -1,23 +1,47 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { TabList, Tabs, TabSlot, TabTrigger } from 'expo-router/ui';
+import { StyleSheet } from 'react-native';
 
-import { Colors, FontFamily } from '@/constants/theme';
+import { TAB_BAR_HEIGHT, TabButton, useKeyboardVisible, useTabBarBottom } from '@/components/floating-tab-bar';
+import { Glass } from '@/components/glass';
+import { Spacing } from '@/constants/theme';
 
-/** Ba tab chính. Các màn đẩy lên từ tab (tìm kiếm, bản đồ, lịch trình) nằm ở Stack cha nên che thanh tab. */
+/**
+ * Ba tab chính với thanh tab nổi (kính, tách khỏi đáy màn hình). Nội dung tab cuộn xuống dưới thanh, nên màn tab
+ * chừa `useTabBarInset()` ở cuối. Các màn đẩy lên từ tab (tìm kiếm, bản đồ, lịch trình) nằm ở Stack cha nên che thanh tab.
+ */
 export default function TabsLayout() {
+  const bottom = useTabBarBottom();
+  const keyboardVisible = useKeyboardVisible();
   return (
-    <NativeTabs tintColor={Colors.light.primary} labelStyle={{ fontFamily: FontFamily.medium }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Khám phá</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'map', selected: 'map.fill' }} md="explore" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="trips">
-        <NativeTabs.Trigger.Label>Chuyến đi</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'suitcase', selected: 'suitcase.fill' }} md="luggage" />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="account">
-        <NativeTabs.Trigger.Label>Tài khoản</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'person.crop.circle', selected: 'person.crop.circle.fill' }} md="account_circle" />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs style={styles.root}>
+      <TabSlot />
+      {/* Ẩn bằng `display: 'none'` chứ không bỏ ra: TabList khai báo các tab, bỏ đi thì mất route. */}
+      <TabList asChild>
+        <Glass shape="capsule" style={[styles.bar, { bottom }, keyboardVisible && styles.hidden]}>
+          <TabTrigger name="index" href="/" asChild>
+            <TabButton label="Khám phá" icon="explore" />
+          </TabTrigger>
+          <TabTrigger name="trips" href="/trips" asChild>
+            <TabButton label="Chuyến đi" icon="suitcase" />
+          </TabTrigger>
+          <TabTrigger name="account" href="/account" asChild>
+            <TabButton label="Tài khoản" icon="account" />
+          </TabTrigger>
+        </Glass>
+      </TabList>
+    </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  bar: {
+    position: 'absolute',
+    left: Spacing.four,
+    right: Spacing.four,
+    height: TAB_BAR_HEIGHT,
+    flexDirection: 'row',
+    padding: Spacing.one,
+  },
+  hidden: { display: 'none' },
+});

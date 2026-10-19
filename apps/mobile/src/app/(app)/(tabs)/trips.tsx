@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -24,6 +25,7 @@ import { formatDateRange, PLANNER_LABELS } from '@/lib/trip-format';
 type TripFilter = 'all' | 'upcoming' | 'past';
 
 export default function TripsScreen() {
+  const tabBarInset = useTabBarInset();
   const trips = useItineraries();
   const { reload } = trips;
   const [filter, setFilter] = useState<TripFilter>('all');
@@ -49,7 +51,7 @@ export default function TripsScreen() {
         keyExtractor={(trip) => trip.id}
         renderItem={({ item }) => <TripCard trip={item} past={isPastTrip(item)} />}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         ItemSeparatorComponent={() => <View style={styles.listGap} />}
         ListHeaderComponent={
           <View style={styles.header}>
@@ -225,7 +227,7 @@ function isPastTrip(trip: ItinerarySummary) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.five, paddingBottom: Spacing.eight },
+  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.five },
   header: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   headingCopy: { gap: Spacing.one },

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
+import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -21,6 +22,7 @@ const INTERESTS = CATEGORIES.filter((category) => category !== 'stay');
 
 /** Tài khoản (F11): hồ sơ, sở thích, dữ liệu của bạn, đăng xuất và xóa tài khoản. */
 export default function AccountScreen() {
+  const tabBarInset = useTabBarInset();
   const { session, signOut } = useAuth();
   const user = session?.user;
   const name = user?.displayName || 'Lữ khách Rong';
@@ -41,7 +43,7 @@ export default function AccountScreen() {
   return (
     <Screen edges={['top']} style={styles.screen}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         <View style={styles.header}>
@@ -398,7 +400,7 @@ function DeleteAccount() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Palette.parchment50 },
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.eight, gap: Spacing.six },
+  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, gap: Spacing.six },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
