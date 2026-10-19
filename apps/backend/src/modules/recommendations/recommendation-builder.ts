@@ -94,6 +94,12 @@ export class RecommendationBuilder {
       });
     }
 
+    // Xóa rồi ghi lại (không UPSERT theo slot) vì số thẻ có thể ít đi giữa hai
+    // lần build (một vùng hết đủ nơi mới). Hai lần build cùng (user, window,
+    // theme) chạy đồng thời sẽ đụng "uq_user_recommendation_slot" (INSERT của
+    // lần này xen vào giữa DELETE/INSERT của lần kia); job `build-user-set`
+    // tránh được nhờ `jobIdOf` ở tầng hàng đợi (jobs.ts) chống chạy trùng
+    // job cùng id, không phải nhờ gì trong hàm này.
     await this.db.transaction(async (m) => {
       await m.query(
         `DELETE FROM user_recommendations WHERE user_id = $1 AND window_start = $2 AND theme_key = $3`,
