@@ -17,20 +17,51 @@ export interface FixtureRegion {
   visitIds: string[];
 }
 
+/** Trạng thái `region_place_lists` của một vùng trước khi seed đụng vào, để cleanup trả lại đúng như cũ. */
+interface PriorRegionPlaceList {
+  regionId: string;
+  existed: boolean;
+  status: string | null;
+  fetchedAt: Date | null;
+}
+
+/** Handle seed trả về; truyền nguyên vẹn cho `cleanupRecommendationRegions`. */
+export interface RecommendationRegionsFixture {
+  prefix: string;
+  regions: FixtureRegion[];
+  priorLists: PriorRegionPlaceList[];
+}
+
 /**
  * Mỗi vùng: 12 điểm tham quan + 4 quán ăn tên `E2E rec <prefix> …`, hạng âm để
- * đứng trước dữ liệu thật trong DB dev. Đảm bảo vùng có danh sách `ready`.
+ * đứng trước dữ liệu thật trong DB dev. Đảm bảo vùng có danh sách `ready`,
+ * nhưng vẫn ghi lại trạng thái cũ (hoặc việc chưa có hàng nào) để
+ * `cleanupRecommendationRegions` trả lại đúng như trước, không để lại danh
+ * sách `ready` giả trên DB dev dùng chung.
  */
 export async function seedRecommendationRegions(
   db: DataSource,
   prefix: string,
-): Promise<FixtureRegion[]> {
+): Promise<RecommendationRegionsFixture> {
   const out: FixtureRegion[] = [];
+  const priorLists: PriorRegionPlaceList[] = [];
   for (const region of FIXTURE_REGIONS) {
     const [{ id }] = (await db.query(
       `SELECT id FROM regions WHERE source_key = $1`,
       [region.sourceKey],
     )) as Array<{ id: string }>;
+
+    const [prior] = (await db.query(
+      `SELECT status, fetched_at FROM region_place_lists WHERE region_id = $1`,
+      [id],
+    )) as Array<{ status: string; fetched_at: Date | null }>;
+    priorLists.push({
+      regionId: id,
+      existed: prior !== undefined,
+      status: prior?.status ?? null,
+      fetchedAt: prior?.fetched_at ?? null,
+    });
+
     await db.query(
       `INSERT INTO region_place_lists (region_id, status, fetched_at, expires_at)
        VALUES ($1, 'ready', now(), now() + interval '30 days')
@@ -61,14 +92,19 @@ export async function seedRecommendationRegions(
     }
     out.push({ id, sourceKey: region.sourceKey, placeIds, visitIds });
   }
-  return out;
+  return { prefix, regions: out, priorLists };
 }
 
+/**
+ * Xóa dữ liệu giả và trả `region_place_lists` về đúng trạng thái trước khi
+ * `seedRecommendationRegions` chạy: hàng nào chưa có thì xóa, hàng nào đã có
+ * thì trả lại `status`/`fetched_at` cũ.
+ */
 export async function cleanupRecommendationRegions(
   db: DataSource,
-  prefix: string,
+  fixture: RecommendationRegionsFixture,
 ): Promise<void> {
-  const like = `E2E rec ${prefix} %`;
+  const like = `E2E rec ${fixture.prefix} %`;
   await db.query(
     `DELETE FROM itinerary_drafts d
       WHERE EXISTS (SELECT 1 FROM places p WHERE p.id = ANY(d.place_ids) AND p.name LIKE $1)`,
@@ -79,4 +115,17 @@ export async function cleanupRecommendationRegions(
     [like],
   );
   await db.query(`DELETE FROM places WHERE name LIKE $1`, [like]);
+
+  for (const prior of fixture.priorLists) {
+    if (prior.existed) {
+      await db.query(
+        `UPDATE region_place_lists SET status = $2, fetched_at = $3 WHERE region_id = $1`,
+        [prior.regionId, prior.status, prior.fetchedAt],
+      );
+    } else {
+      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [
+        prior.regionId,
+      ]);
+    }
+  }
 }

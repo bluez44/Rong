@@ -11,12 +11,14 @@ import {
   cleanupRecommendationRegions,
   seedRecommendationRegions,
   type FixtureRegion,
+  type RecommendationRegionsFixture,
 } from './fixtures/recommendation-regions.js';
 
 describe('RecommendationBuilder (e2e)', () => {
   let app: INestApplication;
   let db: DataSource;
   let builder: RecommendationBuilder;
+  let fixture: RecommendationRegionsFixture;
   let regions: FixtureRegion[];
   const planItinerary = vi.fn();
   const suggestThemes = vi.fn();
@@ -31,12 +33,13 @@ describe('RecommendationBuilder (e2e)', () => {
     await app.init();
     db = app.get(DataSource);
     builder = app.get(RecommendationBuilder);
-    regions = await seedRecommendationRegions(db, 'builder');
+    fixture = await seedRecommendationRegions(db, 'builder');
+    regions = fixture.regions;
   });
 
   afterAll(async () => {
     await db?.query(`DELETE FROM users WHERE display_name LIKE 'e2e-rec-builder%'`);
-    await cleanupRecommendationRegions(db, 'builder');
+    await cleanupRecommendationRegions(db, fixture);
     await app?.close();
   });
 
