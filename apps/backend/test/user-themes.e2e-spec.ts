@@ -107,6 +107,28 @@ describe('Chủ đề riêng (e2e)', () => {
     expect(rows.map((r) => r.label)).toEqual(['Chủ đề cũ']);
   });
 
+  it('Gemini chỉ trả vùng bịa → lọc hết, giữ chủ đề cũ', async () => {
+    const u = await newUser();
+    await db.query(
+      `INSERT INTO user_themes (user_id, label, icon, categories, region_ids, expires_at)
+       VALUES ($1, 'Chủ đề cũ', 'sun', '{nature}', $2::uuid[], now() + interval '3 days')`,
+      [u.id, [regions[1].id]],
+    );
+    suggestThemes.mockResolvedValueOnce({
+      themes: [
+        { label: 'Chỉ có vùng bịa', icon: 'sun', categories: ['nature'], regionIds: ['vung-bia-1', 'vung-bia-2'] },
+      ],
+    });
+    await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${u.token}`)
+      .send({ interests: ['nature'] })
+      .expect(200);
+    await queue.idle();
+    const rows = (await db.query(`SELECT label FROM user_themes WHERE user_id = $1`, [u.id])) as Array<{ label: string }>;
+    expect(rows.map((r) => r.label)).toEqual(['Chủ đề cũ']);
+  });
+
   it('sở thích không đổi → không gọi Gemini', async () => {
     const u = await newUser();
     await db.query(`UPDATE users SET interests = '{cafe}' WHERE id = $1`, [u.id]);
