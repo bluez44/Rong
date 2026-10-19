@@ -71,9 +71,12 @@ export default function ItineraryScreen() {
   const insets = useSafeAreaInsets();
   const itinerary = useItinerary(id);
   const editor = useItineraryEditor(itinerary.data);
-  const [editing, setEditing] = useState(edit === '1');
+  const [editMode, setEditing] = useState(edit === '1');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const data = editor.itinerary ?? itinerary.data;
+  // Người chỉ xem trong nhóm không sửa được (backend cũng từ chối), kể cả khi mở với `edit=1`.
+  const canEdit = data ? data.myRole !== 'viewer' : false;
+  const editing = editMode && canEdit;
 
   const onShare = async () => {
     if (!data) return;
@@ -130,6 +133,7 @@ export default function ItineraryScreen() {
               </Pressable>
             )}
 
+            {canEdit ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={editing ? 'Xong' : 'Sửa'}
@@ -145,6 +149,7 @@ export default function ItineraryScreen() {
                 </Text>
               </Glass>
             </Pressable>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -244,7 +249,8 @@ export default function ItineraryScreen() {
             itinerary={data}
             regionName={regionName}
             selectedDayIndex={selectedDayIndex}
-            onStartEdit={() => setEditing(true)}
+            onStartEdit={canEdit ? () => setEditing(true) : undefined}
+            canDelete={data.myRole === 'creator' || data.myRole === 'owner'}
           />
         ) : null}
       </ScrollViewContainer>
@@ -364,7 +370,10 @@ type ItineraryViewBodyProps = {
   itinerary: Itinerary;
   regionName?: string;
   selectedDayIndex: number;
-  onStartEdit: () => void;
+  /** Không có thì ẩn lối vào chế độ sửa (người chỉ xem). */
+  onStartEdit?: () => void;
+  /** Xoá lịch trình: người tạo hoặc chủ nhóm (groups/access.ts). */
+  canDelete: boolean;
 };
 
 function ItineraryViewBody({
@@ -372,6 +381,7 @@ function ItineraryViewBody({
   regionName,
   selectedDayIndex,
   onStartEdit,
+  canDelete,
 }: ItineraryViewBodyProps) {
   const currentDay = itinerary.days[selectedDayIndex] ?? itinerary.days[0];
   const totalActivities = itinerary.days.reduce((total, day) => total + day.items.length, 0);
@@ -451,14 +461,16 @@ function ItineraryViewBody({
 
         <View style={styles.aiNoteFooter}>
           <Text style={styles.aiNoteTime}>Thông tin chuyến đi</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Tự tay sắp xếp lại"
-            onPress={onStartEdit}
-            style={styles.reorderLink}>
-            <Text style={styles.reorderLinkText}>Tự tay sắp xếp lại</Text>
-            <Icon name="forward" size={14} color={Palette.forest700} />
-          </Pressable>
+          {onStartEdit ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tự tay sắp xếp lại"
+              onPress={onStartEdit}
+              style={styles.reorderLink}>
+              <Text style={styles.reorderLinkText}>Tự tay sắp xếp lại</Text>
+              <Icon name="forward" size={14} color={Palette.forest700} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -526,7 +538,7 @@ function ItineraryViewBody({
         </View>
       ) : null}
 
-      <DeleteButton id={itinerary.id} />
+      {canDelete ? <DeleteButton id={itinerary.id} /> : null}
     </>
   );
 }
