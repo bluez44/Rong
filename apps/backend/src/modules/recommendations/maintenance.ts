@@ -79,23 +79,23 @@ export class RecommendationMaintenance {
 
   /** 4:30: dọn gợi ý cũ, bản nháp hết phiên bản không còn ai trỏ tới, chủ đề hết hạn. */
   async cleanup(): Promise<{ recommendations: number; drafts: number; themes: number }> {
-    // DELETE qua DataSource.query trả về [rows, số dòng bị ảnh hưởng], không phải mảng rows
-    // như INSERT/SELECT — lấy phần tử thứ hai (rowCount) thay vì đếm theo `.length`.
-    const [, recommendations] = (await this.db.query(
-      `DELETE FROM user_recommendations WHERE created_at < now() - $1::int * interval '1 day'`,
+    // TypeORM trả DELETE/UPDATE dạng [rows, rowCount], khác INSERT/SELECT.
+    const [recs] = (await this.db.query(
+      `DELETE FROM user_recommendations WHERE created_at < now() - $1::int * interval '1 day' RETURNING id`,
       [KEEP_RECOMMENDATIONS_DAYS],
     )) as [unknown[], number];
-    const [, drafts] = (await this.db.query(
+    const [drafts] = (await this.db.query(
       `DELETE FROM itinerary_drafts d
         USING region_place_lists l
         WHERE l.region_id = d.region_id
           AND l.fetched_at IS NOT NULL AND d.list_version < l.fetched_at
-          AND NOT EXISTS (SELECT 1 FROM user_recommendations ur WHERE ur.draft_id = d.id)`,
+          AND NOT EXISTS (SELECT 1 FROM user_recommendations ur WHERE ur.draft_id = d.id)
+        RETURNING d.id`,
     )) as [unknown[], number];
-    const [, themes] = (await this.db.query(
-      `DELETE FROM user_themes WHERE expires_at < now()`,
+    const [themes] = (await this.db.query(
+      `DELETE FROM user_themes WHERE expires_at < now() RETURNING id`,
     )) as [unknown[], number];
-    return { recommendations, drafts, themes };
+    return { recommendations: recs.length, drafts: drafts.length, themes: themes.length };
   }
 
   /** Xếp lại bằng Gemini; false khi không cần (đã là `ai`) hoặc bản nháp không còn. Gemini lỗi thì ném để BullMQ thử lại. */

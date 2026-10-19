@@ -114,6 +114,18 @@ describe('Gợi ý trang chủ (e2e)', () => {
     expect(draft.body.days).toHaveLength(2);
     expect(draft.body.days[0].date).toBe(feed.items[0].startsAt.slice(0, 10));
 
+    // Xem lại cùng một gợi ý không được tăng view_count thêm lần nữa
+    // (viewed_at chỉ được set một lần — ngưỡng nâng cấp Gemini dựa vào đây).
+    const viewCount = async () =>
+      (
+        (await db.query(`SELECT view_count FROM itinerary_drafts WHERE id = $1`, [draft.body.draftId])) as Array<{
+          view_count: number;
+        }>
+      )[0].view_count;
+    expect(await viewCount()).toBe(1);
+    await api(u.token).get(`/recommendations/${id}`).expect(200);
+    expect(await viewCount()).toBe(1);
+
     const params = { ...draft.body.params };
     const nextWeek = new Date(Date.parse(`${draft.body.days[0].date}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10);
     const sameDraft = await api(u.token)
