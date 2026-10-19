@@ -8,6 +8,7 @@ import { RegionsModule } from '../regions/regions.module.js';
 import { Itinerary } from './entities/itinerary.entity.js';
 import { ItinerariesController } from './itineraries.controller.js';
 import { ItinerariesService } from './itineraries.service.js';
+import { ItineraryPlanner } from './itinerary-planner.js';
 import { ShareLinksController } from './share-links.controller.js';
 import { ShareLinksService } from './share-links.service.js';
 
@@ -20,6 +21,7 @@ import { ShareLinksService } from './share-links.service.js';
     PlacesModule,
   ],
   controllers: [ItinerariesController, ShareLinksController],
-  providers: [ItinerariesService, ShareLinksService],
+  providers: [ItinerariesService, ShareLinksService, ItineraryPlanner],
+  exports: [ItinerariesService, ItineraryPlanner],
 })
 export class ItinerariesModule {}
