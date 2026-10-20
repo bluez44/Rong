@@ -2,6 +2,7 @@ import type { PlaceCategory, PlaceDetail, PlaceImage } from '@rong/shared-types'
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
@@ -13,6 +14,7 @@ import { AdaptiveImage } from '@/components/ui/adaptive-image';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
+import { fadeIn, fadeOut, layoutShift } from '@/constants/motion';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { usePlaceDetail } from '@/hooks/use-place-detail';
@@ -69,17 +71,17 @@ export default function PlaceDetailScreen() {
         scrollEnabled={!mapTouched}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
         {place ? (
-          <View style={styles.facts}>
+          <Animated.View layout={layoutShift} style={styles.facts}>
             {place.locationSource === 'ai' ? <ApproximateLocation /> : null}
             <Hours place={place} />
             {/* Địa chỉ của Rong (từ bài viết), ngay dưới giờ mở cửa. */}
-            <View style={styles.addressRow}>
+            <Animated.View layout={layoutShift} style={styles.addressRow}>
               <Icon name="pin" size={16} color={Colors.light.textSecondary} />
               <Text style={[styles.addressText, !place.address && styles.addressMissing]}>
                 {place.address ?? 'Chưa tìm được địa chỉ'}
               </Text>
-            </View>
-          </View>
+            </Animated.View>
+          </Animated.View>
         ) : null}
 
         {detail.status === 'loading' && !place ? (
@@ -150,18 +152,18 @@ function Hours({ place }: { place: PlaceDetail }) {
         {canExpand ? <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={16} color={Colors.light.textSecondary} /> : null}
       </Pressable>
       {expanded && week ? (
-        <View style={styles.week}>
+        <Animated.View entering={fadeIn} exiting={fadeOut} style={styles.week}>
           {week.map((line, i) => (
             <Text key={line} style={[styles.weekLine, i === todayIndex && styles.weekToday]}>
               {line}
             </Text>
           ))}
-        </View>
+        </Animated.View>
       ) : null}
       {expanded && raw ? (
-        <View style={styles.week}>
+        <Animated.View entering={fadeIn} exiting={fadeOut} style={styles.week}>
           <Text style={styles.weekLine}>{raw}</Text>
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );

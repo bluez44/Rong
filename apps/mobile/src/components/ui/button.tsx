@@ -1,6 +1,8 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Glass } from '@/components/glass';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 
 export type ButtonVariant = 'primary' | 'glass' | 'ai' | 'plain' | 'danger';
@@ -16,8 +18,9 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 
 const HEIGHT = { sm: 34, md: MinTouch, lg: 54 } as const;
 
-export function Button({ label, variant = 'primary', size = 'md', loading, disabled, style, ...rest }: ButtonProps) {
+export function Button({ label, variant = 'primary', size = 'md', loading, disabled, style, onPressIn, onPressOut, ...rest }: ButtonProps) {
   const inactive = disabled || loading;
+  const [pressed, setPressed] = useState(false);
   const textColor = inactive && variant === 'primary' ? Colors.light.textDisabled : TEXT_COLOR[variant];
 
   const content = (
@@ -28,17 +31,24 @@ export function Button({ label, variant = 'primary', size = 'md', loading, disab
   );
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       hitSlop={size === 'sm' ? 5 : undefined}
-      style={({ pressed }) => [
+      onPressIn={(e) => {
+        setPressed(true);
+        onPressIn?.(e);
+      }}
+      onPressOut={(e) => {
+        setPressed(false);
+        onPressOut?.(e);
+      }}
+      style={[
         styles.base,
         { minHeight: HEIGHT[size], paddingHorizontal: size === 'sm' ? Spacing.three : Spacing.five },
         variant === 'primary' && { backgroundColor: inactive ? Colors.light.backgroundElement : pressed ? Colors.light.primaryPressed : Colors.light.primary },
         variant === 'ai' && { backgroundColor: Colors.light.aiFill },
-        pressed && !inactive && styles.pressed,
         style,
       ]}
       {...rest}>
@@ -46,7 +56,7 @@ export function Button({ label, variant = 'primary', size = 'md', loading, disab
         <Glass shape="capsule" interactive style={[StyleSheet.absoluteFill]} pointerEvents="none" />
       ) : null}
       {content}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -66,7 +76,6 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderRadius: Radius.pill,
   },
-  pressed: { transform: [{ scale: 0.97 }] },
   label: { ...Type.headline, fontSize: 16, lineHeight: 22 },
   labelLg: Type.headline,
   labelSm: Type.subhead,
