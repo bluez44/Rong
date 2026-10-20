@@ -95,6 +95,27 @@ describe('Nơi đã đi (e2e)', () => {
     return row.id;
   };
 
+  /** Lịch trình đã kết thúc chỉ có mục nghỉ (không địa điểm). */
+  const restOnlyItinerary = async (ownerId: string, daysAgo: number) => {
+    const rest = {
+      id: 'rest-0',
+      kind: 'rest',
+      placeId: null,
+      place: null,
+      dayPart: 'morning',
+      order: 0,
+      startsAt: '2026-01-03T08:00:00+07:00',
+      endsAt: '2026-01-03T09:00:00+07:00',
+      isAiSuggested: false,
+    };
+    await db.query(
+      `INSERT INTO itineraries (owner_id, region_id, planner, starts_at, ends_at, input, days)
+       VALUES ($1, $2, 'heuristic', now() - ($3::int + 1) * interval '1 day',
+               now() - $3::int * interval '1 day', '{}', $4::jsonb)`,
+      [ownerId, regionId, daysAgo, JSON.stringify([{ id: 'day-1', date: '2026-01-03', startsAt: '2026-01-03T08:00:00+07:00', endsAt: '2026-01-03T18:00:00+07:00', items: [rest] }])],
+    );
+  };
+
   const statusOf = async (userId: string) =>
     Object.fromEntries(
       (
@@ -209,6 +230,19 @@ describe('Nơi đã đi (e2e)', () => {
       .send({ itineraryId, visitedPlaceIds: [] })
       .expect(404);
     expect(hidden.body.code).toBe('ITINERARY_NOT_FOUND');
+  });
+
+  it('pending: lịch trình không có địa điểm không chiếm chỗ trong giới hạn 5', async () => {
+    const user = await newUser();
+    const withPlaces = await endedItinerary(user.id, 3);
+    for (let i = 0; i < 5; i++) await restOnlyItinerary(user.id, 1);
+    const res = await request(app.getHttpServer())
+      .get('/api/visits/pending')
+      .set('Authorization', `Bearer ${user.token}`)
+      .expect(200);
+    expect(
+      (res.body as Array<{ itineraryId: string }>).map((p) => p.itineraryId),
+    ).toEqual([withPlaces]);
   });
 
   it('pending bỏ lịch trình kết thúc quá 60 ngày', async () => {

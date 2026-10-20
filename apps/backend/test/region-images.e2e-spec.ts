@@ -61,6 +61,17 @@ describe('Ảnh vùng (e2e)', () => {
     expect(await images.fetch(regionId)).toBe('skipped');
   });
 
+  it('ảnh bị chặn thì không tìm lại, kể cả "none" đã cũ', async () => {
+    await db.query(`DELETE FROM region_images WHERE region_id = $1`, [regionId]);
+    await db.query(
+      `INSERT INTO region_images (region_id, status, blocked, fetched_at) VALUES ($1, 'none', true, now() - interval '40 days')`,
+      [regionId],
+    );
+    searchLandscape.mockClear();
+    expect(await images.fetch(regionId)).toBe('skipped');
+    expect(searchLandscape).not.toHaveBeenCalled();
+  });
+
   it('Unsplash không có → ảnh địa điểm hạng cao nhất, ghi nguồn bài viết', async () => {
     await db.query(`DELETE FROM region_images WHERE region_id = $1`, [regionId]);
     searchLandscape.mockResolvedValueOnce(null);

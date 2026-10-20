@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   ItineraryDay,
@@ -11,6 +11,9 @@ import { DataSource } from 'typeorm';
 import { decide } from '../groups/access.js';
 import { AccessService } from '../groups/access.service.js';
 import { itineraryNotFound } from '../groups/errors.js';
+import { jobIdOf } from '../recommendations/queue/jobs.js';
+import { RecommendationsQueue } from '../recommendations/queue/recommendations-queue.js';
+import { windowFor } from '../recommendations/window.js';
 
 /** Chỉ hỏi lại các chuyến kết thúc trong chừng này ngày. */
 const PENDING_WINDOW_DAYS = 60;
@@ -26,9 +29,13 @@ const MY_ITINERARY = `(i.owner_id = $1 OR EXISTS (
  */
 @Injectable()
 export class VisitsService {
+  private readonly logger = new Logger(VisitsService.name);
+
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly access: AccessService,
+    // Module toàn cục (RecommendationsQueueModule): không import RecommendationsModule, tránh vòng.
+    private readonly queue: RecommendationsQueue,
   ) {}
 
   /** Thêm `inferred` cho mọi địa điểm của lịch trình đã kết thúc; dòng đã có (kể cả `rejected`) giữ nguyên. */
@@ -68,6 +75,7 @@ export class VisitsService {
         WHERE i.ends_at < now()
           AND i.ends_at > now() - $2::int * interval '1 day'
           AND i.visit_reviewed_at IS NULL
+          AND jsonb_path_exists(i.days, '$[*].items[*].placeId ? (@ != null)')
           AND ${MY_ITINERARY}
         ORDER BY i.ends_at DESC
         LIMIT $3`,
@@ -134,6 +142,33 @@ export class VisitsService {
         [itineraryId],
       );
     });
+    await this.invalidateRecommendations(userId);
+  }
+
+  /**
+   * Thẻ gợi ý của khung giờ hiện tại được dựng trước khi người dùng xác nhận nơi đã đi:
+   * xóa thẻ chưa lưu (mọi chủ đề) và job dựng của chúng để lần mở trang chủ sau dựng lại.
+   */
+  private async invalidateRecommendations(userId: string): Promise<void> {
+    const { windowStart } = windowFor(new Date());
+    // TypeORM trả DELETE ... RETURNING dạng [rows, rowCount].
+    const [rows] = (await this.db.query(
+      `DELETE FROM user_recommendations
+        WHERE user_id = $1 AND window_start = $2 AND saved_itinerary_id IS NULL
+        RETURNING theme_key`,
+      [userId, windowStart],
+    )) as [Array<{ theme_key: string }>, number];
+    for (const themeKey of new Set(rows.map((r) => r.theme_key))) {
+      const jobId = jobIdOf({
+        name: 'build-user-set',
+        data: { userId, windowStart: windowStart.toISOString(), themeKey },
+      })!;
+      try {
+        await this.queue.remove(jobId);
+      } catch (error) {
+        this.logger.error(`Không xóa được job gợi ý ${jobId}: ${(error as Error).message}`);
+      }
+    }
   }
 }
 

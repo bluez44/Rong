@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { LangchainService } from '../src/langchain/langchain.service.js';
+import { RecommendationsQueue } from '../src/modules/recommendations/queue/recommendations-queue.js';
 import { RecommendationBuilder } from '../src/modules/recommendations/recommendation-builder.js';
 import { UnsplashClient } from '../src/modules/recommendations/unsplash.client.js';
 import { windowFor } from '../src/modules/recommendations/window.js';
@@ -135,6 +136,49 @@ describe('RecommendationBuilder (e2e)', () => {
     await builder.build(userId, windowStart, themeKey);
     await builder.build(userId, windowStart, themeKey);
     expect(await rowsOf(userId, themeKey)).toHaveLength(3);
+  });
+
+  it('ảnh vùng "none" quá 30 ngày được tìm lại, trừ khi bị chặn', async () => {
+    const regionId = regions[0].id;
+    const [prior] = (await db.query(`SELECT * FROM region_images WHERE region_id = $1`, [regionId])) as Array<
+      Record<string, unknown>
+    >;
+    const queue = app.get(RecommendationsQueue);
+    const enqueued = vi.spyOn(queue, 'enqueueMany').mockResolvedValue(undefined);
+    const imageJobs = () =>
+      enqueued.mock.calls
+        .flatMap(([jobs]) => jobs)
+        .filter((j) => j.name === 'fetch-region-image' && j.data.regionId === regionId);
+    const setImage = (blocked: boolean) =>
+      db.query(
+        `INSERT INTO region_images (region_id, status, blocked, fetched_at)
+         VALUES ($1, 'none', $2, now() - interval '31 days')
+         ON CONFLICT (region_id) DO UPDATE SET status = 'none', url = NULL, source = NULL,
+           blocked = EXCLUDED.blocked, fetched_at = EXCLUDED.fetched_at`,
+        [regionId, blocked],
+      );
+    try {
+      const userId = await newUser();
+      const themeKey = await themeFor(userId);
+      await setImage(false);
+      await builder.build(userId, windowStart, themeKey);
+      expect(imageJobs()).toHaveLength(1);
+
+      enqueued.mockClear();
+      await setImage(true);
+      await builder.build(userId, windowStart, themeKey);
+      expect(imageJobs()).toHaveLength(0);
+    } finally {
+      enqueued.mockRestore();
+      await db.query(`DELETE FROM region_images WHERE region_id = $1`, [regionId]);
+      if (prior) {
+        const cols = Object.keys(prior);
+        await db.query(
+          `INSERT INTO region_images (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+          cols.map((c) => prior[c]),
+        );
+      }
+    }
   });
 
   it('chủ đề không tồn tại → UNKNOWN_THEME', async () => {
