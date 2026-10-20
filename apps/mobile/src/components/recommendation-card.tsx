@@ -1,8 +1,9 @@
 import type { RecommendationCard as Card, RegionImage } from '@rong/shared-types';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 
 import { AdaptiveImage } from '@/components/ui/adaptive-image';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 
@@ -75,11 +76,12 @@ export function RecommendationCard({
 }) {
   const photo = card.image ? credit(card.image) : null;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={`${card.title}, ${duration(card)}. ${card.reason}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.tripCard, pressed && styles.pressed]}>
+      scaleTo={0.98}
+      style={styles.tripCard}>
       <View style={styles.cardImageContainer}>
         {card.image ? (
           <AdaptiveImage uri={card.image.url} fit="box" style={styles.cardImage} transition={250} />
@@ -149,7 +151,7 @@ export function RecommendationCard({
           <Icon name="forward" size={15} color={Colors.light.primary} />
         </View>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -264,7 +266,6 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontFamily: Type.headline.fontFamily,
   },
-  pressed: { opacity: 0.92 },
   credit: {
     position: 'absolute',
     right: Spacing.three,
