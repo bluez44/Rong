@@ -145,6 +145,8 @@ put /rong/prod/app/OPEN_DATA_CONTACT_EMAIL '<email liên hệ cho OSM>'
 # Không bắt buộc, gợi ý lịch trình trang chủ:
 #   UNSPLASH_ACCESS_KEY    ảnh vùng từ Unsplash; trống thì dùng ảnh từ bài viết
 #   REDIS_HOST, REDIS_PORT hàng đợi BullMQ (cổng mặc định 6379)
+#   REDIS_USERNAME, REDIS_PASSWORD  Redis có mật khẩu (Redis Cloud: user "default")
+#   REDIS_TLS              true = kết nối TLS
 #   RECOMMENDATIONS_ENABLED false = tắt hàng đợi dù có REDIS_HOST
 
 put /rong/prod/dockerhub/USERNAME '<tên Docker Hub>'
@@ -153,10 +155,16 @@ put /rong/prod/dockerhub/TOKEN '<token ec2-pull (Read-only)>'
 
 `DB_HOST`, `DB_PORT`, `NODE_ENV`, `PORT` đã cố định trong `docker-compose.yml`.
 
-`docker-compose.yml` chưa có Redis. Với `NODE_ENV=production`, hàng đợi gợi ý chỉ bật
-khi `REDIS_HOST` được đặt, nên hiện nó tắt: job gợi ý chạy ngay trong process backend
-và không có lịch làm mới 6:00/15:00 hay dọn dẹp hằng ngày. Khi thêm Redis, đặt
-`REDIS_HOST` (và `REDIS_PORT` nếu khác 6379).
+`docker-compose.yml` không có Redis: dùng Redis ngoài (Redis Cloud). Với
+`NODE_ENV=production`, hàng đợi gợi ý chỉ bật khi `REDIS_HOST` được đặt; chưa đặt thì
+job gợi ý chạy ngay trong process backend và không có lịch làm mới 6:00/15:00 hay dọn
+dẹp hằng ngày.
+
+Redis Cloud: lấy *Public endpoint* (`host:port`) và mật khẩu của user `default` ở trang
+Configuration / Security của database, đặt `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME=default`,
+`REDIS_PASSWORD`, và `REDIS_TLS=true` nếu database bật TLS. BullMQ cần
+*Data eviction policy* = `noeviction` (Redis xóa khóa của hàng đợi thì job mất).
+
 Đổi secret xong thì chạy lại workflow (Actions → Deploy backend → Run workflow)
 để máy ghi lại `.env`.
 

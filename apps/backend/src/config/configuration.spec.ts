@@ -45,3 +45,42 @@ describe('loadConfig: hạn mức tìm địa điểm', () => {
     expect(() => loadConfig()).toThrow(key);
   });
 });
+
+describe('loadConfig: kết nối Redis', () => {
+  beforeEach(() => {
+    vi.stubEnv('DB_HOST', 'localhost');
+    vi.stubEnv('DB_PORT', '5432');
+    vi.stubEnv('DB_USERNAME', 'u');
+    vi.stubEnv('DB_PASSWORD', 'p');
+    vi.stubEnv('DB_DATABASE', 'd');
+    vi.stubEnv('JWT_SECRET', 'x'.repeat(32));
+    vi.stubEnv('REDIS_HOST', '');
+    vi.stubEnv('REDIS_PORT', '');
+    vi.stubEnv('REDIS_USERNAME', '');
+    vi.stubEnv('REDIS_PASSWORD', '');
+    vi.stubEnv('REDIS_TLS', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('mặc định localhost:6379, không mật khẩu, không TLS', () => {
+    expect(loadConfig().redis).toEqual({ host: 'localhost', port: 6379 });
+  });
+
+  it('Redis Cloud: user, mật khẩu và TLS', () => {
+    vi.stubEnv('REDIS_HOST', 'redis-1.cloud.redislabs.com');
+    vi.stubEnv('REDIS_PORT', '12345');
+    vi.stubEnv('REDIS_USERNAME', 'default');
+    vi.stubEnv('REDIS_PASSWORD', 'bi-mat');
+    vi.stubEnv('REDIS_TLS', 'true');
+    expect(loadConfig().redis).toEqual({
+      host: 'redis-1.cloud.redislabs.com',
+      port: 12345,
+      username: 'default',
+      password: 'bi-mat',
+      tls: {},
+    });
+  });
+});
