@@ -22,6 +22,16 @@ const toDate = (s: string) => new Date(`${s}T08:00:00`);
 const toDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/**
+ * Ngày đi sớm nhất (giờ Việt Nam): chuyến bắt đầu 8:00 ngày đầu, nên qua 8:00 hôm nay
+ * thì phải từ ngày mai. Máy chủ cũng từ chối ngày như vậy (INVALID_DATES).
+ */
+function earliestStartDay(now = new Date()): string {
+  const vn = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  if (vn.getUTCHours() >= 8) vn.setUTCDate(vn.getUTCDate() + 1);
+  return vn.toISOString().slice(0, 10);
+}
+
 /** Đổi ngày đi, số ngày, đối tượng, số người, nhịp độ, ngân sách của bản nháp. */
 export function TripParamsSheet({
   visible,
@@ -69,7 +79,7 @@ export function TripParamsSheet({
         <DateTimeField
           label="Ngày đi"
           value={toDate(value.startDate)}
-          minimumDate={new Date()}
+          minimumDate={toDate(earliestStartDay())}
           onChange={(d) => set('startDate', toDay(d))}
         />
         <Stepper label="Số ngày" value={value.daysCount} min={1} max={7} onChange={(n) => set('daysCount', n)} />

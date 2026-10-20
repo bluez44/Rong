@@ -34,6 +34,11 @@ export default function HomeScreen() {
   const [theme, setTheme] = useState('default');
   const recs = useRecommendations(theme);
   const themes = recs.feed?.themes ?? [];
+  // Chủ đề đang chọn đã hết hạn hoặc bị thay (chủ đề riêng làm mới hằng tuần): về "Dành cho bạn".
+  // Đặt lại state ngay trong lúc render (không qua effect) theo cách React khuyên.
+  if (recs.error?.code === 'UNKNOWN_THEME' && theme !== 'default') {
+    setTheme('default');
+  }
   const visits = usePendingVisits();
   const [reviewing, setReviewing] = useState(false);
   // Giữ chuyến đang hỏi trong sheet, kể cả khi nó vừa bị bỏ khỏi danh sách (để còn hiện lỗi).
