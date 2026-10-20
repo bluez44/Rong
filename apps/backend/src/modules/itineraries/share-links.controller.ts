@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
 } from '@nestjs/common';
 import type {
   CurrentItineraryShareLink,
@@ -38,6 +39,15 @@ export class ShareLinksController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<ItineraryShareLink> {
     return this.links.create(user.userId, id);
+  }
+
+  /** Lấy hoặc tạo link, không thu hồi link đã gửi. POST thì luôn tạo link mới. */
+  @Put('itineraries/:id/share-link')
+  ensure(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<ItineraryShareLink> {
+    return this.links.ensure(user.userId, id);
   }
 
   @Delete('itineraries/:id/share-link')

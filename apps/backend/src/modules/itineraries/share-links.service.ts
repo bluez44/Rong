@@ -77,6 +77,32 @@ export class ShareLinksService {
     return { link: { token, createdAt: row.created_at.toISOString() } };
   }
 
+  /**
+   * Lấy link đang hiệu lực, chưa có thì tạo (quyền sửa) — đường chia sẻ của app. Không bao giờ
+   * thu hồi link còn lấy lại được: hai người bấm chia sẻ cùng lúc nhận cùng một link.
+   */
+  async ensure(
+    userId: string,
+    itineraryId: string,
+  ): Promise<ItineraryShareLink> {
+    await this.itineraries.authorize(userId, itineraryId, 'edit');
+    const linkId = randomUUID();
+    await this.db.query(
+      `INSERT INTO itinerary_share_links (id, itinerary_id, token_hash, created_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (itinerary_id) WHERE revoked_at IS NULL DO NOTHING`,
+      [
+        linkId,
+        itineraryId,
+        hashToken(shareLinkToken(this.config.secret, linkId)),
+        userId,
+      ],
+    );
+    const { link } = await this.current(userId, itineraryId);
+    // Link đang hiệu lực là link cũ không lấy lại được token: thay bằng link mới.
+    return link ?? this.create(userId, itineraryId);
+  }
+
   async revoke(userId: string, itineraryId: string): Promise<void> {
     await this.itineraries.authorize(userId, itineraryId, 'edit');
     await this.db.query(

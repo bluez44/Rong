@@ -98,7 +98,7 @@ Other behavior:
 - Edits (`PUT /itineraries/:id`) are re-timed by `planning/retime.ts`. That produces advisory warnings such as a long leg, a long day, a missing meal or a closed place. They never block the save.
 - `GET /itineraries/:id/alternatives` suggests similar places.
 - Party rules, meal windows and typical hours per category are in `planning/rules.ts`.
-- Share links (`share-links.*`) expose a read-only public view at `public/itineraries/:token`, rendered by `apps/web` at `/t/:token`. `GET itineraries/:id/share-link` returns the active link to anyone who can view the itinerary (the token is derived from the link id by HMAC, so only its hash is stored); `POST` rotates it.
+- Share links (`share-links.*`) expose a read-only public view at `public/itineraries/:token`, rendered by `apps/web` at `/t/:token`. `GET itineraries/:id/share-link` returns the active link to anyone who can view the itinerary (the token is derived from the link id by HMAC, so only its hash is stored); `PUT` gets or creates it without revoking (the app's share path), `POST` rotates it.
 
 ### Groups (S8)
 `modules/groups`: groups, invite links, roles (owner, editor, viewer), a shared place list and an activity log. An itinerary can be moved into a group with `PATCH /itineraries/:id/group`.
@@ -124,6 +124,7 @@ Redis is required in dev for the recommendations queue (`pnpm infra:up`); set `R
 ## Deploy
 - `apps/backend/Dockerfile` builds from the repo root.
 - `infra/prod/` holds the EC2 + Caddy + Docker Compose setup; see its README.
+- Set `SHARE_LINK_SECRET` on the backend host. Without it share-link tokens derive from `JWT_SECRET`, and rotating that makes every existing share link unrecoverable (the next share replaces it).
 - The GitHub Actions workflow `.github/workflows/deploy-backend.yml` is currently commented out.
 - Home recommendations need Redis: `infra/prod/docker-compose.yml` has no Redis service yet — add one before deploying.
 

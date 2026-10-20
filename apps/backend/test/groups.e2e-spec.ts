@@ -741,6 +741,37 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       await call(null).get(`/itineraries/${tripId}/share-link`).expect(401);
     });
 
+    it('PUT lấy hoặc tạo link: gọi đồng thời vẫn ra một link, không thu hồi link đã gửi', async () => {
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      const [x, y] = await Promise.all([
+        call('a').put(`/itineraries/${tripId}/share-link`),
+        call('a').put(`/itineraries/${tripId}/share-link`),
+      ]);
+      expect([x.status, y.status]).toEqual([200, 200]);
+      expect(x.body.token).toBe(y.body.token);
+      const again = await call('a')
+        .put(`/itineraries/${tripId}/share-link`)
+        .expect(200);
+      expect(again.body).toEqual(x.body);
+      await call(null).get(`/public/itineraries/${x.body.token}`).expect(200);
+      await call('c').put(`/itineraries/${tripId}/share-link`).expect(403);
+      await call('b').put(`/itineraries/${tripId}/share-link`).expect(404);
+    });
+
+    it('PUT thay link cũ không suy ra được token bằng link dùng được', async () => {
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      await db.query(
+        `INSERT INTO itinerary_share_links (itinerary_id, token_hash) VALUES ($1, $2)`,
+        [tripId, 'e'.repeat(64)],
+      );
+      const link = await call('a')
+        .put(`/itineraries/${tripId}/share-link`)
+        .expect(200);
+      await call(null)
+        .get(`/public/itineraries/${link.body.token}`)
+        .expect(200);
+    });
+
     it('link cũ không suy ra được token thì trả null', async () => {
       await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
       // Giống link tạo trước khi có token suy ra: hash của một token ngẫu nhiên.

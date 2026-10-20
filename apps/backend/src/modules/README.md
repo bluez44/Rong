@@ -167,6 +167,7 @@ GET    /api/itineraries          danh sách của tôi
 GET    /api/itineraries/:id
 DELETE /api/itineraries/:id
 GET    /api/itineraries/:id/share-link   link xem đang hiệu lực (quyền xem, kể cả viewer) hoặc { link: null }
+PUT    /api/itineraries/:id/share-link   lấy hoặc tạo, không thu hồi link đã gửi (quyền sửa) — app dùng khi chia sẻ
 POST   /api/itineraries/:id/share-link   tạo link mới, thu hồi link cũ (quyền sửa)
 DELETE /api/itineraries/:id/share-link   thu hồi (quyền sửa)
 GET    /api/public/itineraries/:token    trang chỉ xem, không cần đăng nhập (apps/web /t/:token)

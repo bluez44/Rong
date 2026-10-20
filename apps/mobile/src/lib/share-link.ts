@@ -12,8 +12,8 @@ export function itineraryShareUrl(token: string): string {
 type AuthFetch = <T>(path: string, options?: Omit<RequestOptions, 'token'>) => Promise<T>;
 
 /**
- * Token của link đang hiệu lực; chưa có thì người sửa được tạo mới. Không tạo lại khi đã có link, vì tạo mới sẽ thu
- * hồi link đã gửi cho người khác. Null: người chỉ xem và lịch trình chưa có link.
+ * Token của link đang hiệu lực. Người sửa được dùng PUT (lấy hoặc tạo, không thu hồi link đã gửi, kể cả khi hai người
+ * bấm chia sẻ cùng lúc); người chỉ xem chỉ đọc. Null: người chỉ xem và lịch trình chưa có link.
  */
 export async function resolveShareToken(
   authFetch: AuthFetch,
@@ -21,8 +21,7 @@ export async function resolveShareToken(
   canCreate: boolean,
 ): Promise<string | null> {
   const path = `/itineraries/${itineraryId}/share-link`;
+  if (canCreate) return (await authFetch<ItineraryShareLink>(path, { method: 'PUT' })).token;
   const { link } = await authFetch<CurrentItineraryShareLink>(path);
-  if (link) return link.token;
-  if (!canCreate) return null;
-  return (await authFetch<ItineraryShareLink>(path, { method: 'POST' })).token;
+  return link?.token ?? null;
 }
