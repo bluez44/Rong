@@ -1,3 +1,4 @@
+import type { PendingVisitReview } from '@rong/shared-types';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -35,6 +36,8 @@ export default function HomeScreen() {
   const themes = recs.feed?.themes ?? [];
   const visits = usePendingVisits();
   const [reviewing, setReviewing] = useState(false);
+  // Giữ chuyến đang hỏi trong sheet, kể cả khi nó vừa bị bỏ khỏi danh sách (để còn hiện lỗi).
+  const [reviewTarget, setReviewTarget] = useState<PendingVisitReview | null>(null);
 
   // Quay về trang chủ (ví dụ sau khi lưu một gợi ý): tải lại ngầm để thẻ hiện "Đã lưu".
   const { refresh } = recs;
@@ -126,7 +129,11 @@ export default function HomeScreen() {
               action={
                 <View style={styles.visitActions}>
                   <Button label="Để sau" variant="plain" size="sm" onPress={visits.dismiss} />
-                  <Button label="Trả lời" size="sm" onPress={() => setReviewing(true)} />
+                  <Button label="Trả lời" size="sm" onPress={() => {
+                      setReviewTarget(visits.pending);
+                      setReviewing(true);
+                    }}
+                  />
                 </View>
               }>
               Bạn đã đến những nơi nào?
@@ -202,14 +209,14 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {visits.pending ? (
+      {reviewTarget ? (
         <VisitReviewSheet
-          review={visits.pending}
+          review={reviewTarget}
           visible={reviewing}
           onClose={() => setReviewing(false)}
           onSubmit={async (ids) => {
-            await visits.submit(ids);
-            recs.reload();
+            await visits.submit(reviewTarget.itineraryId, ids);
+            recs.refresh();
           }}
         />
       ) : null}
