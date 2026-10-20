@@ -17,7 +17,13 @@ const data =
         : {};
 
 const queue = new Queue(AI_JOBS.has(name) ? 'recommendations-ai' : 'recommendations', {
-  connection: { host: process.env.REDIS_HOST ?? 'localhost', port: Number(process.env.REDIS_PORT ?? 6379) },
+  connection: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: Number(process.env.REDIS_PORT || 6379),
+    username: process.env.REDIS_USERNAME || undefined,
+    password: process.env.REDIS_PASSWORD || undefined,
+    ...(process.env.REDIS_TLS === 'true' && { tls: {} }),
+  },
 });
 await queue.add(name, data);
 console.log(`Đã đẩy job ${name}`, data);

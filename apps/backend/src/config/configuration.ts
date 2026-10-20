@@ -17,6 +17,11 @@ export interface DatabaseConfig {
 export interface RedisConfig {
   host: string;
   port: number;
+  /** Redis có ACL (Redis Cloud: `default`); trống thì chỉ gửi mật khẩu. */
+  username?: string;
+  password?: string;
+  /** `REDIS_TLS=true`: ioredis bật TLS khi có khóa `tls`. */
+  tls?: Record<string, never>;
 }
 
 export interface AuthConfig {
@@ -181,8 +186,15 @@ export function loadConfig(): AppConfig {
       url: process.env.DATABASE_URL || undefined,
     },
     redis: {
-      host: process.env.REDIS_HOST ?? 'localhost',
+      host: process.env.REDIS_HOST || 'localhost',
       port: toInt(process.env.REDIS_PORT, 6379),
+      ...(process.env.REDIS_USERNAME && {
+        username: process.env.REDIS_USERNAME,
+      }),
+      ...(process.env.REDIS_PASSWORD && {
+        password: process.env.REDIS_PASSWORD,
+      }),
+      ...(process.env.REDIS_TLS === 'true' && { tls: {} }),
     },
     auth: {
       jwtSecret: requireStrongSecret(process.env.JWT_SECRET as string),
