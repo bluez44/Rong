@@ -304,15 +304,17 @@ export function AiTipsAccess({ tips }: { tips: string[] }) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const pulse = useSharedValue(1);
-  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+  const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.get() }] }));
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withTiming(1.06, { duration: 1100, reduceMotion: ReduceMotion.System }),
-      -1,
-      true,
-      undefined,
-      ReduceMotion.System,
+    pulse.set(
+      withRepeat(
+        withTiming(1.06, { duration: 1100, reduceMotion: ReduceMotion.System }),
+        -1,
+        true,
+        undefined,
+        ReduceMotion.System,
+      ),
     );
     return () => cancelAnimation(pulse);
   }, [pulse]);

@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
+import Animated from 'react-native-reanimated';
 
 import { useAuth } from '@/auth/auth-context';
 import { useTabBarInset } from '@/components/floating-tab-bar';
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { VisitReviewSheet } from '@/components/visit-review-sheet';
+import { enterItem, fadeIn, fadeOut, layoutShift } from '@/constants/motion';
 import {
   Colors,
   MinTouch,
@@ -127,7 +129,7 @@ export default function HomeScreen() {
         </View>
 
         {visits.pending ? (
-          <View style={styles.sectionContainer}>
+          <Animated.View entering={enterItem()} exiting={fadeOut} style={styles.sectionContainer}>
             <Notice
               title={`Chuyến ${visits.pending.regionName} đã kết thúc`}
               action={
@@ -142,7 +144,7 @@ export default function HomeScreen() {
               }>
               Bạn đã đến những nơi nào?
             </Notice>
-          </View>
+          </Animated.View>
         ) : null}
 
         <View style={styles.sectionContainer}>
@@ -155,9 +157,13 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={styles.cardsStack}>
+          <Animated.View layout={layoutShift} style={styles.cardsStack}>
             {recs.status === 'loading' || recs.status === 'building'
-              ? [0, 1, 2].map((i) => <RecommendationCardSkeleton key={i} />)
+              ? [0, 1, 2].map((i) => (
+                  <Animated.View key={`skeleton-${i}`} entering={fadeIn} exiting={fadeOut}>
+                    <RecommendationCardSkeleton />
+                  </Animated.View>
+                ))
               : null}
 
             {recs.status === 'timeout' ? (
@@ -186,20 +192,21 @@ export default function HomeScreen() {
             ) : null}
 
             {recs.status === 'ready'
-              ? recs.feed?.items.map((card) => (
-                  <RecommendationCard
-                    key={card.id}
-                    card={card}
-                    themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
-                    onPress={() =>
-                      card.savedItineraryId
-                        ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
-                        : router.push({ pathname: '/recommendation/[id]', params: { id: card.id } })
-                    }
-                  />
+              ? recs.feed?.items.map((card, index) => (
+                  <Animated.View key={card.id} entering={enterItem(index)} exiting={fadeOut} layout={layoutShift}>
+                    <RecommendationCard
+                      card={card}
+                      themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
+                      onPress={() =>
+                        card.savedItineraryId
+                          ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
+                          : router.push({ pathname: '/recommendation/[id]', params: { id: card.id } })
+                      }
+                    />
+                  </Animated.View>
                 ))
               : null}
-          </View>
+          </Animated.View>
         </View>
 
         {/* Editorial Cultural Quote Footer */}

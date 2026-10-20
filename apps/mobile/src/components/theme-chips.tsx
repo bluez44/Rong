@@ -1,9 +1,11 @@
 import type { RecommendationTheme } from '@rong/shared-types';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { isThemeIcon } from '@/components/recommendation-card';
 import { Icon } from '@/components/ui/icon';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { Duration } from '@/constants/motion';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 
 export function ThemeChips({
@@ -21,13 +23,13 @@ export function ThemeChips({
         {themes.map((theme) => {
           const active = theme.key === selected;
           return (
-            <Pressable
+            <PressableScale
               key={theme.key}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={theme.regionHint ? `${theme.label}, ${theme.regionHint}` : theme.label}
               onPress={() => onSelect(theme.key)}
-              style={[styles.moodChip, active ? styles.moodChipActive : styles.moodChipInactive]}>
+              style={[styles.moodChip, styles.chipTransition, active ? styles.moodChipActive : styles.moodChipInactive]}>
               <Icon name={isThemeIcon(theme.icon) ? theme.icon : 'sparkles'} size={16} color={active ? Palette.onPine : Colors.light.primary} />
               <View>
                 <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>{theme.label}</Text>
@@ -37,7 +39,7 @@ export function ThemeChips({
                   </Text>
                 ) : null}
               </View>
-            </Pressable>
+            </PressableScale>
           );
         })}
       </ScrollView>
@@ -46,6 +48,10 @@ export function ThemeChips({
 }
 
 const styles = StyleSheet.create({
+  chipTransition: {
+    transitionProperty: ['backgroundColor', 'borderColor'],
+    transitionDuration: Duration.quick,
+  },
   carouselContainer: {
     marginTop: Spacing.two,
   },
