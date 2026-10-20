@@ -92,6 +92,12 @@ export interface InviteLinksConfig {
   androidSha256: string[];
 }
 
+/** Link xem lịch trình trên web (FR-10.3). */
+export interface ShareLinksConfig {
+  /** Khóa HMAC suy ra token từ id link (`share-link-token.ts`). Mặc định dùng `JWT_SECRET`. */
+  secret: string;
+}
+
 /** Gợi ý lịch trình trang chủ (spec 2026-10-19-home-recommendations). */
 export interface RecommendationsConfig {
   /** Dùng BullMQ + Redis. Tắt (hoặc NODE_ENV=test) thì job chạy ngay trong process, không có lịch cron. */
@@ -113,6 +119,7 @@ export interface AppConfig {
   placeSearch: PlaceSearchConfig;
   webPlaces: WebPlacesConfig;
   inviteLinks: InviteLinksConfig;
+  shareLinks: ShareLinksConfig;
   recommendations: RecommendationsConfig;
 }
 
@@ -135,10 +142,10 @@ function requireEnv(keys: string[]): void {
 
 const MIN_JWT_SECRET_LENGTH = 32;
 
-function requireStrongSecret(value: string): string {
+function requireStrongSecret(value: string, name = 'JWT_SECRET'): string {
   if (value.length < MIN_JWT_SECRET_LENGTH) {
     throw new Error(
-      `JWT_SECRET phải dài ít nhất ${MIN_JWT_SECRET_LENGTH} ký tự. ` +
+      `${name} phải dài ít nhất ${MIN_JWT_SECRET_LENGTH} ký tự. ` +
         `Sinh nhanh bằng: openssl rand -base64 48`,
     );
   }
@@ -267,6 +274,14 @@ export function loadConfig(): AppConfig {
         .split(',')
         .map((value) => value.trim())
         .filter(Boolean),
+    },
+    shareLinks: {
+      secret: process.env.SHARE_LINK_SECRET
+        ? requireStrongSecret(
+            process.env.SHARE_LINK_SECRET,
+            'SHARE_LINK_SECRET',
+          )
+        : (process.env.JWT_SECRET as string),
     },
     recommendations: {
       queueEnabled: recommendationsQueueEnabled(process.env),
