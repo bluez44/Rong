@@ -161,6 +161,29 @@ function positiveInt(key: string, fallback: number): number {
   return value;
 }
 
+/**
+ * `redis://[user]:[mật khẩu]@host:cổng` (Render, Redis Cloud); `rediss://` = TLS.
+ * Thay cho REDIS_HOST/PORT/USERNAME/PASSWORD/TLS khi được đặt.
+ */
+function parseRedisUrl(raw: string): RedisConfig {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new Error('REDIS_URL không phải URL hợp lệ.');
+  }
+  if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') {
+    throw new Error('REDIS_URL phải bắt đầu bằng redis:// hoặc rediss://.');
+  }
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 6379,
+    ...(url.username && { username: decodeURIComponent(url.username) }),
+    ...(url.password && { password: decodeURIComponent(url.password) }),
+    ...(url.protocol === 'rediss:' && { tls: {} }),
+  };
+}
+
 export function loadConfig(): AppConfig {
   requireEnv([
     'DB_HOST',
@@ -185,17 +208,19 @@ export function loadConfig(): AppConfig {
       database: process.env.DB_DATABASE as string,
       url: process.env.DATABASE_URL || undefined,
     },
-    redis: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: toInt(process.env.REDIS_PORT, 6379),
-      ...(process.env.REDIS_USERNAME && {
-        username: process.env.REDIS_USERNAME,
-      }),
-      ...(process.env.REDIS_PASSWORD && {
-        password: process.env.REDIS_PASSWORD,
-      }),
-      ...(process.env.REDIS_TLS === 'true' && { tls: {} }),
-    },
+    redis: process.env.REDIS_URL
+      ? parseRedisUrl(process.env.REDIS_URL)
+      : {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: toInt(process.env.REDIS_PORT, 6379),
+          ...(process.env.REDIS_USERNAME && {
+            username: process.env.REDIS_USERNAME,
+          }),
+          ...(process.env.REDIS_PASSWORD && {
+            password: process.env.REDIS_PASSWORD,
+          }),
+          ...(process.env.REDIS_TLS === 'true' && { tls: {} }),
+        },
     auth: {
       jwtSecret: requireStrongSecret(process.env.JWT_SECRET as string),
       accessTokenTtlSeconds: toInt(process.env.ACCESS_TOKEN_TTL_SECONDS, 900),
@@ -252,13 +277,15 @@ export function loadConfig(): AppConfig {
 
 /**
  * e2e (vitest đặt NODE_ENV=test) luôn chạy job trong process, không cần Redis. Production
- * chỉ bật khi có REDIS_HOST: compose production chưa có Redis, không để mặc định
- * "localhost" khiến hàng đợi bật mà không bao giờ nối được.
+ * chỉ bật khi có REDIS_URL hoặc REDIS_HOST: không để mặc định "localhost" khiến hàng đợi
+ * bật mà không bao giờ nối được.
  */
 export function recommendationsQueueEnabled(env: NodeJS.ProcessEnv): boolean {
   return (
     env.NODE_ENV !== 'test' &&
     env.RECOMMENDATIONS_ENABLED !== 'false' &&
-    (env.NODE_ENV !== 'production' || Boolean(env.REDIS_HOST))
+    (env.NODE_ENV !== 'production' ||
+      Boolean(env.REDIS_URL) ||
+      Boolean(env.REDIS_HOST))
   );
 }
