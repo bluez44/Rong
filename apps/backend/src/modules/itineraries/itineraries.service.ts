@@ -124,6 +124,76 @@ export class ItinerariesService {
     return this.respond(saved, { isCreator: true, groupRole: null });
   }
 
+  /**
+   * Tính lại cảnh báo của một lịch đã xếp sau khi dời sang ngày khác (bản nháp gợi ý
+   * ở trang chủ): giữ thứ tự và giờ bắt đầu của mọi mục, nhưng giờ mở cửa xét theo
+   * thứ trong tuần của ngày thật. Chỉ là cảnh báo, không bỏ mục nào. Cảnh báo không
+   * phụ thuộc giờ trong ngày (như thiếu vị trí) giữ nguyên.
+   */
+  async retimePlan(
+    input: ItineraryInput,
+    days: ItineraryDay[],
+    warnings: ItineraryWarning[],
+  ): Promise<{ days: ItineraryDay[]; warnings: ItineraryWarning[] }> {
+    const placeIds = [
+      ...new Set(
+        days.flatMap((d) =>
+          d.items.flatMap((i) => (i.placeId ? [i.placeId] : [])),
+        ),
+      ),
+    ];
+    const places = new Map(
+      (await this.planner.loadPlaces(placeIds, true)).map((c) => [c.id, c]),
+    );
+    const [accommodation] = input.accommodationPlaceId
+      ? await this.planner.loadPlaces([input.accommodationPlaceId], false)
+      : [];
+    const transport =
+      input.transport ?? PARTY_RULES[input.travelParty].defaultTransport;
+
+    const recomputed: ItineraryWarning[] = [];
+    const retimed = days.map((day, index) => {
+      const result = retimeDay(
+        day.items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          placeId: item.placeId,
+          mealType: item.mealType,
+          durationMinutes: Math.round(
+            (Date.parse(item.endsAt) - Date.parse(item.startsAt)) / 60_000,
+          ),
+          // Ghim giờ đã xếp để giờ không đổi; chỉ cảnh báo được tính lại.
+          startTime: clockOf(item.startsAt),
+          reason: item.reason,
+          isAiSuggested: item.isAiSuggested,
+        })),
+        {
+          day: windowOf(day, index),
+          transport,
+          accommodation: accommodation ?? null,
+          places,
+        },
+      );
+      recomputed.push(...result.warnings);
+      return {
+        ...day,
+        items: result.items.map((item, i) => ({
+          ...item,
+          // Địa điểm không còn trong danh mục: giữ ảnh chụp cũ.
+          place: item.place ?? day.items[i].place,
+          fixedStart: day.items[i].fixedStart,
+        })),
+      };
+    });
+    return {
+      days: retimed,
+      warnings: [
+        ...warnings.filter((w) => !RETIMED_WARNINGS.has(w.type)),
+        ...recomputed,
+      ],
+    };
+  }
+
   /** Lịch trình tôi tạo và lịch trình thuộc nhóm tôi tham gia. */
   async list(userId: string): Promise<ItinerarySummary[]> {
     return itinerarySummaries(this.db, userId, null);
@@ -387,6 +457,20 @@ function normalize(dto: CreateItineraryDto): ItineraryInput {
 }
 
 /** Khung giờ của một ngày đã lưu, để tính lại giờ khi sửa. */
+/** Loại cảnh báo `retimeDay` tính ra từ giờ trong ngày. */
+const RETIMED_WARNINGS = new Set<ItineraryWarning['type']>([
+  'place_closed',
+  'long_travel_leg',
+  'overloaded_day',
+  'missing_meal',
+]);
+
+/** "HH:mm" giờ Việt Nam của một mốc ISO. */
+function clockOf(iso: string): string {
+  const { minute } = toVietnamLocal(iso);
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
 function windowOf(day: ItineraryDay, index: number): DayWindow {
   const [y, m, d] = day.date.split('-').map(Number);
   return {

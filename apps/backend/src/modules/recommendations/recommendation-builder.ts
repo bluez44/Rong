@@ -190,8 +190,12 @@ export class RecommendationBuilder {
   private async enqueueMissingImages(regionIds: string[]): Promise<void> {
     if (regionIds.length === 0) return;
     const rows = (await this.db.query(
+      // Chưa có ảnh, hoặc lần trước không tìm thấy đã quá 30 ngày (ảnh bị chặn thì thôi).
       `SELECT id FROM unnest($1::uuid[]) AS id
-        WHERE NOT EXISTS (SELECT 1 FROM region_images ri WHERE ri.region_id = id)`,
+        WHERE NOT EXISTS (
+          SELECT 1 FROM region_images ri
+           WHERE ri.region_id = id
+             AND (ri.blocked OR ri.status <> 'none' OR ri.fetched_at >= now() - interval '30 days'))`,
       [regionIds],
     )) as Array<{ id: string }>;
     await this.queue.enqueueMany(

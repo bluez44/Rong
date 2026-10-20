@@ -153,6 +153,13 @@ describe('Gợi ý trang chủ (e2e)', () => {
     await api(u.token).post(`/recommendations/${id}/preview`, { ...base, startDate: '2026-02-30' }).expect(400);
     const past = await api(u.token).post(`/recommendations/${id}/preview`, { ...base, startDate: '2020-01-04' }).expect(400);
     expect(past.body.code).toBe('INVALID_DATES');
+    // Hôm nay chỉ chọn được khi 8:00 (giờ Việt Nam) chưa qua.
+    const vnNow = new Date(Date.now() + 7 * 3_600_000);
+    if (vnNow.getUTCHours() >= 8) {
+      const today = vnNow.toISOString().slice(0, 10);
+      const late = await api(u.token).post(`/recommendations/${id}/preview`, { ...base, startDate: today }).expect(400);
+      expect(late.body.code).toBe('INVALID_DATES');
+    }
 
     const after = await api(u.token).get(`/recommendations/${id}`).expect(200);
     expect(after.body.draftId).toBe(draft.body.draftId);
@@ -196,6 +203,173 @@ describe('Gợi ý trang chủ (e2e)', () => {
     expect(feedAfter.body.items.find((c: { id: string }) => c.id === id).savedItineraryId).toBeNull();
     const again = await api(u.token).post(`/recommendations/${id}/save`, { draftId: draft.body.draftId }).expect(201);
     expect(again.body.id).not.toBe(saved.body.id);
+  });
+
+  it('dời sang thứ khác → cảnh báo tính lại theo ngày thật (đóng cửa thứ Hai); lưu giữ cảnh báo đó', async () => {
+    const u = await newUser();
+    const feed = await readyFeed(u.token, u.theme);
+    const id = feed.items[0].id;
+    const draft = await api(u.token).get(`/recommendations/${id}`).expect(200);
+    const visit = draft.body.days[0].items.find((i: { kind: string }) => i.kind === 'visit');
+    const [{ tags }] = (await db.query(`SELECT tags FROM places WHERE id = $1`, [visit.placeId])) as Array<{
+      tags: Record<string, unknown> | null;
+    }>;
+    await db.query(
+      `UPDATE places SET tags = COALESCE(tags, '{}'::jsonb) || '{"opening_hours": "Sa,Su 00:00-23:59; Mo-Fr off"}'::jsonb
+        WHERE id = $1`,
+      [visit.placeId],
+    );
+    try {
+      const saturday = draft.body.days[0].date as string;
+      const monday = new Date(Date.parse(`${saturday}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
+      const closed = (w: { type: string; message: string }) =>
+        w.type === 'place_closed' && w.message.includes(visit.place.name);
+
+      const sameDay = await api(u.token)
+        .post(`/recommendations/${id}/preview`, { ...draft.body.params, startDate: saturday })
+        .expect(201);
+      expect(sameDay.body.warnings.some(closed)).toBe(false);
+
+      const moved = await api(u.token)
+        .post(`/recommendations/${id}/preview`, { ...draft.body.params, startDate: monday })
+        .expect(201);
+      expect(moved.body.draftId).toBe(draft.body.draftId);
+      expect(moved.body.days[0].date).toBe(monday);
+      // Giờ giữ nguyên, chỉ cảnh báo được tính lại.
+      const movedVisit = moved.body.days[0].items.find((i: { id: string }) => i.id === visit.id);
+      expect(movedVisit.startsAt).toBe(visit.startsAt.replace(saturday, monday));
+      expect(moved.body.warnings.some(closed)).toBe(true);
+
+      const again = await api(u.token).get(`/recommendations/${id}`).expect(200);
+      expect(again.body.warnings.some(closed)).toBe(true);
+
+      const saved = await api(u.token).post(`/recommendations/${id}/save`, { draftId: moved.body.draftId }).expect(201);
+      expect(saved.body.days[0].date).toBe(monday);
+      expect(saved.body.warnings.some(closed)).toBe(true);
+    } finally {
+      await db.query(`UPDATE places SET tags = $2::jsonb WHERE id = $1`, [
+        visit.placeId,
+        tags === null ? null : JSON.stringify(tags),
+      ]);
+    }
+  }, 20_000);
+
+  it('lưu giữ tọa độ ảnh chụp của bản nháp, không lưu tọa độ Google đang hiển thị', async () => {
+    const u = await newUser();
+    const feed = await readyFeed(u.token, u.theme);
+    const id = feed.items[2].id;
+    const draft = await api(u.token).get(`/recommendations/${id}`).expect(200);
+    const visit = draft.body.days[0].items.find((i: { kind: string }) => i.kind === 'visit');
+    const snapshot = visit.place.coordinates as { lat: number; lng: number };
+    expect(snapshot).not.toBeNull();
+    await db.query(
+      `UPDATE places SET location_source = 'google', google_place_id = 'e2e-rec-' || id::text,
+              location_expires_at = now() + interval '1 day',
+              location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326)
+        WHERE id = $1`,
+      [visit.placeId, snapshot.lng + 0.1, snapshot.lat + 0.1],
+    );
+    try {
+      const live = await api(u.token).get(`/recommendations/${id}`).expect(200);
+      const liveVisit = live.body.days[0].items.find((i: { id: string }) => i.id === visit.id);
+      expect(liveVisit.place.coordinates.lat).toBeCloseTo(snapshot.lat + 0.1);
+
+      const saved = await api(u.token).post(`/recommendations/${id}/save`, { draftId: draft.body.draftId }).expect(201);
+      const [{ days }] = (await db.query(`SELECT days FROM itineraries WHERE id = $1`, [saved.body.id])) as Array<{
+        days: Array<{ items: Array<{ id: string; place: { coordinates: unknown } | null }> }>;
+      }>;
+      expect(days[0].items.find((i) => i.id === visit.id)!.place!.coordinates).toEqual(snapshot);
+    } finally {
+      await db.query(
+        `UPDATE places SET location_source = 'ai', google_place_id = NULL, location_expires_at = NULL,
+                location = ST_SetSRID(ST_MakePoint($2::float8, $3::float8), 4326)
+          WHERE id = $1`,
+        [visit.placeId, snapshot.lng, snapshot.lat],
+      );
+    }
+  });
+
+  it('hai lần lưu cùng lúc → đúng một lịch trình, một 201 và một 200 cùng id', async () => {
+    const u = await newUser();
+    const feed = await readyFeed(u.token, u.theme);
+    const id = feed.items[0].id;
+    const draft = await api(u.token).get(`/recommendations/${id}`).expect(200);
+    const [a, b] = await Promise.all([
+      api(u.token).post(`/recommendations/${id}/save`, { draftId: draft.body.draftId }),
+      api(u.token).post(`/recommendations/${id}/save`, { draftId: draft.body.draftId }),
+    ]);
+    expect([a.status, b.status].sort((x, y) => x - y)).toEqual([200, 201]);
+    expect(a.body.id).toBe(b.body.id);
+    const [{ n }] = (await db.query(`SELECT count(*)::int AS n FROM itineraries WHERE owner_id = $1`, [u.id])) as Array<{
+      n: number;
+    }>;
+    expect(n).toBe(1);
+  });
+
+  /** Lịch trình đã kết thúc của `userId` (thông số như bản nháp `draft`) chứa đúng một mục `item`. */
+  const endedItinerary = async (
+    userId: string,
+    draft: { regionId: string; input: object; days: object[] },
+    item: object,
+  ) => {
+    const [{ id }] = (await db.query(
+      `INSERT INTO itineraries (owner_id, region_id, planner, starts_at, ends_at, input, days)
+       VALUES ($1, $2, 'heuristic', now() - interval '3 days', now() - interval '2 days', $3::jsonb, $4::jsonb)
+       RETURNING id`,
+      [userId, draft.regionId, JSON.stringify(draft.input), JSON.stringify([{ ...draft.days[0], items: [item] }])],
+    )) as Array<{ id: string }>;
+    return id;
+  };
+
+  const review = (token: string, itineraryId: string, visitedPlaceIds: string[]) =>
+    request(app.getHttpServer())
+      .post('/api/visits/review')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ itineraryId, visitedPlaceIds })
+      .expect(204);
+
+  it('xác nhận nơi đã đi → thẻ của khung giờ bị xóa, lần mở sau dựng lại không có nơi đó', async () => {
+    const u = await newUser();
+    const feed = await readyFeed(u.token, u.theme);
+    const draft = await api(u.token).get(`/recommendations/${feed.items[0].id}`).expect(200);
+    const visit = draft.body.days[0].items.find((i: { kind: string }) => i.kind === 'visit');
+    const itineraryId = await endedItinerary(u.id, draft.body, visit);
+
+    await review(u.token, itineraryId, [visit.placeId]);
+    expect(await db.query(`SELECT id FROM user_recommendations WHERE user_id = $1`, [u.id])).toEqual([]);
+    await api(u.token).get(`/recommendations/${feed.items[0].id}`).expect(404);
+
+    // Job dựng cũ đã bị xóa: không trả "ready" rỗng mà dựng lại.
+    const next = await api(u.token).get(`/recommendations?theme=${encodeURIComponent(u.theme)}`).expect(200);
+    expect(next.body.status).toBe('building');
+    const rebuilt = await readyFeed(u.token, u.theme);
+    expect(rebuilt.items.length).toBeGreaterThan(0);
+    for (const card of rebuilt.items as Array<{ id: string }>) {
+      const d = await api(u.token).get(`/recommendations/${card.id}`).expect(200);
+      const ids = (d.body.days as Array<{ items: Array<{ placeId: string | null }> }>).flatMap((day) =>
+        day.items.map((i) => i.placeId),
+      );
+      expect(ids).not.toContain(visit.placeId);
+    }
+  }, 20_000);
+
+  it('xác nhận nơi đã đi giữ lại thẻ đã lưu', async () => {
+    const u = await newUser();
+    const feed = await readyFeed(u.token, u.theme);
+    const saved = feed.items[2];
+    const savedDraft = await api(u.token).get(`/recommendations/${saved.id}`).expect(200);
+    await api(u.token).post(`/recommendations/${saved.id}/save`, { draftId: savedDraft.body.draftId }).expect(201);
+
+    const draft = await api(u.token).get(`/recommendations/${feed.items[0].id}`).expect(200);
+    const visit = draft.body.days[0].items.find((i: { kind: string }) => i.kind === 'visit');
+    const itineraryId = await endedItinerary(u.id, draft.body, visit);
+
+    await review(u.token, itineraryId, [visit.placeId]);
+    const rows = (await db.query(`SELECT id FROM user_recommendations WHERE user_id = $1`, [u.id])) as Array<{
+      id: string;
+    }>;
+    expect(rows.map((r) => r.id)).toEqual([saved.id]);
+    await queue.idle();
   });
 
   it('draftId cũ → DRAFT_NOT_FOUND; người khác → RECOMMENDATION_NOT_FOUND; chủ đề lạ → UNKNOWN_THEME', async () => {

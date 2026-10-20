@@ -18,11 +18,12 @@ export class RegionImages {
 
   async fetch(regionId: string): Promise<'found' | 'none' | 'skipped'> {
     const [existing] = (await this.db.query(
-      `SELECT status, fetched_at > now() - $2::int * interval '1 day' AS fresh
+      `SELECT status, blocked, fetched_at > now() - $2::int * interval '1 day' AS fresh
          FROM region_images WHERE region_id = $1`,
       [regionId, RETRY_NONE_DAYS],
-    )) as Array<{ status: 'found' | 'none'; fresh: boolean }>;
-    if (existing && (existing.status === 'found' || existing.fresh)) return 'skipped';
+    )) as Array<{ status: 'found' | 'none'; blocked: boolean; fresh: boolean }>;
+    // Ảnh bị chặn (gỡ thủ công) không tìm lại.
+    if (existing && (existing.blocked || existing.status === 'found' || existing.fresh)) return 'skipped';
 
     const [region] = (await this.db.query(`SELECT name FROM regions WHERE id = $1`, [regionId])) as Array<{ name: string }>;
     if (!region) return 'skipped';

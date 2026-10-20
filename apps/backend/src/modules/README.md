@@ -200,10 +200,18 @@ chỉ nâng cấp bằng Gemini (`upgrade-draft`) khi được xem nhiều (`vie
   tự tạo danh sách khi đang tính gợi ý. Chỉ job theo lịch `warm-featured-regions` được gọi
   `WebPlacesService.listForRegion()` để tạo trước danh sách cho các vùng nổi bật.
 - Hàng đợi BullMQ: `recommendations` (job thường) và `recommendations-ai` (job gọi Gemini, có limiter riêng để
-  không bị job thường chặn). Tắt bằng `RECOMMENDATIONS_ENABLED=false`, hoặc tự động tắt khi `NODE_ENV=test`
-  (e2e): job chạy ngay trong process (`RecommendationsQueue`), không có lịch chạy theo cron
+  không bị job thường chặn). Tắt bằng `RECOMMENDATIONS_ENABLED=false`, tự động tắt khi `NODE_ENV=test`
+  (e2e), và với `NODE_ENV=production` chỉ bật khi có `REDIS_HOST`: job chạy ngay trong process (`RecommendationsQueue`), không có lịch chạy theo cron
   (`RecommendationScheduler`, 4 lịch: làm mới 6:00/15:00, sinh chủ đề thứ Hai 3:00, làm nóng vùng nổi bật 2:00,
-  dọn dữ liệu cũ 4:30, múi giờ `Asia/Ho_Chi_Minh`).
+  dọn dữ liệu cũ 4:30, múi giờ `Asia/Ho_Chi_Minh`). Hàng đợi bật mà Redis không tới được thì app vẫn khởi động
+  (lịch chạy đăng ký nền), lệnh hàng đợi trên đường request lỗi sau 3 giây và bị bỏ qua có log: trang chủ trả
+  `building`, lưu hồ sơ / xác nhận nơi đã đi vẫn thành công.
+- Bản nháp xếp trên thứ Bảy neo rồi dời sang ngày đi thật; khác thứ trong tuần thì `ItinerariesService.retimePlan`
+  tính lại cảnh báo (đóng cửa, giờ mở cửa…) theo ngày thật, giữ nguyên giờ. `save` lưu bản dời ngày này (tọa độ ảnh
+  chụp), không lưu bản trả về API đã điền tọa độ Google còn hạn. Hai lần lưu cùng lúc: chỉ lần gắn được
+  `saved_itinerary_id` thắng, lần kia xóa lịch trình vừa tạo và trả lịch trình thắng (200).
+- `POST /visits/review` xóa thẻ chưa lưu của khung giờ hiện tại (mọi chủ đề) và job dựng của chúng, để lần mở trang
+  chủ sau dựng lại không có nơi vừa xác nhận.
 - Ảnh cho thẻ gợi ý (`region-images.ts`): Unsplash (`UNSPLASH_ACCESS_KEY`, tùy chọn) → ảnh hạng cao nhất của vùng
   lấy từ bài viết (có nguồn) → không có ảnh. Lưu vào `region_images`; cột `blocked` dùng để gỡ một ảnh mà không bị
   job làm mới ghi đè lại.

@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   Itinerary,
   ItineraryDay,
   ItineraryDraft,
+  ItineraryInput,
+  ItineraryWarning,
   PreviewDraftRequest,
   RecommendationCard,
   RecommendationFeed,
@@ -17,8 +19,8 @@ import { ItinerariesService } from '../itineraries/itineraries.service.js';
 import { withItineraryPlaceData } from '../itineraries/itinerary-place-data.js';
 import { VisitsService } from '../visits/visits.service.js';
 import { cardTitle, reasonText, type RecommendationReason } from './copy.js';
-import { shiftPlan, tripBounds, vietnamDate } from './draft-dates.js';
-import { DraftPool } from './draft-pool.js';
+import { daysBetween, shiftPlan, tripBounds, vietnamDate } from './draft-dates.js';
+import { DraftPool, type DraftRow } from './draft-pool.js';
 import { jobIdOf } from './queue/jobs.js';
 import { RecommendationsQueue } from './queue/recommendations-queue.js';
 import { draftCategories, RecommendationBuilder } from './recommendation-builder.js';
@@ -54,8 +56,18 @@ const notFound = () =>
     message: 'Gợi ý này không còn nữa.',
   });
 
+/** Bản nháp đã dời sang ngày đi thật: đúng thứ `save` lưu (tọa độ là ảnh chụp, như lúc tạo lịch trình). */
+interface ShiftedPlan {
+  draft: DraftRow;
+  input: ItineraryInput;
+  days: ItineraryDay[];
+  warnings: ItineraryWarning[];
+}
+
 @Injectable()
 export class RecommendationsService {
+  private readonly logger = new Logger(RecommendationsService.name);
+
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly themes: ThemeCatalog,
@@ -92,10 +104,15 @@ export class RecommendationsService {
       data: { userId, windowStart: windowStart.toISOString(), themeKey },
     };
     const jobId = jobIdOf(job)!;
-    const state = await this.queue.state(jobId);
-    if (state === 'completed' && !retry) return { ...base, status: 'ready', items: [] };
-    if (state === 'failed' || (retry && state === 'completed')) await this.queue.remove(jobId);
-    if (state !== 'waiting' && state !== 'active') await this.queue.enqueue(job, { priority: 1 });
+    try {
+      const state = await this.queue.state(jobId);
+      if (state === 'completed' && !retry) return { ...base, status: 'ready', items: [] };
+      if (state === 'failed' || (retry && state === 'completed')) await this.queue.remove(jobId);
+      if (state !== 'waiting' && state !== 'active') await this.queue.enqueue(job, { priority: 1 });
+    } catch (error) {
+      // Hàng đợi (Redis) lỗi: không làm hỏng trang chủ, client hỏi lại sau.
+      this.logger.error(`Không đẩy được job gợi ý ${jobId}: ${(error as Error).message}`);
+    }
     return { ...base, status: 'building', items: [] };
   }
 
@@ -115,11 +132,12 @@ export class RecommendationsService {
 
   async preview(userId: string, id: string, req: PreviewDraftRequest): Promise<ItineraryDraft> {
     const rec = await this.own(userId, id);
-    if (req.startDate < vietnamDate(new Date())) {
+    // Chuyến bắt đầu 8:00 ngày đầu (giờ Việt Nam): giờ đó đã qua thì không chọn được ngày này.
+    if (Date.parse(tripBounds(req.startDate, req.daysCount).startsAt) <= Date.now()) {
       throw new BadRequestException({
         statusCode: 400,
         code: 'INVALID_DATES',
-        message: 'Ngày đi phải từ hôm nay trở đi.',
+        message: 'Chuyến đi bắt đầu lúc 8:00 ngày đầu; hãy chọn ngày đi mà giờ đó chưa qua.',
       });
     }
     const current = (await this.pool.get(rec.draft_id))!;
@@ -170,17 +188,30 @@ export class RecommendationsService {
     if (rec.saved_itinerary_id) {
       return { itinerary: await this.itineraries.get(userId, rec.saved_itinerary_id), created: false };
     }
-    const view = await this.view(rec);
+    // Lưu bản dời ngày thô, không phải bản trả về API: tọa độ Google còn hạn không được vào JSONB.
+    const plan = await this.shifted(rec);
     const itinerary = await this.itineraries.createFromPlan(userId, {
-      input: view.input,
-      days: view.days,
-      unscheduled: view.unscheduled,
-      warnings: view.warnings,
-      tips: view.tips,
-      planner: view.planner,
+      input: plan.input,
+      days: plan.days,
+      unscheduled: plan.draft.unscheduled,
+      warnings: plan.warnings,
+      tips: plan.draft.tips,
+      planner: plan.draft.planner,
       groupId: req.groupId ?? null,
     });
-    await this.db.query(`UPDATE user_recommendations SET saved_itinerary_id = $2 WHERE id = $1`, [id, itinerary.id]);
+    // Hai lần lưu cùng lúc: chỉ lần gắn được lịch trình vào gợi ý thắng; lần kia xóa bản vừa tạo.
+    // TypeORM trả UPDATE ... RETURNING dạng [rows, rowCount].
+    const [claimed] = (await this.db.query(
+      `UPDATE user_recommendations SET saved_itinerary_id = $2
+        WHERE id = $1 AND saved_itinerary_id IS NULL RETURNING id`,
+      [id, itinerary.id],
+    )) as [unknown[], number];
+    if (claimed.length === 0) {
+      await this.db.query(`DELETE FROM itineraries WHERE id = $1`, [itinerary.id]);
+      const winner = await this.own(userId, id);
+      if (!winner.saved_itinerary_id) throw notFound();
+      return { itinerary: await this.itineraries.get(userId, winner.saved_itinerary_id), created: false };
+    }
     await this.db.query(`UPDATE itinerary_drafts SET save_count = save_count + 1 WHERE id = $1`, [rec.draft_id]);
     await this.maybeUpgrade(rec.draft_id);
     return { itinerary, created: true };
@@ -193,7 +224,13 @@ export class RecommendationsService {
           AND (view_count >= $2::int OR save_count >= $3::int)`,
       [draftId, VIEW_UPGRADE_THRESHOLD, SAVE_UPGRADE_THRESHOLD],
     )) as unknown[];
-    if (row) await this.queue.enqueue({ name: 'upgrade-draft', data: { draftId } });
+    if (!row) return;
+    try {
+      await this.queue.enqueue({ name: 'upgrade-draft', data: { draftId } });
+    } catch (error) {
+      // Nâng cấp bằng Gemini chỉ là phụ: lỗi hàng đợi không làm hỏng request.
+      this.logger.error(`Không đẩy được job nâng cấp bản nháp ${draftId}: ${(error as Error).message}`);
+    }
   }
 
   private async own(userId: string, id: string): Promise<RecRow> {
@@ -202,23 +239,37 @@ export class RecommendationsService {
     return row;
   }
 
-  private async view(rec: RecRow): Promise<ItineraryDraft> {
+  /**
+   * Bản nháp (xếp trên thứ Bảy neo) dời sang ngày đi thật. Khác thứ trong tuần thì tính lại
+   * giờ và cảnh báo theo ngày thật (giờ mở cửa, đóng cửa); chỉ là cảnh báo, không chặn lưu.
+   */
+  private async shifted(rec: RecRow): Promise<ShiftedPlan> {
     const draft = (await this.pool.get(rec.draft_id))!;
     const startDate = vietnamDate(rec.starts_at);
     const shifted = shiftPlan(
       { input: { ...draft.input, adults: rec.params.adults, children: rec.params.children }, days: draft.days },
       startDate,
     );
+    if (daysBetween(vietnamDate(new Date(draft.input.startsAt)), startDate) % 7 === 0) {
+      return { draft, input: shifted.input, days: shifted.days, warnings: draft.warnings };
+    }
+    const retimed = await this.itineraries.retimePlan(shifted.input, shifted.days, draft.warnings);
+    return { draft, input: shifted.input, ...retimed };
+  }
+
+  /** Bản trả về API: bản dời ngày cộng địa chỉ và tọa độ Google còn hạn (không lưu). */
+  private async view(rec: RecRow): Promise<ItineraryDraft> {
+    const { draft, input, days, warnings } = await this.shifted(rec);
     return {
       recommendationId: rec.id,
       draftId: draft.id,
       regionId: rec.region_id,
       regionName: rec.region_name,
       params: rec.params,
-      input: shifted.input,
-      days: await withItineraryPlaceData(this.db, shifted.days),
+      input,
+      days: await withItineraryPlaceData(this.db, days),
       unscheduled: draft.unscheduled,
-      warnings: draft.warnings,
+      warnings,
       tips: draft.tips,
       planner: draft.planner,
       savedItineraryId: rec.saved_itinerary_id,
