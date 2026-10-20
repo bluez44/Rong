@@ -22,6 +22,8 @@ export function useResource<T>(path: string) {
   const latest = useRef(0);
 
   const reload = useCallback(async () => {
+    // Đường dẫn thiếu id (màn dùng chung, ví dụ bản đồ ngày của bản nháp): không gọi API, giữ 'loading'.
+    if (!path || path.endsWith('/')) return;
     const requestId = ++latest.current;
     setState((prev) => ({ ...prev, status: prev.data ? 'refreshing' : 'loading', error: null }));
     try {

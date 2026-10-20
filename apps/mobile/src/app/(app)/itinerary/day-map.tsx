@@ -14,23 +14,29 @@ import { Notice } from '@/components/ui/notice';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { useItinerary } from '@/hooks/use-itineraries';
+import { useRecommendationDraft } from '@/hooks/use-recommendation-draft';
 import { formatPlanDate, formatTime, MEAL_LABELS } from '@/lib/trip-format';
 
-/** `day`: chỉ số ngày (từ 0) trong `itinerary.days`. */
-type Params = { id: string; day?: string };
+/** `id`: lịch trình đã lưu, hoặc `recommendationId`: bản nháp gợi ý. `day`: chỉ số ngày (từ 0) trong `days`. */
+type Params = { id?: string; recommendationId?: string; day?: string };
 
 /** Một điểm dừng có tọa độ, đánh số theo thứ tự trên timeline của ngày. */
 type Stop = { item: ItineraryItem; number: number };
 
 /** Bản đồ các điểm dừng của một ngày trong lịch trình, mở từ card "Lộ trình ngày N". */
 export default function ItineraryDayMapScreen() {
-  const { id, day } = useLocalSearchParams<Params>();
+  const { id, recommendationId, day } = useLocalSearchParams<Params>();
   const insets = useSafeAreaInsets();
-  const itinerary = useItinerary(id);
+  // Bản đồ của lịch trình đã lưu hoặc của bản nháp gợi ý (spec 2026-10-19-home-recommendations).
+  const itinerary = useItinerary(id ?? '');
+  const draft = useRecommendationDraft(recommendationId ?? '');
+  const days = recommendationId ? draft.draft?.days : itinerary.data?.days;
+  // Trạng thái tải của nguồn đang dùng; hook kia giữ 'loading' vì không gọi API.
+  const load = recommendationId ? draft : itinerary;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const dayIndex = Math.max(0, Number(day) || 0);
-  const current = itinerary.data?.days[dayIndex] ?? itinerary.data?.days[0];
+  const current = days?.[dayIndex] ?? days?.[0];
   const places = current?.items.map((item, idx) => ({ item, number: idx + 1 })).filter(({ item }) => item.placeId && item.place) ?? [];
   const stops: Stop[] = places.filter(({ item }) => item.place?.coordinates);
   const missing = places.length - stops.length;
@@ -70,16 +76,16 @@ export default function ItineraryDayMapScreen() {
       </View>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.three }]} pointerEvents="box-none">
-        {itinerary.status === 'loading' ? (
+        {load.status === 'loading' ? (
           <Glass shape="rounded" variant="strong" style={styles.card}>
             <ActivityIndicator color={Colors.light.primary} accessibilityLabel="Đang tải" />
           </Glass>
-        ) : itinerary.status === 'error' && itinerary.error ? (
+        ) : load.status === 'error' && load.error ? (
           <Notice
             tone="danger"
             title="Chưa tải được lịch trình"
-            action={<Button label="Thử lại" variant="plain" size="sm" onPress={itinerary.reload} style={styles.inlineAction} />}>
-            {itinerary.error.message}
+            action={<Button label="Thử lại" variant="plain" size="sm" onPress={load.reload} style={styles.inlineAction} />}>
+            {load.error.message}
           </Notice>
         ) : selected ? (
           <StopCard stop={selected} onClose={() => setSelectedKey(null)} />
