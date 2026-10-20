@@ -1,9 +1,9 @@
 import type { PlaceListItem } from '@rong/shared-types';
-import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ApproximateLocation } from '@/components/ui/approximate-location';
+import { AdaptiveImage } from '@/components/ui/adaptive-image';
 import { Icon } from '@/components/ui/icon';
 import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
@@ -72,12 +72,11 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
       style={({ pressed }) => [styles.row, (pressed || selected) && styles.highlighted]}>
       <View style={styles.thumb}>
         {image ? (
-          <Image
-            source={{ uri: image.url }}
+          <AdaptiveImage
+            uri={image.url}
+            fit="box"
             style={styles.thumbImage}
-            contentFit="cover"
             transition={150}
-            accessible={false}
             onError={() => setImageFailed(true)}
           />
         ) : (

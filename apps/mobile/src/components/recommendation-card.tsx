@@ -1,8 +1,8 @@
 import type { RecommendationCard as Card, RegionImage } from '@rong/shared-types';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AdaptiveImage } from '@/components/ui/adaptive-image';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 
@@ -82,7 +82,7 @@ export function RecommendationCard({
       style={({ pressed }) => [styles.tripCard, pressed && styles.pressed]}>
       <View style={styles.cardImageContainer}>
         {card.image ? (
-          <Image source={card.image.url} style={styles.cardImage} contentFit="cover" transition={250} />
+          <AdaptiveImage uri={card.image.url} fit="box" style={styles.cardImage} transition={250} />
         ) : (
           <LinearGradient colors={themeGradient(themeIcon)} style={styles.cardImage} />
         )}

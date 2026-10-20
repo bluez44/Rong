@@ -1,5 +1,4 @@
 import type { PlaceCategory, PlaceDetail, PlaceImage } from '@rong/shared-types';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -10,6 +9,7 @@ import { GooglePlaceContentBlock } from '@/components/google-place-content';
 import { PointsMap } from '@/components/points-map';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
+import { AdaptiveImage } from '@/components/ui/adaptive-image';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
@@ -40,43 +40,47 @@ export default function PlaceDetailScreen() {
   return (
     // Chỉ chừa cạnh trên: nội dung cuộn xuống dưới thanh home.
     <Screen edges={['top']}>
+      {/* Tên và danh mục nằm ngoài ScrollView nên luôn thấy khi cuộn. */}
       <View style={styles.topBar}>
         <Pressable accessibilityRole="button" accessibilityLabel="Quay lại" onPress={() => router.back()}>
           <Glass shape="circle" interactive style={styles.backGlass}>
             <Icon name="back" color={Colors.light.text} />
           </Glass>
         </Pressable>
+        <View style={styles.header}>
+          {category ? (
+            <View style={styles.category}>
+              <Icon name={category} size={14} color={Colors.light.primary} />
+              <Text style={styles.categoryLabel}>{CATEGORY_LABELS[category]}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>
+            {name}
+          </Text>
+        </View>
         {place && params.regionId ? (
           <SaveButton place={place} region={{ id: params.regionId, name: params.regionName ?? 'Vùng đã chọn' }} />
-        ) : null}
+        ) : (
+          <View style={styles.backGlass} />
+        )}
       </View>
 
       <ScrollView
         scrollEnabled={!mapTouched}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.eight }]}>
-        {place?.image ? <ArticleImage image={place.image} /> : null}
-        <View style={styles.header}>
-          {category ? (
-            <View style={styles.category}>
-              <Icon name={category} size={16} color={Colors.light.primary} />
-              <Text style={styles.categoryLabel}>{CATEGORY_LABELS[category]}</Text>
-            </View>
-          ) : null}
-          <Text style={styles.title} accessibilityRole="header">
-            {name}
-          </Text>
-          {place?.locationSource === 'ai' ? <ApproximateLocation /> : null}
-          {place ? <Summary place={place} /> : null}
-          {/* Địa chỉ của Rong (từ bài viết), ngay dưới giờ mở cửa. */}
-          {place ? (
+        {place ? (
+          <View style={styles.facts}>
+            {place.locationSource === 'ai' ? <ApproximateLocation /> : null}
+            <Hours place={place} />
+            {/* Địa chỉ của Rong (từ bài viết), ngay dưới giờ mở cửa. */}
             <View style={styles.addressRow}>
               <Icon name="pin" size={16} color={Colors.light.textSecondary} />
               <Text style={[styles.addressText, !place.address && styles.addressMissing]}>
                 {place.address ?? 'Chưa tìm được địa chỉ'}
               </Text>
             </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
         {detail.status === 'loading' && !place ? (
           <View style={styles.status}>
@@ -103,51 +107,70 @@ export default function PlaceDetailScreen() {
   );
 }
 
-/** Ảnh từ bài viết (hotlink), kèm tên trang nguồn. Tải lỗi thì ẩn cả khối. */
-function ArticleImage({ image }: { image: PlaceImage }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return null;
-  return (
-    <View style={styles.photoBlock}>
-      <Image
-        source={{ uri: image.url }}
-        style={styles.photo}
-        contentFit="cover"
-        transition={200}
-        accessible={false}
-        onError={() => setFailed(true)}
-      />
-      <Text style={styles.photoCredit} accessibilityRole="link" onPress={() => Linking.openURL(image.sourceUrl)}>
-        Ảnh: {hostname(image.sourceUrl)}
-      </Text>
-    </View>
-  );
-}
-
 /** "zalopay.vn" từ link bài viết, bỏ "www.". */
 function hostname(url: string): string {
   const match = /^https?:\/\/([^/?#]+)/i.exec(url);
   return (match?.[1] ?? url).replace(/^www\./i, '');
 }
 
-/** Giờ mở cửa hôm nay: dữ liệu riêng của app (giờ trong bài viết), không phải của Google. */
-function Summary({ place }: { place: PlaceDetail }) {
-  const openState = place.hours?.openNow === true ? 'Đang mở' : place.hours?.openNow === false ? 'Đã đóng cửa' : null;
+/**
+ * Một khối giờ mở cửa: trạng thái + giờ hôm nay; bấm để xem cả tuần. Giờ từng
+ * ngày của Google nếu có, không thì giờ thô từ bài viết (`openingHours`).
+ */
+function Hours({ place }: { place: PlaceDetail }) {
+  const [expanded, setExpanded] = useState(false);
+  const openNow = place.hours?.openNow ?? place.google?.openNow ?? null;
+  const today = place.hours?.today ?? null;
+  const week = place.google?.weekdayHours.length ? place.google.weekdayHours : null;
+  const raw = !week && place.openingHours && place.openingHours !== today ? place.openingHours : null;
+  const canExpand = Boolean(week || raw);
 
-  if (!openState && !place.hours?.today) return null;
+  if (openNow === null && !today && !canExpand) return null;
+
+  const openLabel = openNow === true ? 'Đang mở' : openNow === false ? 'Đã đóng cửa' : null;
+  const todayIndex = week?.length === 7 ? vietnamWeekdayIndex() : -1;
 
   return (
-    <View style={styles.summary}>
-      <View style={styles.hoursToday}>
-        <Icon name="clock" size={16} />
-        <Text style={styles.meta}>
-          {openState ? <Text style={{ color: place.hours?.openNow ? Colors.light.primary : Colors.light.danger }}>{openState}</Text> : null}
-          {openState && place.hours?.today ? ' · ' : null}
-          {place.hours?.today}
+    <View>
+      <Pressable
+        disabled={!canExpand}
+        accessibilityRole={canExpand ? 'button' : undefined}
+        accessibilityState={canExpand ? { expanded } : undefined}
+        accessibilityHint={canExpand ? 'Xem giờ mở cửa cả tuần' : undefined}
+        onPress={() => setExpanded((v) => !v)}
+        style={styles.hoursRow}>
+        <Icon name="clock" size={16} color={Colors.light.textSecondary} />
+        <Text style={styles.hoursText}>
+          {openLabel ? (
+            <Text style={{ color: openNow ? Colors.light.primary : Colors.light.danger }}>{openLabel}</Text>
+          ) : null}
+          {openLabel && today ? ' · ' : null}
+          {today ?? (openLabel ? null : 'Giờ mở cửa')}
         </Text>
-      </View>
+        {canExpand ? <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={16} color={Colors.light.textSecondary} /> : null}
+      </Pressable>
+      {expanded && week ? (
+        <View style={styles.week}>
+          {week.map((line, i) => (
+            <Text key={line} style={[styles.weekLine, i === todayIndex && styles.weekToday]}>
+              {line}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+      {expanded && raw ? (
+        <View style={styles.week}>
+          <Text style={styles.weekLine}>{raw}</Text>
+        </View>
+      ) : null}
     </View>
   );
+}
+
+/** Thứ trong tuần theo giờ Việt Nam, Thứ Hai = 0 (thứ tự `weekdayHours` của Google). */
+function vietnamWeekdayIndex(): number {
+  const day = new Date(Date.now() + 7 * 60 * 60 * 1000).getUTCDay();
+  return (day + 6) % 7;
 }
 
 function PlaceBody({
@@ -160,27 +183,35 @@ function PlaceBody({
   onMapTouch: (active: boolean) => void;
 }) {
   const { height } = useWindowDimensions();
+  // Ảnh tải lỗi (link chết, chặn hotlink) thì bỏ hẳn, bản đồ đứng một mình.
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = place.image && !imageFailed ? place.image : null;
 
   return (
     <>
       <View style={styles.actionGroup}>
-        {/* Bản đồ vuốt/zoom được; chạm vào không mở Google Maps, việc đó để nút "Chỉ đường". */}
-        {place.coordinates ? (
-          <PointsMap
-            points={[
-              {
-                key: place.id,
-                lat: place.coordinates.lat,
-                lng: place.coordinates.lng,
-                icon: place.category,
-                label: place.name,
-                approximate: place.locationSource === 'ai',
-              },
-            ]}
-            selectedKey={place.id}
-            onTouchActiveChange={onMapTouch}
-            style={[styles.map, { height: Math.round(height * MAP_HEIGHT_RATIO) }]}
-          />
+        {/* Ảnh và bản đồ ghép một khối. Bản đồ vuốt/zoom được; chạm không mở Google Maps, việc đó để nút "Chỉ đường". */}
+        {image || place.coordinates ? (
+          <View style={styles.media}>
+            {image ? <ArticleImage image={image} onError={() => setImageFailed(true)} /> : null}
+            {place.coordinates ? (
+              <PointsMap
+                points={[
+                  {
+                    key: place.id,
+                    lat: place.coordinates.lat,
+                    lng: place.coordinates.lng,
+                    icon: place.category,
+                    label: place.name,
+                    approximate: place.locationSource === 'ai',
+                  },
+                ]}
+                selectedKey={place.id}
+                onTouchActiveChange={onMapTouch}
+                style={{ height: Math.round(height * (image ? MAP_HEIGHT_WITH_IMAGE : MAP_HEIGHT_RATIO)) }}
+              />
+            ) : null}
+          </View>
         ) : null}
         <View style={styles.actions}>
           <Button
@@ -196,19 +227,23 @@ function PlaceBody({
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}
 
-      {/* Giờ của Rong (bài viết / OSM cũ) chỉ hiện khi Google không có giờ từng ngày, để khỏi hai bảng giờ lệch nhau. */}
-      {place.openingHours && !place.google?.weekdayHours.length ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Giờ mở cửa</Text>
-          <Text style={styles.body}>{place.openingHours}</Text>
-        </View>
-      ) : null}
-
       <GoogleSection place={place} />
 
       {/* Link Google Maps (`sourceUrl`) nằm ở nút "Chỉ đường". */}
       <Text style={styles.attributionText}>Thông tin địa điểm: {place.attribution}</Text>
     </>
+  );
+}
+
+/** Ảnh từ bài viết (hotlink), khung theo tỉ lệ ảnh, tên trang nguồn đè góc dưới. */
+function ArticleImage({ image, onError }: { image: PlaceImage; onError: () => void }) {
+  return (
+    <View>
+      <AdaptiveImage uri={image.url} fit="natural" onError={onError} />
+      <Text style={styles.photoCredit} accessibilityRole="link" onPress={() => Linking.openURL(image.sourceUrl)}>
+        Ảnh: {hostname(image.sourceUrl)}
+      </Text>
+    </View>
   );
 }
 
@@ -255,7 +290,7 @@ function TripButton({ place, regionId }: { place: PlaceDetail; regionId: string 
 }
 
 function GoogleSection({ place }: { place: PlaceDetail }) {
-  if (place.googleStatus === 'ok' && place.google) return <GooglePlaceContentBlock content={place.google} />;
+  if (place.googleStatus === 'ok' && place.google) return <GooglePlaceContentBlock content={place.google} showHours={false} />;
   if (place.googleStatus === 'unavailable') {
     return <Notice title="Chưa tải được ảnh và đánh giá">Google Maps đang không phản hồi. Thử mở lại sau ít phút.</Notice>;
   }
@@ -275,50 +310,63 @@ function directionsUrl(place: PlaceDetail): string {
   return place.sourceUrl;
 }
 
-/** Bản đồ cao tối thiểu nửa màn hình. */
+/** Bản đồ cao nửa màn hình; có ảnh phía trên thì thấp hơn để cả khối vừa mắt. */
 const MAP_HEIGHT_RATIO = 0.5;
+const MAP_HEIGHT_WITH_IMAGE = 0.35;
 
 const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.three,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.light.hairline,
   },
   backGlass: { width: MinTouch, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: Spacing.four, gap: Spacing.six },
-  header: { gap: Spacing.two },
+  header: { flex: 1, gap: Spacing.one },
   category: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
     borderRadius: Radius.pill,
     backgroundColor: Colors.light.backgroundSelected,
   },
-  categoryLabel: { ...Type.subhead, color: Colors.light.primary },
-  title: { ...Type.title1, color: Colors.light.text },
+  categoryLabel: { ...Type.footnote, color: Colors.light.primary },
+  title: { ...Type.title2, color: Colors.light.text },
+  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, gap: Spacing.six },
+  facts: { gap: Spacing.two },
+  hoursRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, minHeight: 28 },
+  hoursText: { ...Type.subhead, color: Colors.light.textSecondary, flexShrink: 1 },
+  week: { marginTop: Spacing.one, marginLeft: 16 + Spacing.one, gap: 2 },
+  weekLine: { ...Type.footnote, color: Colors.light.textSecondary },
+  weekToday: { color: Colors.light.text, fontWeight: '600' },
   addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
   addressText: { ...Type.subhead, color: Colors.light.textSecondary, flex: 1 },
   addressMissing: { color: Colors.light.textDisabled },
-  map: { borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
-  photoBlock: { gap: Spacing.one },
-  photo: { width: '100%', aspectRatio: 16 / 9, borderRadius: Radius.lg, borderCurve: 'continuous' },
-  photoCredit: { ...Type.footnote, color: Colors.light.textSecondary },
-  summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.four },
-  hoursToday: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, flexShrink: 1 },
-  meta: { ...Type.subhead, color: Colors.light.textSecondary },
+  media: { borderRadius: Radius.lg, borderCurve: 'continuous', overflow: 'hidden' },
+  photoCredit: {
+    ...Type.caption,
+    position: 'absolute',
+    left: Spacing.two,
+    bottom: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+    borderRadius: Radius.pill,
+    overflow: 'hidden',
+    color: '#fff',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
   status: { paddingVertical: Spacing.six, alignItems: 'center' },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
   actionGroup: { gap: Spacing.three },
   actions: { flexDirection: 'row', gap: Spacing.three },
   action: { flex: 1 },
   description: { ...Type.body, color: Colors.light.text },
-  section: { gap: Spacing.one },
-  sectionTitle: { ...Type.headline, color: Colors.light.text },
-  body: { ...Type.callout, color: Colors.light.text },
   attributionText: { ...Type.footnote, color: Colors.light.textSecondary },
 });
