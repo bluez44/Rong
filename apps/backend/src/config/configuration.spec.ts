@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadConfig } from './configuration.js';
+import { loadConfig, recommendationsQueueEnabled } from './configuration.js';
 
 describe('loadConfig: hạn mức tìm địa điểm', () => {
   beforeEach(() => {
@@ -59,6 +59,7 @@ describe('loadConfig: kết nối Redis', () => {
     vi.stubEnv('REDIS_USERNAME', '');
     vi.stubEnv('REDIS_PASSWORD', '');
     vi.stubEnv('REDIS_TLS', '');
+    vi.stubEnv('REDIS_URL', '');
   });
 
   afterEach(() => {
@@ -82,5 +83,53 @@ describe('loadConfig: kết nối Redis', () => {
       password: 'bi-mat',
       tls: {},
     });
+  });
+
+  it('REDIS_URL thay cho các biến lẻ', () => {
+    vi.stubEnv('REDIS_HOST', 'bi-bo-qua');
+    vi.stubEnv('REDIS_URL', 'redis://default:p%40ss@db.redis.io:15078');
+    expect(loadConfig().redis).toEqual({
+      host: 'db.redis.io',
+      port: 15078,
+      username: 'default',
+      password: 'p@ss',
+    });
+  });
+
+  it('rediss:// bật TLS, thiếu cổng thì 6379', () => {
+    vi.stubEnv('REDIS_URL', 'rediss://:pw@db.redis.io');
+    expect(loadConfig().redis).toEqual({
+      host: 'db.redis.io',
+      port: 6379,
+      password: 'pw',
+      tls: {},
+    });
+  });
+
+  it('REDIS_URL sai định dạng thì báo lỗi', () => {
+    vi.stubEnv('REDIS_URL', 'http://db.redis.io');
+    expect(() => loadConfig()).toThrow(/REDIS_URL/);
+  });
+});
+
+describe('recommendationsQueueEnabled', () => {
+  it('production bật khi có REDIS_URL hoặc REDIS_HOST', () => {
+    expect(recommendationsQueueEnabled({ NODE_ENV: 'production' })).toBe(false);
+    expect(
+      recommendationsQueueEnabled({
+        NODE_ENV: 'production',
+        REDIS_URL: 'redis://h:1',
+      }),
+    ).toBe(true);
+    expect(
+      recommendationsQueueEnabled({ NODE_ENV: 'production', REDIS_HOST: 'h' }),
+    ).toBe(true);
+    expect(
+      recommendationsQueueEnabled({
+        NODE_ENV: 'production',
+        REDIS_URL: 'redis://h:1',
+        RECOMMENDATIONS_ENABLED: 'false',
+      }),
+    ).toBe(false);
   });
 });
