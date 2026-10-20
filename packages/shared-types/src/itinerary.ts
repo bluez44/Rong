@@ -197,10 +197,18 @@ export interface PlaceAlternative {
   description: string | null;
 }
 
-/** POST /itineraries/:id/share-link. Token chỉ trả về đúng một lần. */
+/** Link xem lịch trình trên web: `<web>/t/<token>`. */
 export interface ItineraryShareLink {
   token: string;
   createdAt: string;
+}
+
+/**
+ * GET /itineraries/:id/share-link — link đang hiệu lực, ai xem được lịch trình đều lấy được.
+ * null khi chưa có link (hoặc link tạo trước khi token được suy ra từ id, không lấy lại được).
+ */
+export interface CurrentItineraryShareLink {
+  link: ItineraryShareLink | null;
 }
 
 /**

@@ -98,7 +98,7 @@ Other behavior:
 - Edits (`PUT /itineraries/:id`) are re-timed by `planning/retime.ts`. That produces advisory warnings such as a long leg, a long day, a missing meal or a closed place. They never block the save.
 - `GET /itineraries/:id/alternatives` suggests similar places.
 - Party rules, meal windows and typical hours per category are in `planning/rules.ts`.
-- Share links (`share-links.*`) expose a read-only public view at `public/itineraries/:token`.
+- Share links (`share-links.*`) expose a read-only public view at `public/itineraries/:token`, rendered by `apps/web` at `/t/:token`. `GET itineraries/:id/share-link` returns the active link to anyone who can view the itinerary (the token is derived from the link id by HMAC, so only its hash is stored); `POST` rotates it.
 
 ### Groups (S8)
 `modules/groups`: groups, invite links, roles (owner, editor, viewer), a shared place list and an activity log. An itinerary can be moved into a group with `PATCH /itineraries/:id/group`.

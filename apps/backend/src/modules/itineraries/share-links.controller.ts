@@ -8,7 +8,11 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import type { ItineraryShareLink, PublicItinerary } from '@rong/shared-types';
+import type {
+  CurrentItineraryShareLink,
+  ItineraryShareLink,
+  PublicItinerary,
+} from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -19,6 +23,14 @@ import { ShareLinksService } from './share-links.service.js';
 @Controller()
 export class ShareLinksController {
   constructor(private readonly links: ShareLinksService) {}
+
+  @Get('itineraries/:id/share-link')
+  current(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<CurrentItineraryShareLink> {
+    return this.links.current(user.userId, id);
+  }
 
   @Post('itineraries/:id/share-link')
   create(

@@ -166,7 +166,14 @@ POST   /api/itineraries          tạo (planningMode "ai" | "manual")
 GET    /api/itineraries          danh sách của tôi
 GET    /api/itineraries/:id
 DELETE /api/itineraries/:id
+GET    /api/itineraries/:id/share-link   link xem đang hiệu lực (quyền xem, kể cả viewer) hoặc { link: null }
+POST   /api/itineraries/:id/share-link   tạo link mới, thu hồi link cũ (quyền sửa)
+DELETE /api/itineraries/:id/share-link   thu hồi (quyền sửa)
+GET    /api/public/itineraries/:token    trang chỉ xem, không cần đăng nhập (apps/web /t/:token)
 ```
+
+Token link xem = HMAC(`SHARE_LINK_SECRET`, hoặc `JWT_SECRET` nếu trống, id link) — `itineraries/share-link-token.ts`.
+Database chỉ lưu SHA-256 của token, nhưng server tính lại được token nên chia sẻ lại không đổi link.
 
 Quy trình AI (`itineraries/`):
 

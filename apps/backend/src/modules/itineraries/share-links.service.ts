@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import { Inject, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
+  CurrentItineraryShareLink,
   ItineraryDay,
   ItineraryInput,
   ItineraryShareLink,
@@ -11,20 +14,26 @@ import type {
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
+import type { ShareLinksConfig } from '../../config/configuration.js';
 import { notFound } from '../groups/errors.js';
-import { hashToken, isTokenShape, newToken } from '../groups/tokens.js';
+import { hashToken, isTokenShape } from '../groups/tokens.js';
 import { withItineraryPlaceData } from './itinerary-place-data.js';
 import { ItinerariesService } from './itineraries.service.js';
+import { shareLinkToken } from './share-link-token.js';
+
+export const SHARE_LINKS_CONFIG = 'SHARE_LINKS_CONFIG';
 
 /**
  * Link xem lịch trình trên web (FR-10.3). Mỗi lịch trình tối đa một link còn
- * hiệu lực; tạo lại thì link cũ bị thu hồi. Không hết hạn.
+ * hiệu lực; tạo lại thì link cũ bị thu hồi. Không hết hạn. Token suy ra từ id
+ * link (`share-link-token.ts`) nên lấy lại được mà database chỉ lưu bản băm.
  */
 @Injectable()
 export class ShareLinksService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly itineraries: ItinerariesService,
+    @Inject(SHARE_LINKS_CONFIG) private readonly config: ShareLinksConfig,
   ) {}
 
   async create(
@@ -32,7 +41,8 @@ export class ShareLinksService {
     itineraryId: string,
   ): Promise<ItineraryShareLink> {
     await this.itineraries.authorize(userId, itineraryId, 'edit');
-    const token = newToken();
+    const linkId = randomUUID();
+    const token = shareLinkToken(this.config.secret, linkId);
     const createdAt = await this.db.transaction(async (m) => {
       await m.query(
         `UPDATE itinerary_share_links SET revoked_at = now()
@@ -40,13 +50,31 @@ export class ShareLinksService {
         [itineraryId],
       );
       const [row] = (await m.query(
-        `INSERT INTO itinerary_share_links (itinerary_id, token_hash, created_by)
-         VALUES ($1, $2, $3) RETURNING created_at`,
-        [itineraryId, hashToken(token), userId],
+        `INSERT INTO itinerary_share_links (id, itinerary_id, token_hash, created_by)
+         VALUES ($1, $2, $3, $4) RETURNING created_at`,
+        [linkId, itineraryId, hashToken(token), userId],
       )) as Array<{ created_at: Date }>;
       return row.created_at;
     });
     return { token, createdAt: createdAt.toISOString() };
+  }
+
+  /** Link đang hiệu lực cho người xem được lịch trình (kể cả viewer): chia sẻ lại không đổi link. */
+  async current(
+    userId: string,
+    itineraryId: string,
+  ): Promise<CurrentItineraryShareLink> {
+    await this.itineraries.authorize(userId, itineraryId, 'view');
+    const [row] = (await this.db.query(
+      `SELECT id, token_hash, created_at FROM itinerary_share_links
+        WHERE itinerary_id = $1 AND revoked_at IS NULL`,
+      [itineraryId],
+    )) as Array<{ id: string; token_hash: string; created_at: Date }>;
+    if (!row) return { link: null };
+    const token = shareLinkToken(this.config.secret, row.id);
+    // Link tạo bằng token ngẫu nhiên (trước khi suy ra từ id) hoặc trước khi đổi khóa: không lấy lại được.
+    if (hashToken(token) !== row.token_hash) return { link: null };
+    return { link: { token, createdAt: row.created_at.toISOString() } };
   }
 
   async revoke(userId: string, itineraryId: string): Promise<void> {

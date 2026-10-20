@@ -717,6 +717,50 @@ describe('Nhóm & chia sẻ (e2e)', () => {
           .expect(404);
       }
     });
+
+    it('lấy lại đúng link đang hiệu lực; viewer cũng lấy được; người ngoài 404', async () => {
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      expect(
+        (await call('a').get(`/itineraries/${tripId}/share-link`).expect(200))
+          .body,
+      ).toEqual({ link: null });
+
+      const created = await call('a')
+        .post(`/itineraries/${tripId}/share-link`)
+        .expect(201);
+      for (const who of ['a', 'c'] as const) {
+        const res = await call(who)
+          .get(`/itineraries/${tripId}/share-link`)
+          .expect(200);
+        expect(res.body.link).toEqual(created.body);
+      }
+      await call(null)
+        .get(`/public/itineraries/${created.body.token}`)
+        .expect(200);
+      await call('b').get(`/itineraries/${tripId}/share-link`).expect(404);
+      await call(null).get(`/itineraries/${tripId}/share-link`).expect(401);
+    });
+
+    it('link cũ không suy ra được token thì trả null', async () => {
+      await call('a').delete(`/itineraries/${tripId}/share-link`).expect(204);
+      // Giống link tạo trước khi có token suy ra: hash của một token ngẫu nhiên.
+      await db.query(
+        `INSERT INTO itinerary_share_links (itinerary_id, token_hash) VALUES ($1, $2)`,
+        [tripId, 'f'.repeat(64)],
+      );
+      expect(
+        (await call('a').get(`/itineraries/${tripId}/share-link`).expect(200))
+          .body,
+      ).toEqual({ link: null });
+      // Editor chia sẻ lại thì có link mới dùng được.
+      const fresh = await call('a')
+        .post(`/itineraries/${tripId}/share-link`)
+        .expect(201);
+      expect(
+        (await call('a').get(`/itineraries/${tripId}/share-link`).expect(200))
+          .body.link.token,
+      ).toBe(fresh.body.token);
+    });
   });
 
   describe('xóa tài khoản owner', () => {
