@@ -25,7 +25,6 @@ import {
 } from '@/constants/theme';
 import { usePendingVisits } from '@/hooks/use-pending-visits';
 import { useRecommendations } from '@/hooks/use-recommendations';
-import { formatTime } from '@/lib/trip-format';
 
 export default function HomeScreen() {
   const tabBarInset = useTabBarInset();
@@ -154,9 +153,6 @@ export default function HomeScreen() {
                 Gợi ý cho bạn
               </ThemedText>
             </View>
-            {recs.feed ? (
-              <Text style={styles.refreshHint}>Làm mới lúc {formatTime(recs.feed.nextRefreshAt)}</Text>
-            ) : null}
           </View>
 
           <View style={styles.cardsStack}>
@@ -400,10 +396,6 @@ const styles = StyleSheet.create({
   visitActions: { flexDirection: 'row', gap: Spacing.two },
   cardsStack: {
     gap: Spacing.four,
-  },
-  refreshHint: {
-    ...Type.footnote,
-    color: Colors.light.textSecondary,
   },
   quoteCard: {
     marginHorizontal: Spacing.five,
