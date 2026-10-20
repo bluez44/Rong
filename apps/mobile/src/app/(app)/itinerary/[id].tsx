@@ -26,6 +26,7 @@ import { Colors, MinTouch, Palette, Spacing } from '@/constants/theme';
 import { useItinerary } from '@/hooks/use-itineraries';
 import { useItineraryEditor, type SaveState } from '@/hooks/use-itinerary-editor';
 import { ApiError } from '@/lib/api';
+import { itineraryShareUrl, resolveShareToken } from '@/lib/share-link';
 import { formatDateRange } from '@/lib/trip-format';
 
 type Params = { id: string; regionName?: string; edit?: string };
@@ -41,16 +42,30 @@ export default function ItineraryScreen() {
   // Người chỉ xem trong nhóm không sửa được (backend cũng từ chối), kể cả khi mở với `edit=1`.
   const canEdit = data ? data.myRole !== 'viewer' : false;
   const editing = editMode && canEdit;
+  const { authFetch } = useAuth();
+  const [sharing, setSharing] = useState(false);
 
   const onShare = async () => {
-    if (!data) return;
+    if (!data || sharing) return;
+    setSharing(true);
     try {
+      const token = await resolveShareToken(authFetch, data.id, canEdit);
+      if (!token) {
+        Alert.alert(
+          'Chưa có link chia sẻ',
+          'Bạn chỉ có quyền xem. Nhờ người tạo hoặc người chỉnh sửa chia sẻ lịch trình một lần để có link.',
+        );
+        return;
+      }
       const destination = regionName ? `tại ${regionName}` : '';
       const title = `Lịch trình du ngoạn ${destination} - Rong Thong Dong`.trim();
-      const message = `${title}\nThời gian: ${formatDateRange(data.input.startsAt, data.input.endsAt)} (${data.days.length} ngày)\nKhám phá lịch trình cùng Rong Thong Dong!`;
+      const message = `${title}\nThời gian: ${formatDateRange(data.input.startsAt, data.input.endsAt)} (${data.days.length} ngày)\nXem lịch trình: ${itineraryShareUrl(token)}`;
       await Share.share({ title, message });
-    } catch {
-      // Bỏ qua lỗi huỷ chia sẻ
+    } catch (error) {
+      // Người dùng đóng bảng chia sẻ không phải lỗi; chỉ báo khi không lấy được link (gồm lỗi mạng).
+      if (error instanceof ApiError) Alert.alert('Chưa lấy được link', error.message);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -90,9 +105,15 @@ export default function ItineraryScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Chia sẻ lịch trình"
+                accessibilityState={{ busy: sharing }}
+                disabled={sharing}
                 onPress={onShare}>
                 <Glass shape="circle" interactive style={styles.backGlass}>
-                  <Icon name="share" color={Colors.light.text} />
+                  {sharing ? (
+                    <ActivityIndicator color={Colors.light.text} />
+                  ) : (
+                    <Icon name="share" color={Colors.light.text} />
+                  )}
                 </Glass>
               </Pressable>
             )}
