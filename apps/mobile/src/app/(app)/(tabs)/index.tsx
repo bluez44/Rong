@@ -1,14 +1,17 @@
-import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
 import { useAuth } from '@/auth/auth-context';
 import { useTabBarInset } from '@/components/floating-tab-bar';
+import { RecommendationCard, RecommendationCardSkeleton } from '@/components/recommendation-card';
 import { Screen } from '@/components/screen';
+import { ThemeChips } from '@/components/theme-chips';
 import { ThemedText } from '@/components/themed-text';
-import { Icon, type IconName } from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
+import { Notice } from '@/components/ui/notice';
 import {
   Colors,
   MinTouch,
@@ -18,78 +21,26 @@ import {
   Spacing,
   Type,
 } from '@/constants/theme';
-
-type MoodChip = {
-  id: string;
-  label: string;
-  icon: IconName;
-};
-
-const MOOD_CHIPS: MoodChip[] = [
-  { id: 'forest', label: 'Trốn phố về rừng', icon: 'forest' },
-  { id: 'food', label: 'Ẩm thực miền Tây', icon: 'food' },
-  { id: 'sea', label: 'Biển vắng hoàng hôn', icon: 'sun' },
-  { id: 'cafe', label: 'Cà phê hoài niệm', icon: 'cafe' },
-  { id: 'culture', label: 'Làng nghề thủ công', icon: 'culture' },
-];
-
-type FeaturedTrip = {
-  id: string;
-  title: string;
-  region: string;
-  imageUrl: string;
-  duration: string;
-  weather: string;
-  activityIcon: IconName;
-  estimatedCost: string;
-};
-
-const FEATURED_TRIPS: FeaturedTrip[] = [
-  {
-    id: 'can-tho',
-    title: 'Cần Thơ - Về miền sông nước Cửu Long',
-    region: 'TÂY NAM BỘ',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAPFDrnc8DQMWOZLOE8SgO0tQG7WcKr7UqiZrMQpDW0m6PT3fkqDA0HdLucv9rdEY9W6KrkkLeCjcylFj--TYszLALABlNsgcngYTp-78yX-pFfVjSataKgAu-81-V2goupQNYs8grcN2GS_AHpOXS40eZjEfTvG7I7R6qZCmIiGboauc5zgqrx3vwSK9TZSZfGqR6VpJxJPgMkktR8ERWlGFhqG_4iKDu9xRhxFoTYtnfeHqSR4Z_j',
-    duration: '2 ngày 1 đêm',
-    weather: '29°C',
-    activityIcon: 'kayak',
-    estimatedCost: '1.250.000đ',
-  },
-  {
-    id: 'ha-giang',
-    title: 'Hà Giang - Mùa đá xám nở hoa',
-    region: 'ĐÔNG BẮC',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB_2kGopu7w9ZwGoG8BWrdPXdSmH3zsXycqpkkpzsAahB7v9F5Ks72LKCYLdC8wsm4vP4Kqg6m-R3-kP304z6xrkyBmDtyssZZ7wYc58hePNfPsgqCXFqd-uemXxXJz0OP8njvCjjHPyGi2goreKm2obU7S7TvE-9apwJP52UOHTGc_e8nxQasbeQAi605fsUL0d8JKusaiMk0stGh_gQyHBZrAKdmaJetzC4aKrQ0BaTvh7l9zqvQ0',
-    duration: '3 ngày 2 đêm',
-    weather: '18°C',
-    activityIcon: 'motorcycle',
-    estimatedCost: '2.400.000đ',
-  },
-  {
-    id: 'hoi-an',
-    title: 'Hội An - Đêm hoa đăng phố cổ',
-    region: 'DUYÊN HẢI MIỀN TRUNG',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuD2iTNABe5gKDO_0Mjbb31UKp-7Pf0SWMTWSJBcLhOVcn9yAST86bE7TGf1u5DNeVP1P2f3oCLkqs_bmmntV-f4zq2UNLc5ZDDVctXVHzyLm9fBY9kBTLsJOEW5BpxVmp1ezbmy-4igjTQqF2PB-LfGq6uj91-M_Io7IoMrs_xbjTCeFGUFeSwDwXADviZwzxZ1q91AVdPaWJ7ZVrVXPnYgMDHxHF4YWDHGbaFb0dLGargGGws_-jEW',
-    duration: '2 ngày 2 đêm',
-    weather: '26°C',
-    activityIcon: 'cafe',
-    estimatedCost: '1.850.000đ',
-  },
-];
+import { useRecommendations } from '@/hooks/use-recommendations';
+import { formatTime } from '@/lib/trip-format';
 
 export default function HomeScreen() {
   const tabBarInset = useTabBarInset();
   const { session } = useAuth();
   const name = session?.user.displayName ?? session?.user.email?.split('@')[0] ?? 'bạn';
-  const [selectedMood, setSelectedMood] = useState('forest');
-  const [bookmarkedTrips, setBookmarkedTrips] = useState<Record<string, boolean>>({});
+  const [theme, setTheme] = useState('default');
+  const recs = useRecommendations(theme);
+  const themes = recs.feed?.themes ?? [];
 
-  const toggleBookmark = (id: string) => {
-    setBookmarkedTrips((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  // Quay về trang chủ (ví dụ sau khi lưu một gợi ý): tải lại ngầm để thẻ hiện "Đã lưu".
+  const { refresh } = recs;
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) refresh();
+      focused.current = true;
+    }, [refresh]),
+  );
 
   return (
     <Screen edges={['top']} style={styles.screen}>
@@ -141,34 +92,7 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
-        {/* Mood & Vibe Chips Carousel */}
-        <View style={styles.carouselContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carouselContent}>
-            {MOOD_CHIPS.map((chip) => {
-              const active = selectedMood === chip.id;
-              return (
-                <Pressable
-                  key={chip.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setSelectedMood(chip.id)}
-                  style={[styles.moodChip, active ? styles.moodChipActive : styles.moodChipInactive]}>
-                  <Icon
-                    name={chip.icon}
-                    size={16}
-                    color={active ? Palette.onPine : Colors.light.primary}
-                  />
-                  <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>
-                    {chip.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
+        {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
 
         {/* AI Travel Assistant Banner */}
         <View style={styles.sectionContainer}>
@@ -191,95 +115,63 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Featured Journeys Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderLeft}>
               <View style={styles.sectionDot} />
               <ThemedText type="title2" style={styles.sectionTitle}>
-                Hành trình cuối tuần
+                Gợi ý cho bạn
               </ThemedText>
             </View>
-            <Pressable onPress={() => router.push('/search')}>
-              <Text style={styles.seeAllText}>Xem tất cả</Text>
-            </Pressable>
+            {recs.feed ? (
+              <Text style={styles.refreshHint}>Làm mới lúc {formatTime(recs.feed.nextRefreshAt)}</Text>
+            ) : null}
           </View>
 
-          {/* Cards Stack */}
           <View style={styles.cardsStack}>
-            {FEATURED_TRIPS.map((trip) => {
-              const isBookmarked = !!bookmarkedTrips[trip.id];
-              return (
-                <View key={trip.id} style={styles.tripCard}>
-                  {/* Card Image Banner */}
-                  <View style={styles.cardImageContainer}>
-                    <Image
-                      source={trip.imageUrl}
-                      style={styles.cardImage}
-                      contentFit="cover"
-                      transition={250}
-                    />
-                    <View style={styles.imageOverlay} />
+            {recs.status === 'loading' || recs.status === 'building'
+              ? [0, 1, 2].map((i) => <RecommendationCardSkeleton key={i} />)
+              : null}
 
-                    {/* Top Badges */}
-                    <View style={styles.imageTopBadges}>
-                      <View style={styles.badgePill}>
-                        <Icon name="clock" size={13} color={Colors.light.primary} />
-                        <Text style={styles.badgePillText}>{trip.duration}</Text>
-                      </View>
-                      <View style={styles.badgePill}>
-                        <Icon name="sun" size={13} color={Colors.light.warning} />
-                        <Text style={styles.badgePillText}>{trip.weather}</Text>
-                      </View>
-                    </View>
+            {recs.status === 'timeout' ? (
+              <Notice
+                title="Chưa có gợi ý"
+                action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.retry} />}>
+                Rong đang bận một chút. Thử lại sau ít phút nhé.
+              </Notice>
+            ) : null}
 
-                    {/* Bookmark Action */}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Lưu chuyến đi"
-                      onPress={() => toggleBookmark(trip.id)}
-                      style={styles.bookmarkButton}>
-                      <Icon
-                        name={isBookmarked ? 'bookmarkFill' : 'bookmark'}
-                        size={18}
-                        color={isBookmarked ? Colors.light.secondary : Colors.light.text}
-                      />
-                    </Pressable>
+            {recs.status === 'error' && recs.error ? (
+              <Notice
+                tone="danger"
+                title="Chưa tải được gợi ý"
+                action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.reload} />}>
+                {recs.error.message}
+              </Notice>
+            ) : null}
 
-                    {/* Bottom Image Overlay Text */}
-                    <View style={styles.imageBottomText}>
-                      <Text style={styles.regionBadge}>{trip.region}</Text>
-                      <Text style={styles.tripTitle}>{trip.title}</Text>
-                    </View>
-                  </View>
+            {recs.status === 'ready' && recs.feed?.items.length === 0 ? (
+              <Notice
+                title="Chưa có gợi ý"
+                action={<Button label="Chọn sở thích" variant="plain" size="sm" onPress={() => router.push('/account')} />}>
+                Chọn sở thích hoặc mở vài điểm đến để Rong gợi ý cho bạn.
+              </Notice>
+            ) : null}
 
-                  {/* Card Footer Info */}
-                  <View style={styles.cardFooter}>
-                    <View style={styles.footerLeft}>
-                      <View style={styles.activityIconCircle}>
-                        <Icon name={trip.activityIcon} size={18} color={Palette.forest900} />
-                      </View>
-                      <View>
-                        <Text style={styles.costLabel}>Chi phí ước tính</Text>
-                        <Text style={styles.costValue}>
-                          {trip.estimatedCost}
-                          <Text style={styles.costPerPerson}>/người</Text>
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Khám phá ${trip.title}`}
-                      onPress={() => router.push('/search')}
-                      style={styles.exploreButton}>
-                      <Text style={styles.exploreButtonText}>Khám phá</Text>
-                      <Icon name="forward" size={15} color={Colors.light.primary} />
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
+            {recs.status === 'ready'
+              ? recs.feed?.items.map((card) => (
+                  <RecommendationCard
+                    key={card.id}
+                    card={card}
+                    themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
+                    onPress={() =>
+                      card.savedItineraryId
+                        ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
+                        : router.push({ pathname: '/recommendation/[id]', params: { id: card.id } })
+                    }
+                  />
+                ))
+              : null}
           </View>
         </View>
 
@@ -391,38 +283,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  carouselContainer: {
-    marginTop: Spacing.two,
-  },
-  carouselContent: {
-    paddingHorizontal: Spacing.five,
-    gap: Spacing.two,
-  },
-  moodChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one + 2,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.pill,
-  },
-  moodChipActive: {
-    backgroundColor: Colors.light.primary,
-    ...Shadow.card,
-  },
-  moodChipInactive: {
-    backgroundColor: Palette.surface,
-    borderWidth: 1,
-    borderColor: Palette.mist200,
-  },
-  moodChipText: {
-    ...Type.subhead,
-    color: Colors.light.text,
-  },
-  moodChipTextActive: {
-    color: Palette.onPine,
-    fontFamily: Type.headline.fontFamily,
-  },
   sectionContainer: {
     paddingHorizontal: Spacing.five,
     marginTop: Spacing.two,
@@ -494,132 +354,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: Palette.forest900,
   },
-  seeAllText: {
-    ...Type.subhead,
-    color: Colors.light.secondary,
-    fontFamily: Type.headline.fontFamily,
-  },
   cardsStack: {
     gap: Spacing.four,
   },
-  tripCard: {
-    backgroundColor: Palette.surface,
-    borderRadius: Radius.lg,
-    overflow: 'hidden',
-    ...Shadow.card,
-  },
-  cardImageContainer: {
-    height: 190,
-    width: '100%',
-    position: 'relative',
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(8, 60, 41, 0.4)',
-  },
-  imageTopBadges: {
-    position: 'absolute',
-    top: Spacing.three,
-    left: Spacing.three,
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  badgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(252, 249, 241, 0.92)',
-    paddingHorizontal: Spacing.two + 2,
-    paddingVertical: 4,
-    borderRadius: Radius.pill,
-  },
-  badgePillText: {
-    ...Type.caption,
-    fontSize: 11,
-    lineHeight: 14,
-    color: Colors.light.text,
-  },
-  bookmarkButton: {
-    position: 'absolute',
-    top: Spacing.three,
-    right: Spacing.three,
-    width: 34,
-    height: 34,
-    borderRadius: Radius.pill,
-    backgroundColor: 'rgba(252, 249, 241, 0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageBottomText: {
-    position: 'absolute',
-    bottom: Spacing.three,
-    left: Spacing.three,
-    right: Spacing.three,
-  },
-  regionBadge: {
-    ...Type.caption,
-    fontSize: 11,
-    color: Palette.turmeric100,
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  tripTitle: {
-    ...Type.title2,
-    fontSize: 18,
-    lineHeight: 24,
-    color: Palette.surface,
-  },
-  cardFooter: {
-    padding: Spacing.four,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  footerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two + 2,
-  },
-  activityIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.pill,
-    backgroundColor: Palette.forest100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  costLabel: {
-    ...Type.caption,
-    fontSize: 11,
+  refreshHint: {
+    ...Type.footnote,
     color: Colors.light.textSecondary,
-  },
-  costValue: {
-    ...Type.headline,
-    color: Palette.forest900,
-  },
-  costPerPerson: {
-    ...Type.caption,
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    fontFamily: Type.body.fontFamily,
-  },
-  exploreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Palette.parchment100,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.pill,
-  },
-  exploreButtonText: {
-    ...Type.subhead,
-    color: Colors.light.primary,
-    fontFamily: Type.headline.fontFamily,
   },
   quoteCard: {
     marginHorizontal: Spacing.five,
