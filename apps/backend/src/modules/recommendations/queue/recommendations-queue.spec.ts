@@ -72,3 +72,24 @@ describe('RecommendationsQueue (chạy trong process)', () => {
     await queue.idle();
   });
 });
+
+describe('RecommendationsQueue (BullMQ)', () => {
+  it('Redis không phản hồi → state/enqueue/remove lỗi sau thời gian chờ, không treo', async () => {
+    vi.useFakeTimers();
+    try {
+      const never = () => new Promise<never>(() => undefined);
+      const main = { name: 'recommendations', getJob: never, addBulk: never };
+      const ai = { name: 'recommendations-ai', getJob: never, addBulk: never };
+      const queue = new RecommendationsQueue(main as never, ai as never, {} as never);
+      const calls = [
+        expect(queue.state('x')).rejects.toThrow(/Redis không phản hồi/),
+        expect(queue.enqueue(build())).rejects.toThrow(/Redis không phản hồi/),
+        expect(queue.remove('x')).rejects.toThrow(/Redis không phản hồi/),
+      ];
+      await vi.advanceTimersByTimeAsync(3_000);
+      await Promise.all(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

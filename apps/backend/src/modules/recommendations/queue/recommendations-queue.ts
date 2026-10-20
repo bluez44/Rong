@@ -15,6 +15,26 @@ import {
   type RecommendationJob,
 } from './jobs.js';
 
+/** Lệnh Redis trên đường request chờ tối đa chừng này rồi lỗi (Redis tắt, chưa nối được). */
+const REDIS_TIMEOUT_MS = 3_000;
+
+/** BullMQ chờ Redis "ready" vô hạn trước mỗi lệnh; bọc lại để nơi gọi nhận lỗi thay vì treo. */
+function withTimeout<T>(what: string, work: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `Redis không phản hồi (${what}) sau ${REDIS_TIMEOUT_MS} ms`,
+          ),
+        ),
+      REDIS_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Cửa duy nhất để đẩy job gợi ý. Có BullMQ (Redis) thì đẩy vào queue; không có
  * (e2e, máy không chạy Redis) thì chạy ngay trong process, vẫn chống trùng theo
@@ -28,8 +48,12 @@ export class RecommendationsQueue {
   private anonymous = 0;
 
   constructor(
-    @Optional() @InjectQueue(RECOMMENDATIONS_QUEUE) private readonly main: Queue | undefined,
-    @Optional() @InjectQueue(RECOMMENDATIONS_AI_QUEUE) private readonly ai: Queue | undefined,
+    @Optional()
+    @InjectQueue(RECOMMENDATIONS_QUEUE)
+    private readonly main: Queue | undefined,
+    @Optional()
+    @InjectQueue(RECOMMENDATIONS_AI_QUEUE)
+    private readonly ai: Queue | undefined,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -53,16 +77,19 @@ export class RecommendationsQueue {
       for (const target of [this.main, this.ai]) {
         const batch = jobs.filter((j) => queueOf(j) === target.name);
         if (batch.length === 0) continue;
-        await target.addBulk(
-          batch.map((job) => ({
-            name: job.name,
-            data: job.data,
-            opts: {
-              jobId: jobIdOf(job),
-              priority: opts.priority,
-              ...attemptsOf(job),
-            },
-          })),
+        await withTimeout(
+          'addBulk',
+          target.addBulk(
+            batch.map((job) => ({
+              name: job.name,
+              data: job.data,
+              opts: {
+                jobId: jobIdOf(job),
+                priority: opts.priority,
+                ...attemptsOf(job),
+              },
+            })),
+          ),
         );
       }
       return;
@@ -73,9 +100,9 @@ export class RecommendationsQueue {
   async state(jobId: string): Promise<JobState> {
     if (!this.main || !this.ai) return this.inline.get(jobId) ?? 'missing';
     for (const queue of [this.main, this.ai]) {
-      const job = await queue.getJob(jobId);
+      const job = await withTimeout('getJob', queue.getJob(jobId));
       if (!job) continue;
-      const state = await job.getState();
+      const state = await withTimeout('getState', job.getState());
       if (state === 'completed' || state === 'failed' || state === 'active')
         return state;
       return 'waiting';
@@ -89,8 +116,8 @@ export class RecommendationsQueue {
       return;
     }
     for (const queue of [this.main, this.ai]) {
-      const job = await queue.getJob(jobId);
-      if (job) await job.remove();
+      const job = await withTimeout('getJob', queue.getJob(jobId));
+      if (job) await withTimeout('remove', job.remove());
     }
   }
 
@@ -110,7 +137,11 @@ export class RecommendationsQueue {
   private runInline(job: RecommendationJob): void {
     const id = jobIdOf(job) ?? `anonymous_${++this.anonymous}`;
     const current = this.inline.get(id);
-    if (current === 'waiting' || current === 'active' || current === 'completed')
+    if (
+      current === 'waiting' ||
+      current === 'active' ||
+      current === 'completed'
+    )
       return;
     this.inline.set(id, 'active');
     const runner = this.moduleRef.get<JobRunner>(JOB_RUNNER, {
