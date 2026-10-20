@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
+import { VisitReviewSheet } from '@/components/visit-review-sheet';
 import {
   Colors,
   MinTouch,
@@ -21,6 +22,7 @@ import {
   Spacing,
   Type,
 } from '@/constants/theme';
+import { usePendingVisits } from '@/hooks/use-pending-visits';
 import { useRecommendations } from '@/hooks/use-recommendations';
 import { formatTime } from '@/lib/trip-format';
 
@@ -31,6 +33,8 @@ export default function HomeScreen() {
   const [theme, setTheme] = useState('default');
   const recs = useRecommendations(theme);
   const themes = recs.feed?.themes ?? [];
+  const visits = usePendingVisits();
+  const [reviewing, setReviewing] = useState(false);
 
   // Quay về trang chủ (ví dụ sau khi lưu một gợi ý): tải lại ngầm để thẻ hiện "Đã lưu".
   const { refresh } = recs;
@@ -115,6 +119,21 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {visits.pending ? (
+          <View style={styles.sectionContainer}>
+            <Notice
+              title={`Chuyến ${visits.pending.regionName} đã kết thúc`}
+              action={
+                <View style={styles.visitActions}>
+                  <Button label="Để sau" variant="plain" size="sm" onPress={visits.dismiss} />
+                  <Button label="Trả lời" size="sm" onPress={() => setReviewing(true)} />
+                </View>
+              }>
+              Bạn đã đến những nơi nào?
+            </Notice>
+          </View>
+        ) : null}
+
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderLeft}>
@@ -182,6 +201,18 @@ export default function HomeScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {visits.pending ? (
+        <VisitReviewSheet
+          review={visits.pending}
+          visible={reviewing}
+          onClose={() => setReviewing(false)}
+          onSubmit={async (ids) => {
+            await visits.submit(ids);
+            recs.reload();
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -354,6 +385,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: Palette.forest900,
   },
+  visitActions: { flexDirection: 'row', gap: Spacing.two },
   cardsStack: {
     gap: Spacing.four,
   },
