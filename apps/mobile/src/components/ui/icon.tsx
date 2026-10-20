@@ -24,6 +24,8 @@ const ICONS = {
   route: { ios: 'point.topleft.down.to.point.bottomright.curvepath', android: 'route', web: 'route' },
   calendar: { ios: 'calendar', android: 'calendar_today', web: 'calendar_today' },
   forward: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },
+  chevronDown: { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' },
+  chevronUp: { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' },
   directions: { ios: 'arrow.triangle.turn.up.right.diamond', android: 'directions', web: 'directions' },
   clock: { ios: 'clock', android: 'schedule', web: 'schedule' },
   star: { ios: 'star.fill', android: 'star', web: 'star' },

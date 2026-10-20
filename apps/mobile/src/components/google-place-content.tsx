@@ -12,8 +12,16 @@ const PHOTO_HEIGHT = 180;
  * có ghi "Google Maps"; ảnh và đánh giá ghi tên tác giả kèm link gốc (PRD 7.4).
  * Không tự viết lại hay tóm tắt đánh giá của Google.
  */
-export function GooglePlaceContentBlock({ content }: { content: GooglePlaceContent }) {
-  const hasSummary = content.rating !== null || content.address || content.openNow !== null;
+export function GooglePlaceContentBlock({
+  content,
+  showHours = true,
+}: {
+  content: GooglePlaceContent;
+  /** false: màn đã có khối giờ mở cửa riêng (gộp giờ Google vào đó), không hiện lại ở đây. */
+  showHours?: boolean;
+}) {
+  const showOpenNow = showHours && content.openNow !== null;
+  const hasSummary = content.rating !== null || content.address || showOpenNow;
 
   return (
     <View style={styles.block}>
@@ -29,7 +37,7 @@ export function GooglePlaceContentBlock({ content }: { content: GooglePlaceConte
       {hasSummary ? (
         <View style={styles.section}>
           {content.rating !== null ? <Rating rating={content.rating} count={content.ratingCount} /> : null}
-          {content.openNow !== null ? (
+          {showOpenNow ? (
             <Text style={[styles.body, { color: content.openNow ? Colors.light.primary : Colors.light.danger }]}>
               {content.openNow ? 'Đang mở cửa' : 'Đang đóng cửa'}
             </Text>
@@ -38,7 +46,7 @@ export function GooglePlaceContentBlock({ content }: { content: GooglePlaceConte
         </View>
       ) : null}
 
-      {content.weekdayHours.length > 0 ? (
+      {showHours && content.weekdayHours.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Giờ mở cửa</Text>
           {content.weekdayHours.map((line) => (
