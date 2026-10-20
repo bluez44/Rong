@@ -54,10 +54,9 @@ export function useRecommendations(theme: string) {
         timer = setTimeout(() => load(false), BUILDING_RETRY_MS);
       } catch (e) {
         if (cancelled) return;
-        // Tải lại ngầm mà lỗi: giữ thẻ đang hiện.
-        if (quiet) return;
         setError(e instanceof ApiError ? e : new ApiError(0, 'UNKNOWN', 'Có lỗi không mong muốn. Thử lại sau.'));
-        setStatus('error');
+        // Tải lại ngầm mà lỗi: chỉ giữ nguyên khi thẻ đang hiện; còn lại (khung xương, đang tạo) phải báo lỗi.
+        setStatus((s) => (quiet && s === 'ready' ? s : 'error'));
       }
     };
 

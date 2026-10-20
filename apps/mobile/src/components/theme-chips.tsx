@@ -2,16 +2,9 @@ import type { RecommendationTheme } from '@rong/shared-types';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 
-import { Icon, type IconName } from '@/components/ui/icon';
+import { isThemeIcon } from '@/components/recommendation-card';
+import { Icon } from '@/components/ui/icon';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
-
-/** Icon backend gửi phải có trong app; lạ thì dùng sparkles. */
-const iconOf = (name: string): IconName =>
-  (['sparkles', 'forest', 'sun', 'cafe', 'food', 'culture', 'nature', 'kids', 'nightlife', 'kayak', 'motorcycle', 'explore'] as const).includes(
-    name as never,
-  )
-    ? (name as IconName)
-    : 'sparkles';
 
 export function ThemeChips({
   themes,
@@ -35,7 +28,7 @@ export function ThemeChips({
               accessibilityLabel={theme.regionHint ? `${theme.label}, ${theme.regionHint}` : theme.label}
               onPress={() => onSelect(theme.key)}
               style={[styles.moodChip, active ? styles.moodChipActive : styles.moodChipInactive]}>
-              <Icon name={iconOf(theme.icon)} size={16} color={active ? Palette.onPine : Colors.light.primary} />
+              <Icon name={isThemeIcon(theme.icon) ? theme.icon : 'sparkles'} size={16} color={active ? Palette.onPine : Colors.light.primary} />
               <View>
                 <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>{theme.label}</Text>
                 {theme.regionHint ? (

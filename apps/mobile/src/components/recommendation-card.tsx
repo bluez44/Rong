@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Icon } from '@/components/ui/icon';
+import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
 
 /** "Ảnh: Nguyễn A / Unsplash" hoặc "Ảnh: blog.example". */
@@ -20,8 +20,28 @@ function credit(image: RegionImage): { text: string; url: string | null } {
   return { text: `Ảnh: ${host}`, url: image.sourceUrl };
 }
 
+/** Icon chủ đề app biết vẽ; icon lạ từ backend thì dùng sparkles. */
+export const THEME_ICONS = [
+  'sparkles',
+  'forest',
+  'sun',
+  'cafe',
+  'food',
+  'culture',
+  'nature',
+  'kids',
+  'nightlife',
+  'kayak',
+  'motorcycle',
+  'explore',
+] as const satisfies readonly IconName[];
+
+export type ThemeIcon = (typeof THEME_ICONS)[number];
+
+export const isThemeIcon = (name: string): name is ThemeIcon => (THEME_ICONS as readonly string[]).includes(name);
+
 /** Mảng màu khi vùng chưa có ảnh: theo chủ đề (icon của chủ đề), chỉ dùng token Palette. */
-const THEME_GRADIENTS: Record<string, [string, string]> = {
+const THEME_GRADIENTS: Record<ThemeIcon, [string, string]> = {
   forest: [Palette.forest700, Palette.forest900],
   nature: [Palette.pine500, Palette.pine900],
   sun: [Palette.turmeric500, Palette.terracotta700],
@@ -37,7 +57,7 @@ const THEME_GRADIENTS: Record<string, [string, string]> = {
 };
 
 export function themeGradient(icon: string): [string, string] {
-  return THEME_GRADIENTS[icon] ?? THEME_GRADIENTS.sparkles;
+  return THEME_GRADIENTS[isThemeIcon(icon) ? icon : 'sparkles'];
 }
 
 const duration = (card: Card) =>
@@ -97,7 +117,7 @@ export function RecommendationCard({
             style={styles.credit}
             numberOfLines={1}
             accessibilityRole={photo.url ? 'link' : undefined}
-            onPress={photo.url ? () => Linking.openURL(photo.url!) : undefined}>
+            onPress={photo.url ? () => Linking.openURL(photo.url!).catch(() => {}) : undefined}>
             {photo.text}
           </Text>
         ) : null}
