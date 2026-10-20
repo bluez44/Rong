@@ -1,4 +1,21 @@
 import type { ExpoConfig } from 'expo/config';
+import { type ConfigPlugin, withGradleProperties } from 'expo/config-plugins';
+
+/**
+ * Heap cho Gradle khi build release: mặc định của prebuild (-Xmx2048m) không đủ cho
+ * bước gộp dex (mergeDexRelease báo OutOfMemoryError trên runner GitHub). Runner
+ * ubuntu-latest có ít nhất 7 GB RAM.
+ */
+const GRADLE_JVM_ARGS = '-Xmx4096m -XX:MaxMetaspaceSize=1024m';
+
+const withGradleHeap: ConfigPlugin = (config) =>
+  withGradleProperties(config, (cfg) => {
+    cfg.modResults = cfg.modResults.filter(
+      (item) => !(item.type === 'property' && item.key === 'org.gradle.jvmargs'),
+    );
+    cfg.modResults.push({ type: 'property', key: 'org.gradle.jvmargs', value: GRADLE_JVM_ARGS });
+    return cfg;
+  });
 
 /**
  * Cau hinh Expo doc tu bien moi truong.
@@ -95,4 +112,4 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default withGradleHeap(config);
