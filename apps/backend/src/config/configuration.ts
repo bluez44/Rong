@@ -238,7 +238,15 @@ export function loadConfig(): AppConfig {
   };
 }
 
-/** e2e (vitest đặt NODE_ENV=test) luôn chạy job trong process, không cần Redis. */
+/**
+ * e2e (vitest đặt NODE_ENV=test) luôn chạy job trong process, không cần Redis. Production
+ * chỉ bật khi có REDIS_HOST: compose production chưa có Redis, không để mặc định
+ * "localhost" khiến hàng đợi bật mà không bao giờ nối được.
+ */
 export function recommendationsQueueEnabled(env: NodeJS.ProcessEnv): boolean {
-  return env.NODE_ENV !== 'test' && env.RECOMMENDATIONS_ENABLED !== 'false';
+  return (
+    env.NODE_ENV !== 'test' &&
+    env.RECOMMENDATIONS_ENABLED !== 'false' &&
+    (env.NODE_ENV !== 'production' || Boolean(env.REDIS_HOST))
+  );
 }

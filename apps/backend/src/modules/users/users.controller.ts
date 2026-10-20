@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Patch,
 } from '@nestjs/common';
 import type { UserProfile } from '@rong/shared-types';
@@ -17,6 +18,8 @@ import { UsersService } from './users.service.js';
 
 @Controller('users')
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(
     private readonly users: UsersService,
     private readonly recommendations: RecommendationsQueue,
@@ -34,10 +37,12 @@ export class UsersController {
   ): Promise<UserProfile> {
     const { profile, interestsChanged } = await this.users.updateProfile(user.userId, dto);
     if (interestsChanged) {
-      await this.recommendations.enqueue({
-        name: 'generate-user-themes',
-        data: { userId: user.userId },
-      });
+      // Không chờ: hàng đợi lỗi (Redis) không được làm hỏng hay treo việc lưu hồ sơ.
+      void this.recommendations
+        .enqueue({ name: 'generate-user-themes', data: { userId: user.userId } })
+        .catch((error: unknown) =>
+          this.logger.error(`Không đẩy được job chủ đề cho ${user.userId}: ${(error as Error).message}`),
+        );
     }
     return profile;
   }

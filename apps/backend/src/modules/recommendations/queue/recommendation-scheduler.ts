@@ -19,16 +19,29 @@ export class RecommendationScheduler implements OnModuleInit {
   private readonly logger = new Logger(RecommendationScheduler.name);
 
   constructor(
-    @Optional() @InjectQueue(RECOMMENDATIONS_QUEUE) private readonly queue: Queue | undefined,
+    @Optional()
+    @InjectQueue(RECOMMENDATIONS_QUEUE)
+    private readonly queue: Queue | undefined,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (!this.queue) {
-      this.logger.log('Hàng đợi gợi ý đang tắt: không có lịch làm mới 6:00/15:00.');
+      this.logger.log(
+        'Hàng đợi gợi ý đang tắt: không có lịch làm mới 6:00/15:00.',
+      );
       return;
     }
+    // Không chờ: Redis không tới được thì app vẫn khởi động, chỉ thiếu lịch chạy.
+    void this.register(this.queue).catch((error: unknown) =>
+      this.logger.error(
+        `Không đăng ký được lịch chạy gợi ý: ${(error as Error).message}`,
+      ),
+    );
+  }
+
+  private async register(queue: Queue): Promise<void> {
     for (const { id, pattern } of SCHEDULES) {
-      await this.queue.upsertJobScheduler(
+      await queue.upsertJobScheduler(
         id,
         { pattern, tz: TZ },
         { name: id, data: {} },

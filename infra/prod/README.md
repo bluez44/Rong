@@ -142,12 +142,21 @@ put /rong/prod/app/TAVILY_API_KEY '<khóa Tavily>'
 put /rong/prod/app/GOOGLE_MAPS_API_KEY '<khóa Google Maps>'
 put /rong/prod/app/OPEN_DATA_CONTACT_EMAIL '<email liên hệ cho OSM>'
 # Không bắt buộc: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, MAIL_FROM…
+# Không bắt buộc, gợi ý lịch trình trang chủ:
+#   UNSPLASH_ACCESS_KEY    ảnh vùng từ Unsplash; trống thì dùng ảnh từ bài viết
+#   REDIS_HOST, REDIS_PORT hàng đợi BullMQ (cổng mặc định 6379)
+#   RECOMMENDATIONS_ENABLED false = tắt hàng đợi dù có REDIS_HOST
 
 put /rong/prod/dockerhub/USERNAME '<tên Docker Hub>'
 put /rong/prod/dockerhub/TOKEN '<token ec2-pull (Read-only)>'
 ```
 
 `DB_HOST`, `DB_PORT`, `NODE_ENV`, `PORT` đã cố định trong `docker-compose.yml`.
+
+`docker-compose.yml` chưa có Redis. Với `NODE_ENV=production`, hàng đợi gợi ý chỉ bật
+khi `REDIS_HOST` được đặt, nên hiện nó tắt: job gợi ý chạy ngay trong process backend
+và không có lịch làm mới 6:00/15:00 hay dọn dẹp hằng ngày. Khi thêm Redis, đặt
+`REDIS_HOST` (và `REDIS_PORT` nếu khác 6379).
 Đổi secret xong thì chạy lại workflow (Actions → Deploy backend → Run workflow)
 để máy ghi lại `.env`.
 
