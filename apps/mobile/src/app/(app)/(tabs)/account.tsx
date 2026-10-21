@@ -213,7 +213,7 @@ function DisplayNameForm({ current }: { current: string }) {
             onPress={() => setEditing(true)}
             style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}>
             <Icon name="edit" size={14} color={Palette.forest700} />
-            <Text style={styles.editButtonText}>Chỉnh sửa</Text>
+            <Text numberOfLines={1} style={styles.editButtonText}>Chỉnh sửa</Text>
           </Pressable>
         ) : null}
       </View>

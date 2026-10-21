@@ -96,7 +96,7 @@ export function InviteSheet({
                 accessibilityState={{ selected }}
                 onPress={() => pickRole(option)}
                 style={[styles.segmentItem, selected && styles.segmentItemOn]}>
-                <Text style={[styles.segmentText, selected && styles.segmentTextOn]}>{ROLE_LABELS[option]}</Text>
+                <Text numberOfLines={1} style={[styles.segmentText, selected && styles.segmentTextOn]}>{ROLE_LABELS[option]}</Text>
               </Pressable>
             );
           })}

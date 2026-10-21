@@ -154,7 +154,7 @@ function ExternalLink({ label, uri }: { label: string; uri: string }) {
       hitSlop={{ top: (MinTouch - 18) / 2, bottom: (MinTouch - 18) / 2 }}
       onPress={() => Linking.openURL(uri)}
       style={({ pressed }) => [styles.externalLink, pressed && styles.pressed]}>
-      <Text style={styles.linkText}>{label}</Text>
+      <Text numberOfLines={1} style={styles.linkText}>{label}</Text>
       <Icon name="external" size={13} color={Colors.light.primary} />
     </Pressable>
   );

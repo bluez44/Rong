@@ -64,7 +64,7 @@ export default function TripsScreen() {
                 onPress={() => router.push('/itinerary/new')}
                 style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
                 <Icon name="add" size={17} color={Palette.onPine} />
-                <Text style={styles.createButtonText}>Lên lịch mới</Text>
+                <Text numberOfLines={1} style={styles.createButtonText}>Lên lịch mới</Text>
               </Pressable>
             </View>
 
@@ -102,7 +102,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={({ pressed }) => [styles.filterChip, active && styles.filterChipActive, pressed && styles.pressed]}>
-      <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
     </Pressable>
   );
 }

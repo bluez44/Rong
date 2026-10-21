@@ -136,7 +136,7 @@ function StopCard({ stop, onClose }: { stop: Stop; onClose: () => void }) {
         hitSlop={{ top: 8, bottom: 8 }}
         onPress={() => router.push({ pathname: '/place/[id]', params: { id: item.placeId!, name: place.name } })}
         style={({ pressed }) => [styles.detail, pressed && styles.pressed]}>
-        <Text style={styles.detailLabel}>Xem chi tiết</Text>
+        <Text numberOfLines={1} style={styles.detailLabel}>Xem chi tiết</Text>
         <Icon name="forward" size={14} color={Colors.light.primary} />
       </Pressable>
     </Glass>

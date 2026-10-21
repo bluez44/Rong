@@ -72,7 +72,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
             hitSlop={8}
             onPress={() => setRevealed((v) => !v)}
             style={styles.reveal}>
-            <Text style={styles.revealText}>{revealed ? 'Ẩn' : 'Hiện'}</Text>
+            <Text numberOfLines={1} style={styles.revealText}>{revealed ? 'Ẩn' : 'Hiện'}</Text>
           </Pressable>
         ) : null}
       </View>

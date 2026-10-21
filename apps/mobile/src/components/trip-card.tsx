@@ -53,7 +53,7 @@ export function TripCard({ trip }: { trip: ItinerarySummary }) {
         <View style={styles.tripPreview}>
           <View style={styles.previewDot} />
           <Text style={styles.previewText} numberOfLines={1}>Mở lịch trình</Text>
-          <Text style={styles.previewAction}>Xem lịch →</Text>
+          <Text numberOfLines={1} style={styles.previewAction}>Xem lịch →</Text>
         </View>
       </View>
     </Pressable>

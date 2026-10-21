@@ -130,7 +130,7 @@ export default function ItineraryScreen() {
                 interactive
                 style={styles.editGlass}>
                 {editing ? null : <Icon name="edit" size={18} color={Colors.light.primary} />}
-                <Text style={[styles.editLabel, editing && { color: Colors.light.onPrimary }]}>
+                <Text numberOfLines={1} style={[styles.editLabel, editing && { color: Colors.light.onPrimary }]}>
                   {editing ? 'Xong' : 'Sửa'}
                 </Text>
               </Glass>

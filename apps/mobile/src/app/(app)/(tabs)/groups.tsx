@@ -57,7 +57,7 @@ export default function GroupsScreen() {
                 onPress={() => setCreating(true)}
                 style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
                 <Icon name="add" size={17} color={Palette.onPine} />
-                <Text style={styles.createButtonText}>Tạo nhóm</Text>
+                <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
               </Pressable>
             </View>
           </View>

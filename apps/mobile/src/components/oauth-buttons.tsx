@@ -111,7 +111,7 @@ function ProviderButton({
       ) : (
         <Text style={[styles.mark, { color: markColor }]}>{mark}</Text>
       )}
-      <Text style={styles.name}>{name}</Text>
+      <Text numberOfLines={1} style={styles.name}>{name}</Text>
     </Pressable>
   );
 }

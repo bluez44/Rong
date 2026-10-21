@@ -107,10 +107,12 @@ export default function RecommendationDraftScreen() {
           onLayout={(e) => setActionsHeight(e.nativeEvent.layout.height)}
           style={[styles.actions, { paddingBottom: insets.bottom + Spacing.three }]}>
           {draft.savedItineraryId ? null : (
-            <Button label="Chỉnh thông tin" variant="glass" onPress={() => setEditing(true)} style={styles.action} />
+            <Button label="Chỉnh sửa" accessibilityLabel="Chỉnh thông tin chuyến đi" variant="glass" onPress={() => setEditing(true)} style={styles.action} />
           )}
           <Button
-            label={draft.savedItineraryId ? 'Mở lịch trình đã lưu' : 'Lưu thành chuyến của tôi'}
+            // Hai nút chia đôi hàng (~160px trên máy 360dp): nhãn phải ngắn, kể cả khi có vòng quay tải.
+            label={draft.savedItineraryId ? 'Mở lịch trình đã lưu' : 'Lưu chuyến'}
+            accessibilityLabel={draft.savedItineraryId ? 'Mở lịch trình đã lưu' : 'Lưu thành chuyến của tôi'}
             loading={saving}
             onPress={onSave}
             style={styles.action}

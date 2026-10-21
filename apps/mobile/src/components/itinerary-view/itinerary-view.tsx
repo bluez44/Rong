@@ -184,7 +184,7 @@ export function ItineraryViewBody({
             disabled={!currentDay}
             onPress={() => onOpenDayMap(selectedDayIndex)}
             style={styles.viewMapBtn}>
-            <Text style={styles.viewMapBtnText}>Bản đồ</Text>
+            <Text numberOfLines={1} style={styles.viewMapBtnText}>Bản đồ</Text>
             <Icon name="forward" size={13} color={Colors.light.secondary} />
           </Pressable>
         </View>
@@ -224,7 +224,7 @@ export function ItineraryViewBody({
               accessibilityLabel="Tự tay sắp xếp lại"
               onPress={onStartEdit}
               style={styles.reorderLink}>
-              <Text style={styles.reorderLinkText}>Tự tay sắp xếp lại</Text>
+              <Text numberOfLines={1} style={styles.reorderLinkText}>Tự tay sắp xếp lại</Text>
               <Icon name="forward" size={14} color={Palette.forest700} />
             </Pressable>
           ) : null}
