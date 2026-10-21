@@ -13,7 +13,8 @@ import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { useShareImports } from '@/hooks/use-share-imports';
 import { useSavedPlaces } from '@/lib/saved-places';
-import { MAX_SELECTED_PLACES, tripDraft } from '@/lib/trip-draft';
+import { planFromSaved } from '@/lib/plan-from-saved';
+import { MAX_SELECTED_PLACES } from '@/lib/trip-draft';
 
 type Group = { regionId: string; regionName: string; data: SavedPlace[] };
 
@@ -71,13 +72,7 @@ export default function SavedScreen() {
 
 function GroupHeader({ group }: { group: Group }) {
   const places = group.data.filter((p) => p.category !== 'stay');
-  // "Xếp lịch giúp tôi" (FR-9.2): điểm "Muốn đi" của vùng là địa điểm đã chọn; điểm lưu trú lưu gần nhất là nơi ở.
-  const plan = () => {
-    const stay = group.data.find((p) => p.category === 'stay');
-    const toDraft = (p: SavedPlace) => ({ id: p.placeId, name: p.name, category: p.category });
-    tripDraft.replace(group.regionId, places.map(toDraft), stay ? toDraft(stay) : null);
-    router.push({ pathname: '/itinerary/new', params: { regionId: group.regionId, regionName: group.regionName } });
-  };
+  const plan = () => planFromSaved(group);
   const overLimit = places.length > MAX_SELECTED_PLACES;
 
   return (
