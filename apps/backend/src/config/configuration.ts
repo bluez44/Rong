@@ -71,6 +71,8 @@ export interface WebPlacesConfig {
   refreshDays: number;
   /** Lần đầu mở vùng: chờ pipeline tối đa chừng này rồi trả `building`. */
   waitMs: number;
+  /** Lượt 1 lưu ít hơn chừng này địa điểm thì chạy lượt 2 (spec 2026-10-21-ward-search §3). */
+  minCount: number;
   /**
    * Ghép địa điểm từ bài viết với Google Places để lấy tọa độ. Tắt mặc định: Việt Nam nằm trong
    * Prohibited Territories của Google Maps Platform, Places trả 403; tắt thì dùng tọa độ AI ("Vị trí gần đúng").
@@ -272,6 +274,7 @@ export function loadConfig(): AppConfig {
     webPlaces: {
       refreshDays: positiveInt('WEB_PLACES_REFRESH_DAYS', 30),
       waitMs: positiveInt('WEB_PLACES_WAIT_MS', 25000),
+      minCount: positiveInt('WEB_PLACES_MIN_COUNT', 10),
       googleMatch: process.env.WEB_PLACES_GOOGLE_MATCH === 'true',
     },
     placeSearch: {

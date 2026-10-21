@@ -130,6 +130,35 @@ export async function findPlacesFromWeb(
 }
 
 /**
+ * Lượt 2 (spec 2026-10-21-ward-search §3): lượt 1 lưu được quá ít địa điểm thì agent tìm thêm
+ * bằng truy vấn khác, biết sẵn các bài đã đọc và các tên đã có để không lặp lại.
+ */
+export async function findMorePlacesFromWeb(
+  regionName: string,
+  known: string[],
+  sources: WebSource[],
+  { agent }: Pick<PlaceSearchDeps, 'agent'>,
+): Promise<{ places: WebPlacesType; sources: WebSource[] }> {
+  const request =
+    `Khu vực: ${regionName}, Việt Nam. Danh sách hiện mới có ${known.length} địa điểm, cần thêm.\n` +
+    `Đã có (không lặp lại các nơi này): ${known.length ? known.join('; ') : '(chưa có)'}.\n` +
+    'Tìm thêm địa điểm khác có tên riêng, nằm trong đúng khu vực này: bãi biển, thác, chùa, đền, chợ, ' +
+    'nhà hàng hải sản, quán ăn địa phương, cà phê, homestay, resort, điểm vui chơi. Thử cả tên gọi khác ' +
+    'của khu vực và tên tỉnh cũ trước sáp nhập.\n\n' +
+    `Các bài viết đã đọc:\n\n${sources.length > 0 ? formatArticles(sources) : '(chưa có bài nào)'}`;
+  const found = await agent(request);
+  const all = new Map(sources.map((s) => [s.uri, s]));
+  for (const s of found.sources) if (!all.has(s.uri)) all.set(s.uri, s);
+  logger.log(
+    `"${regionName}": lượt 2 agent thêm ${all.size - sources.length} bài, ${found.places.length} địa điểm`,
+  );
+  return {
+    places: found.places.slice(0, MAX_PLACES),
+    sources: [...all.values()],
+  };
+}
+
+/**
  * Tìm địa điểm của một vùng từ bài viết trên web (Tavily) và Gemini: đường
  * nhanh một lượt Gemini, agent LangChain chỉ khi đường nhanh ra quá ít bài.
  */
@@ -147,6 +176,15 @@ export class PlaceSearchService {
   ): Promise<{ places: WebPlacesType; sources: WebSource[] }> {
     if (!this.deps) throw new Error('TAVILY_API_KEY chưa được cấu hình');
     return findPlacesFromWeb(regionName, this.deps);
+  }
+
+  async findMorePlaces(
+    regionName: string,
+    known: string[],
+    sources: WebSource[],
+  ): Promise<{ places: WebPlacesType; sources: WebSource[] }> {
+    if (!this.deps) throw new Error('TAVILY_API_KEY chưa được cấu hình');
+    return findMorePlacesFromWeb(regionName, known, sources, this.deps);
   }
 }
 
