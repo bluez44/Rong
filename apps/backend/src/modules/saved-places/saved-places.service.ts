@@ -12,6 +12,8 @@ import type {
 } from '@rong/shared-types';
 import { DataSource } from 'typeorm';
 
+import { toNotes } from '../places/place-notes.js';
+
 /** Đủ cho mọi chuyến đi; chặn danh sách phình vô hạn. */
 export const MAX_SAVED_PLACES = 500;
 
@@ -44,6 +46,10 @@ interface SavedRow {
   lat: number | null;
   lng: number | null;
   location_source: LocationSource;
+  note: string | null;
+  opening_hours: string | null;
+  price_min: number | null;
+  price_max: number | null;
 }
 
 @Injectable()
@@ -56,12 +62,14 @@ export class SavedPlacesService {
       `SELECT s.place_id, COALESCE(s.display_name, p.name) AS name, p.category, s.region_id, r.name AS region_name,
               pr.name AS parent_name, s.created_at, s.source, si.platform,
               si.metadata->>'title' AS share_title, si.url AS share_url,
-              ST_Y(p.location) AS lat, ST_X(p.location) AS lng, p.location_source
+              ST_Y(p.location) AS lat, ST_X(p.location) AS lng, p.location_source,
+              n.note, n.opening_hours, n.price_min, n.price_max
          FROM saved_places s
          JOIN places p ON p.id = s.place_id
          JOIN regions r ON r.id = s.region_id
          LEFT JOIN regions pr ON pr.id = r.parent_id
          LEFT JOIN share_imports si ON si.id = s.share_import_id
+         LEFT JOIN place_notes n ON n.user_id = s.user_id AND n.place_id = s.place_id
         WHERE s.user_id = $1
         ORDER BY s.created_at DESC
         LIMIT $2`,
@@ -81,7 +89,13 @@ export class SavedPlacesService {
           ? null
           : { lat: Number(r.lat), lng: Number(r.lng) },
       locationSource: r.location_source,
-      notes: null,
+      notes:
+        r.note === null &&
+        r.opening_hours === null &&
+        r.price_min === null &&
+        r.price_max === null
+          ? null
+          : toNotes({ ...r, place_id: r.place_id }),
       source: r.source,
       shareSource:
         r.source === 'share' && r.platform

@@ -4,12 +4,14 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import type {
   GooglePlacePreviewResponse,
   PlaceDetail,
+  PlaceNotes,
   PlaceSearchResponse,
   PlacesPage,
   SaveGooglePlaceResponse,
@@ -20,6 +22,8 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { ListPlacesDto } from './dto/list-places.dto.js';
 import { PlaceSearchDto } from './dto/place-search.dto.js';
 import { SaveGooglePlaceDto } from './dto/save-google-place.dto.js';
+import { UpdatePlaceNotesDto } from './dto/update-place-notes.dto.js';
+import { PlaceNotesService } from './place-notes.service.js';
 import { PlaceSearchService } from './place-search.service.js';
 import { PlacesService } from './places.service.js';
 import { WebPlacesService } from './web-places.service.js';
@@ -59,6 +63,7 @@ export class PlaceDetailController {
   constructor(
     private readonly places: PlacesService,
     private readonly placeSearch: PlaceSearchService,
+    private readonly notes: PlaceNotesService,
   ) {}
 
   /**
@@ -82,12 +87,25 @@ export class PlaceDetailController {
     return this.placeSearch.save(user.userId, dto);
   }
 
+  /** Ghi chú riêng của người gọi cho địa điểm này; trả null khi đã xóa hết. */
+  @Patch(':id/notes')
+  updateNotes(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdatePlaceNotesDto,
+  ): Promise<PlaceNotes | null> {
+    return this.notes.update(user.userId, id, dto);
+  }
+
   /**
    * Chi tiết địa điểm (F5). Phần `google` được gọi theo thời gian thực mỗi lần
    * mở; client không được lưu hay cache nó quá phiên xem (PRD 7.4).
    */
   @Get(':id')
-  detail(@Param('id', new ParseUUIDPipe()) id: string): Promise<PlaceDetail> {
-    return this.places.getDetail(id);
+  detail(
+    @CurrentUser() user: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ): Promise<PlaceDetail> {
+    return this.places.getDetail(id, user.userId);
   }
 }
