@@ -160,42 +160,50 @@ export class WebPlacesService {
       // Lượt 2 (spec 2026-10-21-ward-search §3): thiếu thì agent tìm thêm, tránh các tên đã có.
       if (inputs.length < this.config.minCount) {
         rounds = 2;
-        const more = await this.agent.findMorePlaces(
-          regionName,
-          inputs.map((p) => p.name),
-          first.sources,
-        );
-        found += more.places.length;
-        const known = new Set(inputs.map((p) => normalizeForMatch(p.name)));
-        const extra = await this.collect(
-          more.places.filter((p) => !known.has(normalizeForMatch(p.title))),
-          more.sources,
-          regionName,
-          bbox,
-          cited,
-        );
-        for (const p of extra) {
-          const key = normalizeForMatch(p.name);
-          if (!known.has(key)) {
-            known.add(key);
-            inputs.push(p);
+        try {
+          const more = await this.agent.findMorePlaces(
+            regionName,
+            inputs.map((p) => p.name),
+            first.sources,
+          );
+          found += more.places.length;
+          const known = new Set(inputs.map((p) => normalizeForMatch(p.name)));
+          const extra = await this.collect(
+            more.places.filter((p) => !known.has(normalizeForMatch(p.title))),
+            more.sources,
+            regionName,
+            bbox,
+            cited,
+          );
+          for (const p of extra) {
+            const key = normalizeForMatch(p.name);
+            if (!known.has(key)) {
+              known.add(key);
+              inputs.push(p);
+            }
           }
+          inputs.splice(MAX_PLACES_STORED);
+        } catch (error) {
+          // Lượt 2 chỉ để bổ sung: lỗi thì vẫn lưu những gì lượt 1 đã có.
+          this.logger.warn(
+            `"${regionName}": lượt 2 lỗi, giữ ${inputs.length} địa điểm của lượt 1: ${(error as Error).message}`,
+          );
         }
-        inputs.splice(MAX_PLACES_STORED);
-      }
-
-      if (inputs.length === 0) {
-        throw new Error('Không có địa điểm nào qua kiểm chứng');
       }
 
       if (inputs.length < this.config.minCount) {
         const previous = await this.store.count(regionId);
+        // Làm mới ra kém hơn (kể cả 0 địa điểm): giữ danh sách cũ và lùi hạn, để không làm mới
+        // (tốn phí) lại ở mỗi request.
         if (previous > inputs.length) {
           await this.store.postpone(regionId, this.config.refreshDays);
           this.logger.warn(
             `"${regionName}": làm mới chỉ được ${inputs.length} địa điểm (< ${this.config.minCount}), giữ ${previous} địa điểm cũ`,
           );
           return;
+        }
+        if (inputs.length === 0) {
+          throw new Error('Không có địa điểm nào qua kiểm chứng');
         }
         this.logger.warn(
           `"${regionName}": sau ${rounds} lượt chỉ có ${inputs.length} địa điểm (< ${this.config.minCount})`,

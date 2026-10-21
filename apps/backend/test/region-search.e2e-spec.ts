@@ -256,6 +256,31 @@ describe('Tìm vùng (e2e)', () => {
       expect(new Set(hits.map((h) => h.parent!.id)).size).toBe(2);
     });
 
+    it('bí danh xã là tên ngắn đầy đủ, không bị bỏ chữ đầu giống tiền tố ("Quan Sơn")', async () => {
+      const rows = (await db.query(
+        `SELECT a.search_alias FROM region_aliases a JOIN regions r ON r.id = a.region_id
+          WHERE r.source_key LIKE 'vn:ward:%' AND r.name = 'Xã Quan Sơn'`,
+      )) as Array<{ search_alias: string }>;
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.every((r) => r.search_alias === 'quan son')).toBe(true);
+    });
+
+    it('"binh": tỉnh đứng trước, không bị xã "Phương Bình" chiếm đầu', async () => {
+      const top = (await search('binh')).body[0] as Hit & { group: string };
+      expect(top.group).toBe('province');
+    });
+
+    it.each([
+      ['da', ['Đà Nẵng', 'Đà Lạt']],
+      ['quang', ['Quảng Nam', 'Quảng Ngãi']],
+    ])(
+      'đang gõ "%s": tỉnh/điểm đến không bị xã đẩy khỏi kết quả',
+      async (q, expected) => {
+        const names = ((await search(q)).body as Hit[]).map((r) => r.name);
+        for (const name of expected) expect(names).toContain(name);
+      },
+    );
+
     it('seed có đủ 3.321 xã; seed lần hai bỏ qua', async () => {
       const [{ n }] = (await db.query(
         `SELECT count(*)::int AS n FROM regions WHERE source_key LIKE 'vn:ward:%'`,

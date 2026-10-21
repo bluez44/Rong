@@ -131,13 +131,22 @@ export function condenseArticle(markdown: string): {
 
   const out: string[] = introPart ? [introPart] : [];
   let used = introPart.length;
+  // Chỗ dành sẵn cho các tiêu đề chưa ghi: nội dung mục trước không được lấn mất tiêu đề mục sau.
+  let headingsLeft = headingChars;
   for (const s of items) {
     const head = s.heading ?? '';
     if (used + head.length + 1 > CONDENSE_LIMITS.article) break;
     out.push(head);
     used += head.length + 1;
-    const body = cutAtWord(s.lines.join(' '), perSection);
-    if (body && used + body.length + 1 <= CONDENSE_LIMITS.article) {
+    headingsLeft -= head.length + 1;
+    // -1 cho dấu "…" khi cắt, -1 cho dấu xuống dòng.
+    const free = CONDENSE_LIMITS.article - used - headingsLeft - 2;
+    if (free <= 0) continue;
+    const body = cutAtWord(s.lines.join(' '), Math.min(perSection, free));
+    if (
+      body &&
+      used + body.length + 1 + headingsLeft <= CONDENSE_LIMITS.article
+    ) {
       out.push(body);
       used += body.length + 1;
     }

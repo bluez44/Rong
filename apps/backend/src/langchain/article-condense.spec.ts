@@ -96,4 +96,19 @@ describe('condenseArticle', () => {
     for (let i = 1; i <= 60; i++) expect(text).toContain(`Quán số ${i}`);
     expect(text.length).toBeLessThanOrEqual(12_000);
   });
+
+  it('bài "Top 30" có ba mục con mỗi nơi: vẫn giữ đủ 30 tên dưới trần', () => {
+    const md = Array.from(
+      { length: 30 },
+      (_, i) =>
+        // Nội dung mỗi nơi khác nhau, để bước bỏ dòng trùng không xóa mất.
+        `## ${i + 1}. Địa danh số ${i + 1}\nNơi ${i}: ${para(40)}\n` +
+        ['Địa chỉ', 'Giá vé', 'Giờ mở cửa']
+          .map((h) => `### ${h}\n${h} nơi ${i}: ${para(30)}`)
+          .join('\n'),
+    ).join('\n');
+    const { text } = condenseArticle(md);
+    for (let i = 1; i <= 30; i++) expect(text).toContain(`Địa danh số ${i}\n`);
+    expect(text.length).toBeLessThanOrEqual(12_000);
+  });
 });
