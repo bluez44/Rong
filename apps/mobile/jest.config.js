@@ -14,5 +14,6 @@ module.exports = {
     '^react$': reactDir,
     '^react/(.*)$': `${reactDir}/$1`,
   },
+  setupFiles: ['<rootDir>/jest/setup.js'],
   testPathIgnorePatterns: ['/node_modules/', '/android/', '/ios/'],
 };
