@@ -98,6 +98,14 @@ export interface ShareLinksConfig {
   secret: string;
 }
 
+/** Đăng nhập Google / Zalo (spec 2026-10-21-google-zalo-login). Thiếu giá trị = tắt nhà cung cấp đó. */
+export interface OAuthConfig {
+  /** Client ID được chấp nhận làm `aud` của ID token Google (Web client). */
+  googleClientIds: string[];
+  zaloAppId: string | null;
+  zaloAppSecret: string | null;
+}
+
 /** Gợi ý lịch trình trang chủ (spec 2026-10-19-home-recommendations). */
 export interface RecommendationsConfig {
   /** Dùng BullMQ + Redis. Tắt (hoặc NODE_ENV=test) thì job chạy ngay trong process, không có lịch cron. */
@@ -120,6 +128,7 @@ export interface AppConfig {
   webPlaces: WebPlacesConfig;
   inviteLinks: InviteLinksConfig;
   shareLinks: ShareLinksConfig;
+  oauth: OAuthConfig;
   recommendations: RecommendationsConfig;
 }
 
@@ -282,6 +291,14 @@ export function loadConfig(): AppConfig {
             'SHARE_LINK_SECRET',
           )
         : (process.env.JWT_SECRET as string),
+    },
+    oauth: {
+      googleClientIds: (process.env.GOOGLE_OAUTH_CLIENT_IDS ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+      zaloAppId: process.env.ZALO_APP_ID || null,
+      zaloAppSecret: process.env.ZALO_APP_SECRET || null,
     },
     recommendations: {
       queueEnabled: recommendationsQueueEnabled(process.env),

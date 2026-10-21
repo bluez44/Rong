@@ -50,6 +50,7 @@
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.7",
     "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
     "langchain": "^1.5.12",
     "nodemailer": "^10.0.10",
     "passport": "^0.7.0",
