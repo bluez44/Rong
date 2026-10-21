@@ -4,9 +4,10 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
+import { OpenDataService } from '../src/modules/open-data/open-data.service.js';
 import { matchCatalog } from '../src/modules/places/catalog-match.js';
 
 /** Địa điểm tự ghim và ghi chú riêng (spec 2026-10-21-user-pinned-places), trên database thật. */
@@ -21,11 +22,18 @@ describe('Địa điểm tự ghim và ghi chú (e2e)', () => {
   let webPlaceId: string;
   let shareImportId: string;
   let pinnedId: string;
+  const openData = {
+    searchPlaces: vi.fn(async () => []),
+    reverse: vi.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(OpenDataService)
+      .useValue(openData)
+      .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
@@ -293,5 +301,30 @@ describe('Địa điểm tự ghim và ghi chú (e2e)', () => {
     expect(JSON.stringify(search.body)).not.toContain(pinnedId);
     const matches = await matchCatalog(db, ['E2E up Chè bà Tư'], null, 0.3);
     expect(matches.map((m) => m.id)).not.toContain(pinnedId);
+  });
+  it('GET /places/reverse-geocode: trả một dòng địa chỉ; cùng ô 10 m lấy cache; Nominatim lỗi thì null', async () => {
+    openData.reverse.mockResolvedValueOnce({
+      address: { road: 'Đường Hồ Tùng Mậu', city: 'Đà Lạt', state: 'Lâm Đồng' },
+    });
+    await api()
+      .get('/api/places/reverse-geocode?lat=11.9401&lng=108.4402')
+      .expect(200)
+      .expect((r) =>
+        expect(r.body).toEqual({
+          address: 'Đường Hồ Tùng Mậu, Đà Lạt, Lâm Đồng',
+        }),
+      );
+    await api()
+      .get('/api/places/reverse-geocode?lat=11.94012&lng=108.44018')
+      .expect(200);
+    expect(openData.reverse).toHaveBeenCalledTimes(1);
+    openData.reverse.mockResolvedValueOnce(null);
+    await api()
+      .get('/api/places/reverse-geocode?lat=11.95&lng=108.45')
+      .expect(200)
+      .expect((r) => expect(r.body).toEqual({ address: null }));
+    await api()
+      .get('/api/places/reverse-geocode?lat=200&lng=108.45')
+      .expect(400);
   });
 });

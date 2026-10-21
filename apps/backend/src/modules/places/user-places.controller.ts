@@ -1,14 +1,19 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
-import type { CreateUserPlaceResponse } from '@rong/shared-types';
+import type {
+  CreateUserPlaceResponse,
+  ReverseGeocodeResponse,
+} from '@rong/shared-types';
 
 import type { AuthUser } from '../auth/auth.constants.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -16,6 +21,8 @@ import {
   CreateUserPlaceDto,
   UpdateUserPlaceDto,
 } from './dto/create-user-place.dto.js';
+import { ReverseGeocodeQueryDto } from './dto/reverse-geocode-query.dto.js';
+import { ReverseGeocodeService } from './reverse-geocode.service.js';
 import { UserPlacesService } from './user-places.service.js';
 
 /**
@@ -24,7 +31,19 @@ import { UserPlacesService } from './user-places.service.js';
  */
 @Controller('places')
 export class UserPlacesController {
-  constructor(private readonly userPlaces: UserPlacesService) {}
+  constructor(
+    private readonly userPlaces: UserPlacesService,
+    private readonly reverse: ReverseGeocodeService,
+  ) {}
+
+  /** Địa chỉ dưới ghim ở màn ghim vị trí; `address: null` khi không tìm được. */
+  @Get('reverse-geocode')
+  reverseGeocode(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ReverseGeocodeQueryDto,
+  ): Promise<ReverseGeocodeResponse> {
+    return this.reverse.lookup(user.userId, query.lat, query.lng);
+  }
 
   @Post('user')
   create(

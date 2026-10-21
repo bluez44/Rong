@@ -23,6 +23,7 @@ import {
 } from './places.controller.js';
 import { PlacesService } from './places.service.js';
 import { RegionPlaceStore } from './region-place-store.js';
+import { ReverseGeocodeService } from './reverse-geocode.service.js';
 import { UserPlacesController } from './user-places.controller.js';
 import { UserPlacesService } from './user-places.service.js';
 import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
@@ -48,6 +49,7 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
     RegionPlaceStore,
     PlaceNotesService,
     UserPlacesService,
+    ReverseGeocodeService,
     {
       provide: PLACE_SEARCH_CONFIG,
       inject: [ConfigService],
