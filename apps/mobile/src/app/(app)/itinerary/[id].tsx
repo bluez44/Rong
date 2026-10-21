@@ -18,6 +18,7 @@ import { Glass } from '@/components/glass';
 import { ItineraryEditor } from '@/components/itinerary-editor';
 import { AiTipsAccess, ItineraryStickyHeader, ItineraryViewBody } from '@/components/itinerary-view/itinerary-view';
 import { Type } from '@/components/itinerary-view/styles';
+import { RemoveFromGroupButton } from '@/components/remove-from-group-button';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -238,7 +239,18 @@ export default function ItineraryScreen() {
               router.push({ pathname: '/itinerary/day-map', params: { id: data.id, day: String(day) } })
             }
             onStartEdit={canEdit ? () => setEditing(true) : undefined}
-            footer={data.myRole === 'creator' || data.myRole === 'owner' ? <DeleteButton id={data.id} /> : null}
+            footer={
+              data.myRole === 'creator' || data.myRole === 'owner' ? (
+                <>
+                  <RemoveFromGroupButton
+                    itinerary={data}
+                    // Người tạo ở lại: lịch trình giờ là lịch trình cá nhân. Chủ nhóm mất quyền xem nên quay lại.
+                    onRemoved={(stillVisible) => (stillVisible ? itinerary.reload() : router.back())}
+                  />
+                  <DeleteButton id={data.id} />
+                </>
+              ) : null
+            }
           />
         ) : null}
       </ScrollViewContainer>

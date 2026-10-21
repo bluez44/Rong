@@ -101,7 +101,7 @@ Other behavior:
 - Share links (`share-links.*`) expose a read-only public view at `public/itineraries/:token`, rendered by `apps/web` at `/t/:token`. `GET itineraries/:id/share-link` returns the active link to anyone who can view the itinerary (the token is derived from the link id by HMAC, so only its hash is stored); `PUT` gets or creates it without revoking (the app's share path), `POST` rotates it.
 
 ### Groups (S8)
-`modules/groups`: groups, invite links, roles (owner, editor, viewer), a shared place list and an activity log. An itinerary can be moved into a group with `PATCH /itineraries/:id/group`.
+`modules/groups`: groups, invite links, roles (owner, editor, viewer), a shared place list and an activity log. An itinerary belongs to at most one group (`itineraries.group_id`). Its creator moves it into a group with `PATCH /itineraries/:id/group`; the creator or the group owner removes it with `DELETE /groups/:groupId/itineraries/:id` (or `PATCH` with `groupId: null`), which returns it to the creator's personal list rather than deleting it. That route lives in `itineraries/group-itineraries.controller.ts`, because `ItinerariesModule` imports `GroupsModule`.
 
 **All permission rules live in `groups/access.ts`** as pure functions; `AccessService` loads the roles and calls into it. Use it for any itinerary or group authorization; don't write ad-hoc ownership checks. A caller who can't view the resource gets 404, not 403, so its existence isn't leaked.
 
