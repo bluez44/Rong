@@ -21,10 +21,12 @@ type Props = {
   regionId: string;
   regionName: string;
   query: string;
+  /** Khung bao / tâm của vùng như params của màn Vùng: màn ghim mở đúng vùng và khóa ghim ngoài vùng. */
+  area?: { bbox?: string; lat?: string; lng?: string };
 };
 
 /** Kết quả tìm theo tên: "Trong Rong" (danh mục + Google đã có trong DB) rồi "Từ Google Maps". */
-export function PlaceSearchResults({ search, regionId, regionName, query }: Props) {
+export function PlaceSearchResults({ search, regionId, regionName, query, area }: Props) {
   const { status, catalog, existing, google, searchedOnline, error } = search;
   const q = query.trim();
 
@@ -131,7 +133,16 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
             <Button
               label="Thêm địa điểm của riêng bạn"
               onPress={() =>
-                router.push({ pathname: '/place/pin', params: { regionId, regionName, name: q } })
+                router.push({
+                  pathname: '/place/pin',
+                  params: {
+                    regionId,
+                    regionName,
+                    name: q,
+                    // Chỉ các phần đã biết (mở từ "Muốn đi" thì màn Vùng chưa có khung bao).
+                    ...Object.fromEntries(Object.entries(area ?? {}).filter(([, v]) => v)),
+                  },
+                })
               }
             />
           ) : null}

@@ -91,7 +91,9 @@ export default function PlaceDetailScreen() {
             {place.locationSource === 'user' ? (
               <View style={styles.addressRow}>
                 <Icon name="pin" size={16} color={Colors.light.primary} />
-                <Text style={styles.pinnedLabel}>Vị trí bạn ghim</Text>
+                <Text style={styles.pinnedLabel}>
+                  {place.createdByMe ? 'Vị trí bạn ghim' : 'Vị trí do người dùng ghim'}
+                </Text>
               </View>
             ) : null}
             <Hours place={place} />

@@ -90,4 +90,13 @@ describe('chi tiết địa điểm: ghi chú và điểm tự ghim', () => {
     expect(screen.getByText('Vị trí bạn ghim')).toBeTruthy();
     expect(screen.getByText('Sửa tên, loại, vị trí')).toBeTruthy();
   });
+
+  it('điểm người khác ghim (xem qua lịch trình nhóm): nhãn trung tính, không có nút sửa', async () => {
+    mockPlace = { ...basePlace, locationSource: 'user', createdByMe: false, coordinates: { lat: 11.94, lng: 108.44 } } as PlaceDetail;
+    mockParams = { id: 'p1' };
+    await render(<PlaceDetailScreen />, { wrapper });
+    expect(screen.getByText('Vị trí do người dùng ghim')).toBeTruthy();
+    expect(screen.queryByText('Vị trí bạn ghim')).toBeNull();
+    expect(screen.queryByText('Sửa tên, loại, vị trí')).toBeNull();
+  });
 });

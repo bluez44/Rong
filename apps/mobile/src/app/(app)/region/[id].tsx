@@ -184,7 +184,13 @@ export default function RegionScreen() {
           </View>
         }>
         {searching ? (
-          <PlaceSearchResults search={search} regionId={params.id} regionName={regionName} query={placeQuery} />
+          <PlaceSearchResults
+            search={search}
+            regionId={params.id}
+            regionName={regionName}
+            query={placeQuery}
+            area={{ bbox: params.bbox, lat: params.lat, lng: params.lng }}
+          />
         ) : (
           <FlatList
             ref={list}
