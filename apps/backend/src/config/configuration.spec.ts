@@ -133,3 +133,45 @@ describe('recommendationsQueueEnabled', () => {
     ).toBe(false);
   });
 });
+
+describe('loadConfig: admin', () => {
+  beforeEach(() => {
+    vi.stubEnv('DB_HOST', 'localhost');
+    vi.stubEnv('DB_PORT', '5432');
+    vi.stubEnv('DB_USERNAME', 'u');
+    vi.stubEnv('DB_PASSWORD', 'p');
+    vi.stubEnv('DB_DATABASE', 'd');
+    vi.stubEnv('JWT_SECRET', 'x'.repeat(32));
+    vi.stubEnv('ADMIN_EMAILS', '');
+    vi.stubEnv('ADMIN_API_KEY', '');
+    vi.stubEnv('ADMIN_REFRESH_DAILY_LIMIT', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('mặc định tắt: không email, không khóa, 30 lần mỗi ngày', () => {
+    expect(loadConfig().admin).toEqual({
+      emails: [],
+      apiKey: null,
+      refreshDailyLimit: 30,
+    });
+  });
+
+  it('email viết thường, bỏ khoảng trắng và mục rỗng', () => {
+    vi.stubEnv('ADMIN_EMAILS', ' Admin@Rong.VN , ,boss@example.com');
+    vi.stubEnv('ADMIN_API_KEY', 'k'.repeat(32));
+    vi.stubEnv('ADMIN_REFRESH_DAILY_LIMIT', '5');
+    expect(loadConfig().admin).toEqual({
+      emails: ['admin@rong.vn', 'boss@example.com'],
+      apiKey: 'k'.repeat(32),
+      refreshDailyLimit: 5,
+    });
+  });
+
+  it('khóa ngắn hơn 32 ký tự thì lỗi khi khởi động', () => {
+    vi.stubEnv('ADMIN_API_KEY', 'ngan-qua');
+    expect(() => loadConfig()).toThrow('ADMIN_API_KEY');
+  });
+});
