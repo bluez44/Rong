@@ -4,7 +4,12 @@ import type { GroupRole, InviteRole } from '@rong/shared-types';
  * Quy tắc phân quyền của S8 — nơi duy nhất định nghĩa ai được làm gì. Hàm
  * thuần, không đụng database: `AccessService` đọc vai trò rồi gọi vào đây.
  */
-export type ItineraryAction = 'view' | 'edit' | 'delete' | 'move';
+/**
+ * `move`: chuyển lịch trình vào/sang nhóm khác. `remove_from_group`: gỡ khỏi nhóm đang chứa nó
+ * (lịch trình trở về danh sách cá nhân của người tạo).
+ */
+export type ItineraryAction =
+  'view' | 'edit' | 'delete' | 'move' | 'remove_from_group';
 
 export interface ItineraryAccess {
   isCreator: boolean;
@@ -16,9 +21,12 @@ export type AccessDecision = 'allow' | 'forbidden' | 'not_found';
 
 const RANK: Record<GroupRole, number> = { viewer: 1, editor: 2, owner: 3 };
 
-/** Chuyển nhóm (`move`) chỉ người tạo được làm, nên không vai trò nhóm nào có nó. */
+/**
+ * Chuyển nhóm (`move`) chỉ người tạo được làm, nên không vai trò nhóm nào có nó. Chủ nhóm được gỡ
+ * lịch trình của thành viên khỏi nhóm (không xóa: lịch trình về lại người tạo).
+ */
 const GROUP_ROLE_CAN: Record<GroupRole, ReadonlySet<ItineraryAction>> = {
-  owner: new Set(['view', 'edit', 'delete']),
+  owner: new Set(['view', 'edit', 'delete', 'remove_from_group']),
   editor: new Set(['view', 'edit']),
   viewer: new Set(['view']),
 };

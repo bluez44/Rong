@@ -100,7 +100,8 @@ export class ItinerariesService {
       groupId: string | null;
     },
   ): Promise<ItineraryResponse> {
-    if (p.groupId) await this.access.requireGroupRole(ownerId, p.groupId, 'editor');
+    if (p.groupId)
+      await this.access.requireGroupRole(ownerId, p.groupId, 'editor');
     const region = await this.planner.regionName(p.input.regionId);
     const saved = await this.db.transaction(async (m) => {
       const it = await m.save(
@@ -358,25 +359,57 @@ export class ItinerariesService {
     });
   }
 
-  /** Chỉ người tạo; nhóm đích phải là nơi mình là owner hoặc editor. */
+  /**
+   * Chuyển vào/sang nhóm: chỉ người tạo, nhóm đích phải là nơi mình là owner hoặc editor.
+   * `groupId: null` là gỡ khỏi nhóm, cùng quyền với `removeFromGroup` (người tạo hoặc chủ nhóm).
+   */
   async move(
     userId: string,
     id: string,
     groupId: string | null,
   ): Promise<ItineraryResponse> {
-    const { itinerary, access } = await this.authorize(userId, id, 'move');
+    const { itinerary, access } = await this.authorize(
+      userId,
+      id,
+      groupId === null ? 'remove_from_group' : 'move',
+    );
     if (itinerary.groupId === groupId) return this.respond(itinerary, access);
     if (groupId) await this.access.requireGroupRole(userId, groupId, 'editor');
+    return this.respond(
+      await this.changeGroup(userId, itinerary, groupId),
+      access,
+    );
+  }
+
+  /**
+   * DELETE /groups/:groupId/itineraries/:id: người tạo hoặc chủ nhóm gỡ lịch trình khỏi nhóm.
+   * Lịch trình không bị xóa, chỉ về lại danh sách cá nhân của người tạo. Không nằm trong
+   * `groupId` thì 404.
+   */
+  async removeFromGroup(
+    userId: string,
+    groupId: string,
+    id: string,
+  ): Promise<void> {
+    const { itinerary } = await this.authorize(userId, id, 'remove_from_group');
+    if (itinerary.groupId !== groupId) throw itineraryNotFound();
+    await this.changeGroup(userId, itinerary, null);
+  }
+
+  private async changeGroup(
+    userId: string,
+    itinerary: Itinerary,
+    groupId: string | null,
+  ): Promise<Itinerary> {
     const region = await this.planner.regionName(itinerary.regionId);
     const before = { ...itinerary };
     itinerary.groupId = groupId;
-    const saved = await this.db.transaction(async (m) => {
+    return this.db.transaction(async (m) => {
       await this.logToGroup(m, before, userId, 'itinerary_removed', region);
       const it = await m.save(itinerary);
       await this.logToGroup(m, it, userId, 'itinerary_added', region);
       return it;
     });
-    return this.respond(saved, access);
   }
 
   /**
