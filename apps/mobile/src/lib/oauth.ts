@@ -20,7 +20,9 @@ export type OAuthResult =
 export class OAuthUnavailableError extends Error {}
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
-const ZALO_APP_ID = (Constants.expoConfig?.extra?.zaloAppId as string | null | undefined) ?? null;
+// Chỉ nhận chuỗi khác rỗng: Expo ghi `null` trong `extra` thành `{}` (truthy).
+const rawZaloAppId: unknown = Constants.expoConfig?.extra?.zaloAppId;
+const ZALO_APP_ID = typeof rawZaloAppId === 'string' && rawZaloAppId !== '' ? rawZaloAppId : null;
 
 export const googleAvailable = GOOGLE_WEB_CLIENT_ID !== '';
 export const zaloAvailable = !!ZALO_APP_ID;

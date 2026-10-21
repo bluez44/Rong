@@ -16,7 +16,8 @@ jest.mock('react-native-zalo-kit', () => ({
   logout: () => mockZalo.logout(),
   Constants: { AUTH_VIA_APP_OR_WEB: 'AUTH_VIA_APP_OR_WEB' },
 }));
-jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: { zaloAppId: '123' } } } }));
+const mockExtra: { zaloAppId: unknown } = { zaloAppId: '123' };
+jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { extra: mockExtra } } }));
 
 type OAuthModule = typeof import('./oauth');
 
@@ -25,6 +26,7 @@ describe('oauth', () => {
     jest.resetModules();
     jest.clearAllMocks();
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID = 'web-client';
+    mockExtra.zaloAppId = '123';
   });
   // Nạp lại module sau jest.resetModules() để đọc env mới; import tĩnh không làm được.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -60,6 +62,15 @@ describe('oauth', () => {
   it('thiếu Web Client ID → googleAvailable false', () => {
     delete process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
     expect(load().googleAvailable).toBe(false);
+  });
+
+  it('ZALO_APP_ID trống: Expo ghi null trong extra thành {} → zaloAvailable vẫn false', () => {
+    expect(load().zaloAvailable).toBe(true);
+    for (const empty of [{}, null, '', undefined]) {
+      mockExtra.zaloAppId = empty;
+      jest.resetModules();
+      expect(load().zaloAvailable).toBe(false);
+    }
   });
 
   it('Zalo thành công → accessToken, gọi chế độ app hoặc web', async () => {

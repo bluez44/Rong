@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { validateEmail } from '@/auth/validation';
+import { OAuthButtons } from '@/components/oauth-buttons';
 import { KeyboardAvoider } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -24,6 +25,7 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
   async function submit() {
@@ -141,6 +143,7 @@ export default function LoginScreen() {
           {formError ? <Notice tone="danger">{formError}</Notice> : null}
           <Button
             accessibilityLabel="Đăng nhập vào hành trình"
+            disabled={oauthBusy}
             label={submitting ? 'Đang đăng nhập…' : 'Đăng nhập vào hành trình  ›'}
             size="lg"
             loading={submitting}
@@ -149,18 +152,12 @@ export default function LoginScreen() {
           />
         </View>
 
-        <View style={styles.oauthSection}>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerLabel}>HOẶC TIẾP TỤC VỚI</Text>
-            <View style={styles.divider} />
-          </View>
-          <View style={styles.oauthButtons}>
-            <OAuthPlaceholder mark="G" label="Google" markColor="#4285F4" />
-            <OAuthPlaceholder mark="A" label="Apple" markColor={Palette.charcoal} />
-            <OAuthPlaceholder mark="Z" label="Zalo" markColor="#0068FF" />
-          </View>
-        </View>
+        <OAuthButtons
+          label="HOẶC TIẾP TỤC VỚI"
+          disabled={submitting}
+          onBusyChange={setOauthBusy}
+          onError={setFormError}
+        />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -285,34 +282,6 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   form: { gap: Spacing.four },
-  oauthSection: { gap: Spacing.three },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  divider: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: Palette.parchment400 },
-  dividerLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 9,
-    letterSpacing: 1,
-    color: Palette.charcoalMuted,
-  },
-  oauthButtons: { flexDirection: 'row', gap: Spacing.two },
-  oauthButton: {
-    minHeight: 48,
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Palette.parchment400,
-    backgroundColor: '#FFFFFF',
-  },
-  oauthMark: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16 },
-  oauthLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 12,
-    color: Palette.charcoal,
-  },
   fieldLabel: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 10,
@@ -330,18 +299,4 @@ const styles = StyleSheet.create({
   link: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Palette.terracotta700 },
   pressed: { opacity: 0.78 },
 });
-
-function OAuthPlaceholder({ mark, label, markColor }: { mark: string; label: string; markColor: string }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, sắp có`}
-      accessibilityState={{ disabled: true }}
-      disabled
-      style={styles.oauthButton}>
-      <Text style={[styles.oauthMark, { color: markColor }]}>{mark}</Text>
-      <Text style={styles.oauthLabel}>{label}</Text>
-    </Pressable>
-  );
-}
 

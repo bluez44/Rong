@@ -96,7 +96,7 @@ const config: ExpoConfig = {
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3001',
     // Bật nút đăng nhập Zalo (lib/oauth.ts); plugin native đọc cùng biến lúc build.
-    zaloAppId: process.env.ZALO_APP_ID ?? null,
+    zaloAppId: process.env.ZALO_APP_ID ?? '',
     eas: {
       projectId: 'ee0015b7-3b87-4e3d-8a5f-1edf7738cbb4',
     },

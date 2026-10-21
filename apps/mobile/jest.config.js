@@ -8,6 +8,8 @@ const reactDir = path.dirname(require.resolve('react/package.json'));
 module.exports = {
   preset: 'jest-expo',
   moduleNameMapper: {
+    // Đặt trước alias '@/': '@/global.css' phải thành stub, không phải file CSS thật.
+    '\\.css$': '<rootDir>/jest/css-stub.js',
     '^@/(.*)$': '<rootDir>/src/$1',
     '^react$': reactDir,
     '^react/(.*)$': `${reactDir}/$1`,
