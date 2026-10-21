@@ -7,7 +7,13 @@ import type { RegionRef } from './region-lookup.service.js';
 
 export type StoredOption =
   | { kind: 'catalog'; placeId: string; regionId: string }
-  | { kind: 'google'; googlePlaceId: string; lat: number; lng: number; regionId: string };
+  | {
+      kind: 'google';
+      googlePlaceId: string;
+      lat: number;
+      lng: number;
+      regionId: string;
+    };
 
 export interface StoredCandidate {
   key: string;
@@ -16,21 +22,31 @@ export interface StoredCandidate {
   quote: string;
   confidence: 'high' | 'low' | 'none';
   options: StoredOption[];
+  /** Vùng nội dung nhắc tới, nếu tìm được: gợi ý sẵn khi người dùng tự ghim. Job cũ không có trường này. */
+  regionHintId?: string | null;
 }
 
 export interface ResolverDeps {
   findRegion(hint: string): Promise<RegionRef | null>;
-  matchCatalog(name: string, bbox: Bbox | null): Promise<{ placeId: string; lat: number; lng: number } | null>;
+  matchCatalog(
+    name: string,
+    bbox: Bbox | null,
+  ): Promise<{ placeId: string; lat: number; lng: number } | null>;
   /** Ném lỗi khi Google không dùng được. */
   searchGoogle(query: string, bbox: Bbox | null): Promise<GoogleHit[]>;
-  assignRegions(points: Array<{ lat: number; lng: number }>): Promise<Array<string | null>>;
+  assignRegions(
+    points: Array<{ lat: number; lng: number }>,
+  ): Promise<Array<string | null>>;
   /** Một dòng cảnh báo gộp mọi lỗi Google của lượt nhận diện. */
   warn?(message: string): void;
 }
 
 const MAX_GOOGLE_OPTIONS = 3;
 
-export function insideBbox({ lat, lng }: { lat: number; lng: number }, bbox: Bbox): boolean {
+export function insideBbox(
+  { lat, lng }: { lat: number; lng: number },
+  bbox: Bbox,
+): boolean {
   return lat >= bbox[0] && lat <= bbox[2] && lng >= bbox[1] && lng <= bbox[3];
 }
 
@@ -61,21 +77,35 @@ export async function resolvePlaces(
         category: place.category,
         quote: place.quote,
       };
-      const region = place.regionHint ? await deps.findRegion(place.regionHint) : null;
+      const region = place.regionHint
+        ? await deps.findRegion(place.regionHint)
+        : null;
+      // Gán sau khi tìm vùng: ứng viên nào cũng mang theo vùng gợi ý, kể cả khi không khớp được.
+      const hinted = { ...base, regionHintId: region?.id ?? null };
       const bbox = region?.bbox ?? null;
 
       const match = await deps.matchCatalog(place.name, bbox);
       if (match) {
         return {
-          ...base,
+          ...hinted,
           confidence: 'high',
-          options: [{ option: { kind: 'catalog', placeId: match.placeId }, lat: match.lat, lng: match.lng }],
+          options: [
+            {
+              option: { kind: 'catalog', placeId: match.placeId },
+              lat: match.lat,
+              lng: match.lng,
+            },
+          ],
         };
       }
 
       let hits: GoogleHit[] = [];
       try {
-        const query = [place.name, place.address, region?.name ?? place.regionHint]
+        const query = [
+          place.name,
+          place.address,
+          region?.name ?? place.regionHint,
+        ]
           .filter(Boolean)
           .join(', ');
         googleCalls++;
@@ -85,15 +115,20 @@ export async function resolvePlaces(
         hits = [];
       }
       const toOption = (hit: GoogleHit) => ({
-        option: { kind: 'google' as const, googlePlaceId: hit.placeId, lat: hit.lat, lng: hit.lng },
+        option: {
+          kind: 'google' as const,
+          googlePlaceId: hit.placeId,
+          lat: hit.lat,
+          lng: hit.lng,
+        },
         lat: hit.lat,
         lng: hit.lng,
       });
       if (hits.length > 0 && bbox && insideBbox(hits[0], bbox)) {
-        return { ...base, confidence: 'high', options: [toOption(hits[0])] };
+        return { ...hinted, confidence: 'high', options: [toOption(hits[0])] };
       }
       return {
-        ...base,
+        ...hinted,
         confidence: hits.length > 0 ? 'low' : 'none',
         options: hits.slice(0, MAX_GOOGLE_OPTIONS).map(toOption),
       };
@@ -107,7 +142,9 @@ export async function resolvePlaces(
     );
   }
 
-  const points = drafts.flatMap((d) => d.options.map(({ lat, lng }) => ({ lat, lng })));
+  const points = drafts.flatMap((d) =>
+    d.options.map(({ lat, lng }) => ({ lat, lng })),
+  );
   const regionIds = await deps.assignRegions(points);
   let cursor = 0;
   return drafts.map((draft) => {
