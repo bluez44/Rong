@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/auth-context';
 import { MAX_DISPLAY_NAME_LENGTH, MIN_PASSWORD_LENGTH, validateEmail, validatePassword } from '@/auth/validation';
+import { OAuthButtons } from '@/components/oauth-buttons';
 import { KeyboardAvoider } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -26,6 +27,7 @@ export default function RegisterScreen() {
   const [emailTaken, setEmailTaken] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
@@ -191,6 +193,7 @@ export default function RegisterScreen() {
           </Text>
           <Button
             accessibilityLabel="Tạo tài khoản và bắt đầu"
+            disabled={oauthBusy}
             label={submitting ? 'Đang tạo tài khoản…' : 'Tạo tài khoản & đi thôi  ›'}
             size="lg"
             loading={submitting}
@@ -199,18 +202,12 @@ export default function RegisterScreen() {
           />
         </View>
 
-        <View style={styles.oauthSection}>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerLabel}>HOẶC ĐĂNG KÝ VỚI</Text>
-            <View style={styles.divider} />
-          </View>
-          <View style={styles.oauthButtons}>
-            <OAuthPlaceholder mark="G" label="Google" markColor="#4285F4" />
-            <OAuthPlaceholder mark="A" label="Apple" markColor={Palette.charcoal} />
-            <OAuthPlaceholder mark="Z" label="Zalo" markColor="#0068FF" />
-          </View>
-        </View>
+        <OAuthButtons
+          label="HOẶC ĐĂNG KÝ VỚI"
+          disabled={submitting}
+          onBusyChange={setOauthBusy}
+          onError={setFormError}
+        />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -238,20 +235,6 @@ function getPasswordStrength(password: string) {
   const labels = ['Còn yếu', 'Còn yếu', 'Tạm ổn', 'Khá tốt', 'Mạnh'];
   const colors = [Palette.charcoalMuted, Palette.terracotta700, Palette.terracotta700, Palette.turmeric700, Palette.forest700];
   return { level, label: labels[level], color: colors[level] };
-}
-
-function OAuthPlaceholder({ mark, label, markColor }: { mark: string; label: string; markColor: string }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, sắp có`}
-      accessibilityState={{ disabled: true }}
-      disabled
-      style={styles.oauthButton}>
-      <Text style={[styles.oauthMark, { color: markColor }]}>{mark}</Text>
-      <Text style={styles.oauthLabel}>{label}</Text>
-    </Pressable>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -316,18 +299,6 @@ const styles = StyleSheet.create({
   legalCopy: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, lineHeight: 16, color: Colors.light.textSecondary },
   legalEmphasis: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Palette.forest700 },
   submitButton: { marginTop: -Spacing.one },
-  oauthSection: { gap: Spacing.three },
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  divider: { height: StyleSheet.hairlineWidth, flex: 1, backgroundColor: Palette.parchment400 },
-  dividerLabel: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9, letterSpacing: 1, color: Palette.charcoalMuted },
-  oauthButtons: { flexDirection: 'row', gap: Spacing.two },
-  oauthButton: {
-    minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: Spacing.two, borderRadius: Radius.pill, borderWidth: 1, borderColor: Palette.parchment400,
-    backgroundColor: '#FFFFFF',
-  },
-  oauthMark: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16 },
-  oauthLabel: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 12, color: Palette.charcoal },
   footer: { marginTop: 'auto', alignItems: 'center', paddingTop: Spacing.two },
   footerText: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 13, lineHeight: 20, color: Colors.light.textSecondary },
   link: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Palette.terracotta700 },
