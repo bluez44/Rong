@@ -68,6 +68,15 @@ GET /api/places/:id                         chi tiết (F5) + nội dung Google 
   không còn là đơn vị hành chính sau sáp nhập (huyện cũ như Cần Giờ, Củ Chi) để tìm ra ngay
   không cần Nominatim. Khung bao của điểm đến là khung vuông quanh tâm, nên bán kính phải đủ nhỏ
   để không phủ tâm điểm đến khác (Cần Giờ 13 km quanh rừng Sác, không lấn sang Vũng Tàu; có test).
+- **Xã/phường sau sáp nhập** (3.321 đơn vị, spec `2026-10-21-ward-search-design.md`) được seed từ
+  `regions/seed/vietnam-wards.json`, sinh một lần bằng `scripts/generate-ward-seed.ts` từ
+  thanglequoc/vietnamese-provinces-database v5.2.0 (MIT), kèm khung bao từ ranh giới GeoJSON. Mỗi xã một dòng
+  `vn:ward:<mã>` (`level = 'ward'`, tỉnh mới là `parent_id`, tỉnh cũ đoán theo khung bao là `former_parent_id`);
+  tên ngắn ("Phước Hải") là bí danh, nên gõ không tiền tố, không dấu vẫn ra ngay. Seeder upsert hàng loạt và bỏ qua
+  khi mọi dòng đã có `area_source.dataset` đúng phiên bản. Khớp đúng (tên/bí danh) xếp trước khớp na ná, kể cả xã.
+- **Nominatim** thử câu gốc rồi bản không dấu đã bỏ tiền tố xã/phường (`nominatimQueries`; tối đa 2 request), vì
+  Nominatim tìm chữ Việt có dấu kém. Kết quả là xã/phường thì không nhập (đã có trong seed); còn lại nhập làm
+  `destination`.
 - **Từ khóa không ra kết quả** được đếm trong `region_search_misses` (không lưu người tìm):
   `catalog_misses` khi tìm trong danh mục, `online_misses` khi đã hỏi cả Nominatim, và
   `weak_matches` khi có kết quả nhưng điểm cao nhất dưới ngưỡng khớp tốt (0.8, ví dụ
@@ -109,6 +118,17 @@ trúc (`langchain/place-search.service.ts`, ít bài quá thì agent tự tìm t
 tên giống ≥ `MATCH_MIN_SIMILARITY` và loại không mâu thuẫn) → không ghép được thì giữ tọa độ AI nếu nằm trong
 vùng (nới ~2 km), không thì bỏ → lưu bằng `RegionPlaceStore`.
 
+- **Rút gọn bài** (`langchain/article-condense.ts`): giữ mọi tiêu đề mục (`#`, `**1. Tên**`, `1) Tên`) kèm tối đa
+  400 ký tự đầu mỗi mục, mở bài 600 ký tự, trần 12.000 ký tự/bài (giảm đều nội dung, không cắt tiêu đề); bỏ menu
+  link, dòng trùng, mục "Bài viết liên quan"/"Bình luận". Bài dưới 3 tiêu đề lấy 6.000 ký tự đầu. Log
+  `rút gọn … → … ký tự, … tiêu đề` cho mỗi truy vấn Tavily.
+- **Tối thiểu địa điểm** (`WEB_PLACES_MIN_COUNT`, mặc định 10): lượt 1 lưu được ít hơn thì agent tìm thêm một lượt
+  (`PlaceSearchService.findMorePlaces`, kèm bài đã đọc và tên đã có để không lặp), qua cùng các bước kiểm chứng; gộp bỏ
+  trùng tên không phân biệt dấu, lượt 1 đứng trước, tối đa 40. Tối đa 2 lượt; còn thiếu thì vẫn lưu (cảnh báo), 0 thì
+  `PLACES_UNAVAILABLE`. Làm mới ra ít hơn ngưỡng và ít hơn danh sách cũ thì giữ danh sách cũ và lùi hạn.
+- **Tên vùng gửi pipeline**: `"<tên>, <tỉnh>"`; với xã là `"<tên ngắn>, <tỉnh cũ>"` ("Phước Hải, Bà Rịa - Vũng Tàu"),
+  vì bài viết du lịch phần lớn dùng tên trước sáp nhập; không có tỉnh cũ thì dùng tỉnh mới.
+
 Bước ghép Google chỉ chạy khi `WEB_PLACES_GOOGLE_MATCH=true`, và **mặc định tắt**: Việt Nam nằm trong
 [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) của Google Maps
 Platform, Places trả 403. Khi tắt, mọi địa điểm mới dùng tọa độ AI ("Vị trí gần đúng"). Các dòng đã ghép từ trước giữ
@@ -133,7 +153,7 @@ Dữ liệu:
 - Dòng `web`/`google` có `sourceUrl` là link Google Maps; `locationSource` cho biết tọa độ từ đâu.
 - `places.address` lưu địa chỉ lấy từ bài viết (nguồn riêng của Rong), không lưu địa chỉ Google. Chỉ giữ địa chỉ Gemini trả về khi phần số nhà + đường có trong một bài đã nhắc địa điểm (`groundedAddress` trong `web-grounding.ts`), không thì `NULL`. Dòng Google-only giữ `address = NULL`; chi tiết Google vẫn lấy trực tiếp ở mỗi lần mở.
 - `region_places.image` lưu một ảnh `{ url, sourceUrl }` lấy từ bài viết (hotlink, không tải về). `searchWeb` tách
-  ảnh `![alt](url)` kèm tiêu đề mục khỏi markdown Tavily trước khi cắt bài (`extractImages` trong
+  ảnh `![alt](url)` kèm tiêu đề mục khỏi markdown Tavily trước khi rút gọn bài (`extractImages` trong
   `langchain/web-search.ts`); `groundedImage` (`web-grounding.ts`) chọn ảnh có alt, rồi tiêu đề mục, chứa tên địa
   điểm trong các bài đã nhắc nó. Không khớp thì `NULL`, client hiện icon danh mục. Danh sách cũ có ảnh khi tự làm
   mới.

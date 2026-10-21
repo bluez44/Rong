@@ -31,3 +31,29 @@ export function searchKey(raw: string): string {
 export function isWardName(raw: string): boolean {
   return /^(phuong|xa|thi tran|dac khu)\s+/.test(foldText(raw));
 }
+
+const WARD_PREFIX = /^(xã|phường|thị trấn|đặc khu)\s+/iu;
+
+/** "Xã Phước Hải" → "Phước Hải". */
+export function stripWardPrefix(name: string): string {
+  return name.trim().replace(WARD_PREFIX, '').trim();
+}
+
+/** Bỏ dấu tiếng Việt, giữ hoa/thường. */
+function removeDiacritics(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+/**
+ * Các câu gửi Nominatim, thử lần lượt: câu gốc, rồi bản không dấu đã bỏ tiền tố. Nominatim tìm chữ Việt
+ * có dấu kém ("Phước Hải" ra cây xăng, "Phuoc Hai" ra đúng xã).
+ */
+export function nominatimQueries(query: string): string[] {
+  const original = query.trim();
+  const folded = removeDiacritics(stripWardPrefix(original));
+  return [...new Set([original, folded])];
+}

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { OpenDataService } from '../src/modules/open-data/open-data.service.js';
+import type { NominatimResult } from '../src/modules/open-data/open-data.types.js';
 import { RegionSeeder } from '../src/modules/regions/region-seeder.js';
 
 /** Tìm vùng (F1): điểm đến đã seed, và ghi lại từ khóa không ra kết quả. */
@@ -17,6 +18,24 @@ describe('Tìm vùng (e2e)', () => {
   let token: string;
   // Từ khóa riêng cho mỗi lần chạy để bộ đếm không lẫn với lần trước.
   const missQuery = `E2E miss zqxw ${Date.now()}`;
+  // Địa danh giả trả từ Nominatim giả (osm_id không đụng dữ liệu thật).
+  const TEST_OSM_KEYS = ['osm:N9990000001', 'osm:N9990000002'];
+  const nominatimResult = (
+    id: number,
+    patch: Partial<NominatimResult>,
+  ): NominatimResult => ({
+    osm_type: 'node',
+    osm_id: id,
+    lat: '10.45',
+    lon: '107.4',
+    name: '',
+    display_name: '',
+    category: 'place',
+    type: 'village',
+    addresstype: 'village',
+    address: { state: 'Thành phố Hồ Chí Minh' },
+    ...patch,
+  });
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -43,6 +62,9 @@ describe('Tìm vùng (e2e)', () => {
   });
 
   afterAll(async () => {
+    await db?.query(`DELETE FROM regions WHERE source_key = ANY($1::text[])`, [
+      TEST_OSM_KEYS,
+    ]);
     await db?.query(
       `DELETE FROM region_search_misses WHERE search_key LIKE 'e2e miss%' OR search_key = 'da latt'`,
     );
@@ -152,6 +174,41 @@ describe('Tìm vùng (e2e)', () => {
     )) as Array<{ n: number }>;
     expect(n).toBe(0);
   });
+  it('Nominatim: câu có dấu không ra gì thì thử bản không dấu; kết quả là xã thì không nhập', async () => {
+    const spy = vi.spyOn(app.get(OpenDataService), 'searchPlaces');
+    spy.mockReset();
+    spy.mockImplementation(async (q: string) =>
+      q === 'Bai Kem Thu Nghiem'
+        ? [
+            nominatimResult(9990000001, { name: 'Bãi Kem Thử Nghiệm' }),
+            nominatimResult(9990000002, {
+              name: 'Xã Thử Nghiệm Mới',
+              category: 'boundary',
+              addresstype: 'town',
+            }),
+          ]
+        : [],
+    );
+    try {
+      const res = await search('Bãi Kem Thử Nghiệm', true);
+      expect(spy.mock.calls.map(([q]) => q)).toEqual([
+        'Bãi Kem Thử Nghiệm',
+        'Bai Kem Thu Nghiem',
+      ]);
+      expect(res.body.map((r: { name: string }) => r.name)).toContain(
+        'Bãi Kem Thử Nghiệm',
+      );
+      const [{ n }] = (await db.query(
+        `SELECT count(*)::int AS n FROM regions WHERE source_key = $1`,
+        [TEST_OSM_KEYS[1]],
+      )) as Array<{ n: number }>;
+      expect(n).toBe(0);
+    } finally {
+      spy.mockReset();
+      spy.mockResolvedValue([]);
+    }
+  });
+
   describe('xã/phường sau sáp nhập', () => {
     type Hit = {
       name: string;

@@ -21,6 +21,7 @@ import type { WebSource } from '../../langchain/web-search.js';
 import { GooglePlacesService } from '../google/google-places.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
+import { stripWardPrefix } from '../regions/search-text.js';
 import { PLACE_CATEGORIES } from './entities/place.entity.js';
 import { hoursToday } from './opening-hours.js';
 import { PlaceLocationService } from './place-location.service.js';
@@ -346,17 +347,30 @@ export class WebPlacesService {
 
   private async regionName(regionId: string): Promise<string> {
     const [row] = (await this.db.query(
-      `SELECT r.name, p.name AS parent_name
-         FROM regions r LEFT JOIN regions p ON p.id = r.parent_id
+      `SELECT r.name, r.level, p.name AS parent_name, fp.name AS former_parent_name
+         FROM regions r
+         LEFT JOIN regions p ON p.id = r.parent_id
+         LEFT JOIN regions fp ON fp.id = r.former_parent_id
         WHERE r.id = $1`,
       [regionId],
-    )) as Array<{ name: string; parent_name: string | null }>;
+    )) as Array<{
+      name: string;
+      level: string | null;
+      parent_name: string | null;
+      former_parent_name: string | null;
+    }>;
     if (!row) {
       throw new NotFoundException({
         statusCode: 404,
         code: 'REGION_NOT_FOUND',
         message: 'Không tìm thấy vùng này.',
       });
+    }
+    if (row.level === 'ward') {
+      // Bài viết du lịch phần lớn dùng tên trước sáp nhập: "Phước Hải, Bà Rịa - Vũng Tàu".
+      const province = row.former_parent_name ?? row.parent_name;
+      const short = stripWardPrefix(row.name);
+      return province ? `${short}, ${province}` : short;
     }
     return row.parent_name ? `${row.name}, ${row.parent_name}` : row.name;
   }
