@@ -4,7 +4,6 @@ import { Alert, StyleSheet, Text } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
 import { PlaceNotesForm } from '@/components/place-notes-form';
-import { KeyboardAvoider } from '@/components/screen';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Colors, Type } from '@/constants/theme';
 import { ApiError } from '@/lib/api';
@@ -58,17 +57,15 @@ export function PlaceNotesSheet({ visible, placeId, placeName, notes, onClose, o
           {`Ghi chú · ${placeName}`}
         </Text>
       }>
-      <KeyboardAvoider>
-        {/* key: mở lại sheet thì form bắt đầu từ ghi chú mới nhất. */}
-        <PlaceNotesForm
-          key={visible ? 'open' : 'closed'}
-          initial={notes}
-          submitLabel="Lưu"
-          busy={busy}
-          error={error}
-          onSubmit={save}
-        />
-      </KeyboardAvoider>
+      {/* key: mở lại sheet thì form bắt đầu từ ghi chú mới nhất. */}
+      <PlaceNotesForm
+        key={visible ? 'open' : 'closed'}
+        initial={notes}
+        submitLabel="Lưu"
+        busy={busy}
+        error={error}
+        onSubmit={save}
+      />
     </BottomSheet>
   );
 }

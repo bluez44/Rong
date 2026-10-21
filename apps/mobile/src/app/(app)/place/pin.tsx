@@ -207,26 +207,24 @@ export default function PinPlaceScreen() {
       </View>
 
       <BottomSheet visible={step === 'info'} onClose={() => setStep('pin')}>
-        <KeyboardAvoider>
-          <PlaceNotesForm
-            initial={null}
-            submitLabel={editing ? 'Lưu' : 'Lưu vào Muốn đi'}
-            busy={busy}
-            error={error}
-            onSubmit={save}
-            header={
-              <View style={styles.header}>
-                <TextField label="Tên địa điểm" value={name} onChangeText={setName} maxLength={120} />
-                <View style={styles.chips}>
-                  {CATEGORIES.map((c) => (
-                    <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={category === c} onPress={() => setCategory(c)} />
-                  ))}
-                </View>
-                {editing ? <Text style={styles.hint}>Ghi chú sửa ở màn chi tiết địa điểm.</Text> : null}
+        <PlaceNotesForm
+          initial={null}
+          submitLabel={editing ? 'Lưu' : 'Lưu vào Muốn đi'}
+          busy={busy}
+          error={error}
+          onSubmit={save}
+          header={
+            <View style={styles.header}>
+              <TextField label="Tên địa điểm" value={name} onChangeText={setName} maxLength={120} />
+              <View style={styles.chips}>
+                {CATEGORIES.map((c) => (
+                  <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={category === c} onPress={() => setCategory(c)} />
+                ))}
               </View>
-            }
-          />
-        </KeyboardAvoider>
+              {editing ? <Text style={styles.hint}>Ghi chú sửa ở màn chi tiết địa điểm.</Text> : null}
+            </View>
+          }
+        />
       </BottomSheet>
     </View>
   );
