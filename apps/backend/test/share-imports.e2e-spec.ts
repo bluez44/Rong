@@ -200,6 +200,8 @@ describe('Chia sẻ vào app (e2e)', () => {
     });
     const [bc, gionui] = job.candidates;
     expect(bc).toMatchObject({
+      // Vùng nội dung nhắc tới: app gợi ý sẵn khi người dùng tự ghim.
+      regionHint: { id: daLat, name: expect.stringContaining('Đà Lạt') },
       confidence: 'high',
       options: [
         { ref: { kind: 'catalog', placeId: webPlace }, regionId: daLat },

@@ -448,7 +448,10 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
         : [],
     );
     const regionNames = await this.regions.names([
-      ...new Set(options.map((o) => o.regionId)),
+      ...new Set([
+        ...options.map((o) => o.regionId),
+        ...candidates.flatMap((c) => (c.regionHintId ? [c.regionHintId] : [])),
+      ]),
     ]);
     const lowGoogle = candidates
       .filter((c) => c.confidence === 'low' || c.options.length > 1)
@@ -499,7 +502,12 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
       quote: c.quote,
       confidence: c.confidence,
       options: c.options.map(present),
-      regionHint: null,
+      regionHint: c.regionHintId
+        ? {
+            id: c.regionHintId,
+            name: regionNames.get(c.regionHintId) ?? '',
+          }
+        : null,
     }));
   }
 
