@@ -457,6 +457,8 @@ export const viewStyles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
+  stopNote: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, lineHeight: 17, color: Palette.charcoal, marginTop: 2 },
+  notesAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
   stopArrowContainer: {
     padding: 4,
   },
