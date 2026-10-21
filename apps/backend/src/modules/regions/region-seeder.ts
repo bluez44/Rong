@@ -16,6 +16,8 @@ import {
   NEW_PROVINCES,
   OLD_PROVINCES,
 } from './seed/vietnam-admin.js';
+import wardsFile from './seed/vietnam-wards.json' with { type: 'json' };
+import type { WardSeedFile } from './seed/ward-seed-builder.js';
 
 /** Ngày cuối của địa giới "trước sáp nhập" (ghi trong `area_source` để tham khảo). */
 export const PRE_MERGER_DATE = '2025-06-30T00:00:00Z';
@@ -187,6 +189,78 @@ export class RegionSeeder implements OnApplicationBootstrap {
     this.logger.log(
       `Đã seed ${rows.length} vùng và ${aliasRows.length} bí danh.`,
     );
+
+    await this.seedWards(id);
+  }
+
+  /** 3.321 xã/phường (spec 2026-10-21-ward-search §1.2). Bỏ qua khi đã seed đúng phiên bản. */
+  private async seedWards(id: (key: string) => string | null): Promise<void> {
+    const { version, wards } = wardsFile as WardSeedFile;
+    const [state] = (await this.regions.query(
+      `SELECT count(*) FILTER (WHERE area_source->>'dataset' = $1)::int AS current
+         FROM regions WHERE source_key LIKE 'vn:ward:%'`,
+      [version],
+    )) as Array<{ current: number }>;
+    if (state.current === wards.length) {
+      this.logger.log(
+        `Xã/phường ${version} đã có (${wards.length}), bỏ qua seed xã.`,
+      );
+      return;
+    }
+
+    const rows = wards.map((w) => ({
+      source_key: `vn:ward:${w.code}`,
+      name: w.fullName,
+      search_name: searchKey(w.fullName),
+      parent_id: id(newKey(w.provinceKey)),
+      former_parent_id: w.formerProvinceKey
+        ? id(oldKey(w.formerProvinceKey))
+        : null,
+      lat: w.center?.[0] ?? null,
+      lng: w.center?.[1] ?? null,
+      south: w.bbox?.[0] ?? null,
+      west: w.bbox?.[1] ?? null,
+      north: w.bbox?.[2] ?? null,
+      east: w.bbox?.[3] ?? null,
+    }));
+    // Một câu cho cả 3.321 dòng: upsert từng dòng qua TypeORM mất vài chục giây trên Neon.
+    await this.regions.query(
+      `INSERT INTO regions (source_key, name, type, boundary_version, level, parent_id, former_parent_id,
+                            search_name, center, bbox_south, bbox_west, bbox_north, bbox_east, area_source)
+       SELECT w.source_key, w.name, 'administrative', 'current', 'ward', w.parent_id, w.former_parent_id,
+              w.search_name,
+              CASE WHEN w.lat IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(w.lng, w.lat), 4326) END,
+              w.south, w.west, w.north, w.east, jsonb_build_object('dataset', $2::text)
+         FROM jsonb_to_recordset($1::jsonb) AS w(
+              source_key text, name text, search_name text, parent_id uuid, former_parent_id uuid,
+              lat float8, lng float8, south float8, west float8, north float8, east float8)
+       ON CONFLICT (source_key) DO UPDATE SET
+              name = EXCLUDED.name, type = EXCLUDED.type, level = EXCLUDED.level,
+              boundary_version = EXCLUDED.boundary_version, search_name = EXCLUDED.search_name,
+              parent_id = EXCLUDED.parent_id, former_parent_id = EXCLUDED.former_parent_id,
+              center = EXCLUDED.center, bbox_south = EXCLUDED.bbox_south, bbox_west = EXCLUDED.bbox_west,
+              bbox_north = EXCLUDED.bbox_north, bbox_east = EXCLUDED.bbox_east,
+              area_source = EXCLUDED.area_source`,
+      [JSON.stringify(rows), version],
+    );
+    // Tên ngắn ("Phước Hải") làm bí danh: gõ không có tiền tố xã/phường vẫn khớp đúng.
+    await this.regions.query(
+      `INSERT INTO region_aliases (region_id, alias, search_alias)
+       SELECT r.id, a.alias, a.search_alias
+         FROM jsonb_to_recordset($1::jsonb) AS a(source_key text, alias text, search_alias text)
+         JOIN regions r ON r.source_key = a.source_key
+       ON CONFLICT ON CONSTRAINT uq_region_alias DO NOTHING`,
+      [
+        JSON.stringify(
+          wards.map((w) => ({
+            source_key: `vn:ward:${w.code}`,
+            alias: w.name,
+            search_alias: searchKey(w.name),
+          })),
+        ),
+      ],
+    );
+    this.logger.log(`Đã seed ${wards.length} xã/phường (${version}).`);
   }
 }
 

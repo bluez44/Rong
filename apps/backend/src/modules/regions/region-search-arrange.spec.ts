@@ -132,6 +132,47 @@ describe('arrangeRegionResults', () => {
     ]);
   });
 
+  it('"long hai" → xã khớp đúng bí danh đứng trước điểm đến chỉ khớp na ná (Hạ Long)', () => {
+    const longhai = region('longhai', {
+      name: 'Xã Long Hải',
+      level: 'ward',
+      parentId: 'hcm-new',
+      formerParentId: 'brvt-old',
+    });
+    const results = arrangeRegionResults(
+      [
+        { regionId: 'halong', score: 0.65 },
+        { regionId: 'longhai', score: 0.98 },
+      ],
+      new Map([...all, ['longhai', longhai]]),
+    );
+
+    expect(results[0]).toMatchObject({ name: 'Xã Long Hải', group: 'ward' });
+    expect(results.map((r) => r.name)).toContain('Hạ Long');
+  });
+
+  it('khớp đúng cả tỉnh, điểm đến và xã: điểm đến → tỉnh → xã', () => {
+    const ward = region('vt-ward', {
+      name: 'Phường Vũng Tàu',
+      level: 'ward',
+      parentId: 'hcm-new',
+    });
+    const results = arrangeRegionResults(
+      [
+        { regionId: 'vt-ward', score: 0.98 },
+        { regionId: 'quangninh', score: 1 },
+        { regionId: 'vungtau', score: 1 },
+      ],
+      new Map([...all, ['vt-ward', ward]]),
+    );
+
+    const order = results.map((r) => r.name);
+    expect(order.indexOf('Vũng Tàu')).toBeLessThan(order.indexOf('Quảng Ninh'));
+    expect(order.indexOf('Quảng Ninh')).toBeLessThan(
+      order.indexOf('Phường Vũng Tàu'),
+    );
+  });
+
   it('tỉnh không đổi địa giới chỉ có một kết quả, không nhãn "(mới)"', () => {
     const results = arrangeRegionResults(
       [{ regionId: 'halong', score: 1 }],
