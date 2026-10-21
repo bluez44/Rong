@@ -13,7 +13,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `google/` | 7.4 | **Cổng duy nhất** gọi Google Places (Routes để sau) |
 | `share-import/` | F4 | Nhận link mạng xã hội, trích xuất và khớp địa điểm |
 | `itineraries/` | F6, F7, F8, F9 | Tạo lịch trình (AI hoặc tự sắp xếp), lưu và xem lại. Chi phí (F7), chỉnh sửa (F8) để sau |
-| `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động; trang mời `/invite/:token` và `/.well-known/assetlinks.json` (xem "Link mời mở từ Zalo/Messenger") |
+| `groups/` | F10 | Nhóm, link mời, phân quyền, nhật ký hoạt động (gỡ lịch trình khỏi nhóm: `DELETE /groups/:groupId/itineraries/:id`, người tạo hoặc chủ nhóm, route nằm ở `itineraries/group-itineraries.controller.ts`); trang mời `/invite/:token` và `/.well-known/assetlinks.json` (xem "Link mời mở từ Zalo/Messenger") |
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
 | `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
 | `health/` | — | Kiểm tra sức khỏe service và kết nối PostGIS |

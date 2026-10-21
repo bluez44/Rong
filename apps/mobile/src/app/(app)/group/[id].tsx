@@ -1,6 +1,6 @@
 import type { GroupDetail, GroupMember, InviteRole } from '@rong/shared-types';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,6 +27,16 @@ export default function GroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const group = useGroup(id);
   const insets = useSafeAreaInsets();
+  const { reload } = group;
+
+  // Tải lại khi quay về từ một lịch trình (vừa gỡ khỏi nhóm, sửa...), trừ lần đầu vì hook đã tự tải.
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) reload();
+      focused.current = true;
+    }, [reload]),
+  );
 
   if (!group.data) {
     return (
