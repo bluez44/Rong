@@ -55,13 +55,17 @@ export class Place {
   })
   location!: Point | null;
 
-  /** 'google' (người dùng lưu) | 'web' (từ bài viết). */
+  /** 'google' (người dùng lưu) | 'web' (từ bài viết) | 'user' (người dùng tự ghim). */
   @Column({ name: 'source', type: 'text' })
-  source!: 'google' | 'web';
+  source!: 'google' | 'web' | 'user';
 
-  /** Tọa độ từ đâu: Google (hạn `location_expires_at`) hay AI ước đoán. */
+  /** Chỉ dòng 'user': người tự ghim. */
+  @Column({ name: 'created_by', type: 'uuid', nullable: true })
+  createdBy!: string | null;
+
+  /** Tọa độ từ đâu: Google (hạn `location_expires_at`), AI ước đoán hay người dùng ghim. */
   @Column({ name: 'location_source', type: 'text' })
-  locationSource!: 'google' | 'ai';
+  locationSource!: 'google' | 'ai' | 'user';
 
   /** Chỉ dòng Google: tọa độ Google hết hạn lúc này (tối đa 30 ngày). */
   @Column({ name: 'location_expires_at', type: 'timestamptz', nullable: true })

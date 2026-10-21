@@ -81,6 +81,7 @@ export class SavedPlacesService {
           ? null
           : { lat: Number(r.lat), lng: Number(r.lng) },
       locationSource: r.location_source,
+      notes: null,
       source: r.source,
       shareSource:
         r.source === 'share' && r.platform

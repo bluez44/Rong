@@ -44,6 +44,8 @@ export interface ShareImportCandidate {
   quote: string;
   confidence: ShareImportConfidence;
   options: ShareImportOption[];
+  /** Vùng nội dung nhắc tới (nếu tìm được): gợi ý sẵn khi người dùng tự ghim vị trí. */
+  regionHint: { id: string; name: string } | null;
 }
 
 export interface ShareImportSummary {

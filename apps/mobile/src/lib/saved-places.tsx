@@ -81,6 +81,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
               coordinates: place.coordinates ?? null,
               locationSource: place.locationSource ?? 'ai',
               source: 'manual' as const,
+              notes: null,
               shareSource: null,
             },
             ...itemsRef.current,

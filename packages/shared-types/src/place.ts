@@ -106,7 +106,18 @@ export interface ArticleSource {
  * - `google`: ghép được với Google Places (hạn 30 ngày, PRD 7.4).
  * - `ai`: không tìm thấy trên Google Maps; AI ước đoán từ bài viết — chỉ gần đúng.
  */
-export type LocationSource = 'google' | 'ai';
+export type LocationSource = 'google' | 'ai' | 'user';
+
+/**
+ * Ghi chú riêng của một người cho một địa điểm (spec 2026-10-21-user-pinned-places). Giá: VND mỗi người.
+ * `openingHours` theo cú pháp opening_hours, ví dụ "Mo-Su 07:00-22:00".
+ */
+export interface PlaceNotes {
+  note: string | null;
+  openingHours: string | null;
+  priceMin: number | null;
+  priceMax: number | null;
+}
 
 export interface GoogleAuthorAttribution {
   name: string;
@@ -239,6 +250,10 @@ export interface PlaceDetail extends Omit<PlaceListItem, 'id' | 'coordinates'> {
   attribution: string;
   googleStatus: GoogleContentStatus;
   google: GooglePlaceContent | null;
+  /** Ghi chú của chính người xem; null nếu chưa có. */
+  notes: PlaceNotes | null;
+  /** Điểm tự ghim do chính người xem tạo: được sửa tên, loại, vị trí. */
+  createdByMe: boolean;
 }
 
 /** Một địa điểm trong danh sách "Muốn đi" — F9. Chỉ địa điểm có trong danh mục (có id). */
@@ -255,6 +270,39 @@ export interface SavedPlace {
   locationSource: LocationSource;
   /** 'share' từ chia sẻ (F4), 'search' từ ô tìm địa điểm. */
   source: 'manual' | 'share' | 'search';
+  /** Ghi chú riêng của người dùng cho điểm này. */
+  notes: PlaceNotes | null;
   /** Chỉ khi `source = 'share'` và lượt chia sẻ còn: để ghi nguồn và mở link gốc. */
   shareSource: { platform: SharePlatform; title: string | null; url: string | null } | null;
+}
+
+/** `POST /places/user`: tự ghim một địa điểm và lưu vào "Muốn đi". */
+export interface CreateUserPlaceRequest {
+  name: string;
+  category: PlaceCategory;
+  lat: number;
+  lng: number;
+  regionId: string;
+  address?: string | null;
+  notes?: Partial<PlaceNotes>;
+  /** Ghim từ màn chia sẻ: tính vào lượt chia sẻ đó. */
+  shareImportId?: string;
+}
+
+export interface CreateUserPlaceResponse {
+  placeId: string;
+}
+
+/** `PATCH /places/user/:id`: người tạo sửa điểm tự ghim. */
+export interface UpdateUserPlaceRequest {
+  name?: string;
+  category?: PlaceCategory;
+  lat?: number;
+  lng?: number;
+  address?: string | null;
+}
+
+/** `GET /places/reverse-geocode`: null khi không tìm được (app chỉ hiện tọa độ). */
+export interface ReverseGeocodeResponse {
+  address: string | null;
 }
