@@ -3,18 +3,26 @@ import type { AuthTokens, RegisterResult } from '@rong/shared-types';
 
 import { AuthService } from './auth.service.js';
 import {
+  GoogleLoginDto,
   LoginDto,
   RefreshTokenDto,
   RegisterDto,
   ResendVerificationDto,
   VerifyEmailDto,
+  ZaloLoginDto,
 } from './dto/auth.dto.js';
+import { GoogleIdTokenVerifier } from './external/google-id-token.verifier.js';
+import { ZaloProfileClient } from './external/zalo-profile.client.js';
 import { Public } from './public.decorator.js';
 
 @Public()
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly google: GoogleIdTokenVerifier,
+    private readonly zalo: ZaloProfileClient,
+  ) {}
 
   @Post('register')
   register(@Body() dto: RegisterDto): Promise<RegisterResult> {
@@ -25,6 +33,20 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto): Promise<AuthTokens> {
     return this.auth.login(dto);
+  }
+
+  /** Đăng nhập/đăng ký bằng Google (spec 2026-10-21-google-zalo-login). */
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async loginWithGoogle(@Body() dto: GoogleLoginDto): Promise<AuthTokens> {
+    return this.auth.loginExternal(await this.google.verify(dto.idToken));
+  }
+
+  /** Đăng nhập/đăng ký bằng Zalo. */
+  @Post('zalo')
+  @HttpCode(HttpStatus.OK)
+  async loginWithZalo(@Body() dto: ZaloLoginDto): Promise<AuthTokens> {
+    return this.auth.loginExternal(await this.zalo.fetch(dto.accessToken));
   }
 
   @Post('verify-email')
