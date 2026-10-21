@@ -63,7 +63,7 @@ describe('searchWeb', () => {
     });
   });
 
-  it('cắt bài quá dài', async () => {
+  it('rút gọn bài quá dài (bài không có tiêu đề: 6.000 ký tự đầu)', async () => {
     const [source] = await searchWeb(
       'key',
       'x',
@@ -78,7 +78,8 @@ describe('searchWeb', () => {
         ],
       }),
     );
-    expect(source.content.length).toBeLessThanOrEqual(2501);
+    expect(source.content.length).toBeLessThanOrEqual(6001);
+    expect(source.content.length).toBeGreaterThan(2501);
   });
 
   it('HTTP lỗi thì ném lỗi', async () => {

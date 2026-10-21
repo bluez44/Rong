@@ -2,15 +2,17 @@ import { tool } from '@langchain/core/tools';
 import { Logger } from '@nestjs/common';
 import * as z from 'zod';
 
+import { condenseArticle } from './article-condense.js';
+
 /** Bài viết mà model đã đọc — trả kèm kết quả để kiểm chứng và hiển thị nguồn. */
 export interface WebSource {
   title: string;
   uri: string;
-  /** Đúng phần nội dung đã gửi cho model (đã cắt, bỏ ảnh), để đối chiếu địa điểm model trả về. */
+  /** Đúng phần nội dung đã gửi cho model (đã rút gọn, bỏ ảnh), để đối chiếu địa điểm model trả về. */
   content: string;
   /** Tavily chỉ có ngày đăng với một số trang (chủ yếu tin tức). */
   publishedAt: string | null;
-  /** Ảnh trong toàn bộ bài (trước khi cắt). Rỗng khi Tavily không trả `raw_content`. */
+  /** Ảnh trong toàn bộ bài (trước khi rút gọn). Rỗng khi Tavily không trả `raw_content`. */
   images: ArticleImage[];
 }
 
@@ -35,11 +37,6 @@ export const WEB_SEARCH_TOOL_NAME = 'search_web';
 
 const TAVILY_SEARCH_URL = 'https://api.tavily.com/search';
 const RESULTS_PER_QUERY = 4;
-/**
- * Cắt bớt mỗi bài để prompt không phình to (một bài blog du lịch thường dài
- * vài chục nghìn ký tự). Prompt càng dài, Gemini đọc càng lâu.
- */
-const MAX_ARTICLE_CHARS = 2500;
 /** Bài "top N địa điểm" hiếm khi quá 60 ảnh; giới hạn để một trang lạ không phình bộ nhớ. */
 const MAX_IMAGES_PER_ARTICLE = 60;
 /** `![alt](url)` hoặc `![alt](url "title")`, có thể nằm trong `[…](link)`. */
@@ -85,16 +82,30 @@ export async function searchWeb(
   const { results = [] } = (await response.json()) as {
     results?: TavilyResult[];
   };
+  let rawChars = 0;
+  let keptChars = 0;
+  let keptHeadings = 0;
+  // Rút gọn theo cấu trúc bài (giữ mọi tiêu đề mục), không cắt cứng phần đầu.
+  const mapped = results.map((result) => {
+    const raw = stripImages(result.raw_content || result.content)
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    const { text, headings } = condenseArticle(raw);
+    rawChars += raw.length;
+    keptChars += text.length;
+    keptHeadings += headings;
+    return {
+      title: result.title,
+      uri: result.url,
+      content: text,
+      publishedAt: result.published_date || null,
+      images: result.raw_content ? extractImages(result.raw_content) : [],
+    };
+  });
   logger.log(
-    `Tavily "${query}": ${results.length} bài trong ${Date.now() - started} ms`,
+    `Tavily "${query}": ${results.length} bài trong ${Date.now() - started} ms, rút gọn ${rawChars} → ${keptChars} ký tự, ${keptHeadings} tiêu đề`,
   );
-  return results.map((result) => ({
-    title: result.title,
-    uri: result.url,
-    content: truncate(stripImages(result.raw_content || result.content)),
-    publishedAt: result.published_date || null,
-    images: result.raw_content ? extractImages(result.raw_content) : [],
-  }));
+  return mapped;
 }
 
 /** Nội dung các bài, đánh số, để đưa vào prompt. */
@@ -137,15 +148,8 @@ export function createWebSearchTool(apiKey: string, fetchImpl = fetch) {
   );
 }
 
-function truncate(text: string): string {
-  const clean = text.replace(/\n{3,}/g, '\n\n').trim();
-  return clean.length > MAX_ARTICLE_CHARS
-    ? `${clean.slice(0, MAX_ARTICLE_CHARS)}…`
-    : clean;
-}
-
 /**
- * Ảnh trong markdown của bài (đọc cả bài, trước khi cắt), kèm tiêu đề mục gần nhất.
+ * Ảnh trong markdown của bài (đọc cả bài, trước khi rút gọn), kèm tiêu đề mục gần nhất.
  * Bỏ ảnh không phải http(s), svg/gif, alt rỗng, logo/icon/avatar/banner và ảnh trùng URL.
  */
 export function extractImages(markdown: string): ArticleImage[] {
