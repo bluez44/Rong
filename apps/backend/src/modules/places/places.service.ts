@@ -16,10 +16,12 @@ import {
   GoogleUnavailableError,
 } from '../google/google-places.service.js';
 import { hoursToday } from './opening-hours.js';
+import { PlaceNotesService } from './place-notes.service.js';
 
 const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
   google: 'Google Maps',
   web: 'Tổng hợp từ bài viết (AI) · Google Maps',
+  user: 'Vị trí do bạn ghim',
 };
 
 interface DetailRow {
@@ -33,8 +35,9 @@ interface DetailRow {
   opening_hours: string | null;
   website: string | null;
   google_place_id: string | null;
-  source: 'google' | 'web';
+  source: 'google' | 'web' | 'user';
   location_source: LocationSource;
+  created_by: string | null;
   articles: ArticleSource[] | null;
   image: PlaceImage | null;
 }
@@ -46,6 +49,7 @@ export class PlacesService {
   constructor(
     @InjectDataSource() private readonly db: DataSource,
     private readonly google: GooglePlacesService,
+    private readonly notes: PlaceNotesService,
   ) {}
 
   /**
@@ -53,7 +57,8 @@ export class PlacesService {
    * theo thời gian thực. Google lỗi hay chưa cấu hình thì vẫn trả phần dữ liệu
    * riêng, kèm `googleStatus` để client hiển thị phù hợp.
    */
-  async getDetail(id: string): Promise<PlaceDetail> {
+  /** `viewerId`: người xem — ghi chú trả về là của họ. */
+  async getDetail(id: string, viewerId: string): Promise<PlaceDetail> {
     // Không gọi Google lấy lại tọa độ: dòng đã ghép Google chỉ đường bằng
     // place_id; dòng AI có tọa độ riêng. Tọa độ Google hết hạn trả null.
     const [row] = (await this.db.query(
@@ -64,7 +69,7 @@ export class PlacesService {
               p.description,
               p.tags->>'opening_hours' AS opening_hours,
               COALESCE(p.tags->>'website', p.tags->>'contact:website') AS website,
-              p.google_place_id, p.source, p.location_source,
+              p.google_place_id, p.source, p.location_source, p.created_by,
               -- Bài viết nguồn và ảnh: cùng một dòng danh sách của vùng có địa điểm này (hạng cao nhất).
               top.articles, top.image
          FROM places p
@@ -96,8 +101,8 @@ export class PlacesService {
       attribution: ATTRIBUTIONS[row.source],
       googleStatus: status,
       google: content,
-      notes: null,
-      createdByMe: false,
+      notes: (await this.notes.forUser(viewerId, [id])).get(id) ?? null,
+      createdByMe: row.created_by !== null && row.created_by === viewerId,
     };
   }
 
@@ -131,7 +136,10 @@ export class PlacesService {
 function toListItem(
   row: DetailRow,
   content: GooglePlaceContent | null,
-): Omit<PlaceDetail, 'attribution' | 'googleStatus' | 'google' | 'notes' | 'createdByMe'> {
+): Omit<
+  PlaceDetail,
+  'attribution' | 'googleStatus' | 'google' | 'notes' | 'createdByMe'
+> {
   const query = encodeURIComponent(row.name);
   return {
     id: row.id,
@@ -148,10 +156,12 @@ function toListItem(
     website: row.website,
     hours: hoursToday(row.opening_hours),
     sourceUrl:
-      content?.googleMapsUri ??
-      (row.google_place_id
-        ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
-        : `https://www.google.com/maps/search/?api=1&query=${query}`),
+      row.source === 'user' && row.lat !== null && row.lng !== null
+        ? `https://www.google.com/maps/search/?api=1&query=${row.lat},${row.lng}`
+        : (content?.googleMapsUri ??
+          (row.google_place_id
+            ? `https://www.google.com/maps/search/?api=1&query=${query}&query_place_id=${row.google_place_id}`
+            : `https://www.google.com/maps/search/?api=1&query=${query}`)),
     locationSource: row.location_source,
     articles: row.articles ?? [],
     image: row.image ?? null,

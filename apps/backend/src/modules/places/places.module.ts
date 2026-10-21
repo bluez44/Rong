@@ -12,6 +12,7 @@ import { Place } from './entities/place.entity.js';
 import { GoogleLocationJanitor } from './google-location-janitor.js';
 import { GooglePlaceRowsService } from './google-place-rows.service.js';
 import { PlaceLocationService } from './place-location.service.js';
+import { PlaceNotesService } from './place-notes.service.js';
 import {
   PLACE_SEARCH_CONFIG,
   PlaceSearchService,
@@ -42,6 +43,7 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
     GooglePlaceRowsService,
     PlaceSearchService,
     RegionPlaceStore,
+    PlaceNotesService,
     {
       provide: PLACE_SEARCH_CONFIG,
       inject: [ConfigService],
@@ -55,6 +57,12 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
         config.getOrThrow<AppConfig['webPlaces']>('webPlaces'),
     },
   ],
-  exports: [PlaceLocationService, GooglePlaceRowsService, RegionPlaceStore, WebPlacesService],
+  exports: [
+    PlaceLocationService,
+    GooglePlaceRowsService,
+    RegionPlaceStore,
+    WebPlacesService,
+    PlaceNotesService,
+  ],
 })
 export class PlacesModule {}
