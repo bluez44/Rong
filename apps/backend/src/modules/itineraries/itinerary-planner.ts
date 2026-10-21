@@ -1,4 +1,8 @@
-import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
   ItineraryDay,
@@ -42,6 +46,8 @@ export interface PlanTripOptions {
   excludePlaceIds?: string[];
   /** Không gọi Gemini: bản nháp gợi ý cần nhanh và không tốn lượt (spec 2026-10-19-home-recommendations). */
   forceHeuristic?: boolean;
+  /** Người tạo lịch trình: giờ mở cửa trong ghi chú của họ ưu tiên hơn giờ của địa điểm (spec 2026-10-21-user-pinned-places §4). */
+  notesOwnerId?: string | null;
 }
 
 export interface PlanTripResult {
@@ -117,7 +123,8 @@ export class ItineraryPlanner {
     const selectedIds = input.selectedPlaceIds.filter(
       (pid) => !unlocated.has(pid),
     );
-    const selected = await this.loadPlaces(selectedIds, true);
+    const owner = options.notesOwnerId ?? null;
+    const selected = await this.loadPlaces(selectedIds, true, owner);
     const missing = selectedIds.filter(
       (id) => !selected.some((c) => c.id === id),
     );
@@ -130,7 +137,7 @@ export class ItineraryPlanner {
     if (input.accommodationPlaceId) {
       [accommodation] = unlocated.has(input.accommodationPlaceId)
         ? []
-        : await this.loadPlaces([input.accommodationPlaceId], false);
+        : await this.loadPlaces([input.accommodationPlaceId], false, owner);
       if (!accommodation || accommodation.category !== 'stay') {
         throw bad(
           'INVALID_ACCOMMODATION',
@@ -160,7 +167,7 @@ export class ItineraryPlanner {
     );
     const foodPool = [
       ...selectedFood,
-      ...(await this.poolInArea(input.regionId, ['food'], 200, exclude)),
+      ...(await this.poolInArea(input.regionId, ['food'], 200, exclude, owner)),
     ];
 
     let planner: PlannerKind;
@@ -181,7 +188,7 @@ export class ItineraryPlanner {
       const target = targetStopsPerDay(rules, input.pace);
       const capacities = days.map((d) => dayCapacity(d, rules, target));
       const pool = input.allowAiSuggestions
-        ? await this.poolInArea(input.regionId, null, 300, exclude)
+        ? await this.poolInArea(input.regionId, null, 300, exclude, owner)
         : [];
       const extras = pickExtras({
         pool,
@@ -317,11 +324,16 @@ export class ItineraryPlanner {
     return row.parent ? `${row.name}, ${row.parent}` : row.name;
   }
 
-  async loadPlaces(ids: string[], mandatory: boolean): Promise<Candidate[]> {
+  /** `notesOwnerId`: người tạo lịch trình, để lấy giờ mở cửa trong ghi chú của họ. */
+  async loadPlaces(
+    ids: string[],
+    mandatory: boolean,
+    notesOwnerId: string | null = null,
+  ): Promise<Candidate[]> {
     if (ids.length === 0) return [];
     const rows = (await this.db.query(
-      `${PLACE_SELECT} WHERE p.id = ANY($1::uuid[])`,
-      [ids],
+      `${placeSelect('$2')} WHERE p.id = ANY($1::uuid[])`,
+      [ids, notesOwnerId],
     )) as PlaceRow[];
     // Địa điểm người dùng chọn không có thứ hạng trong danh sách vùng: điểm 0.
     return rows.map((r) => toCandidate(r, mandatory, 0));
@@ -337,25 +349,30 @@ export class ItineraryPlanner {
     categories: PlaceCategory[] | null,
     limit: number,
     exclude: Set<string>,
+    notesOwnerId: string | null,
   ): Promise<Candidate[]> {
     const rows = (await this.db.query(
-      `${PLACE_SELECT}
+      `${placeSelect('$5')}
          JOIN region_places rp ON rp.place_id = p.id AND rp.region_id = $1
         WHERE ($2::place_category[] IS NULL OR p.category = ANY($2::place_category[]))
           AND p.location IS NOT NULL
           AND NOT (p.id = ANY($4::uuid[]))
         ORDER BY rp.rank
         LIMIT $3`,
-      [regionId, categories, limit, [...exclude]],
+      [regionId, categories, limit, [...exclude], notesOwnerId],
     )) as PlaceRow[];
     return rows.map((r, i) => toCandidate(r, false, Math.max(0, 100 - i * 2)));
   }
 }
 
-const PLACE_SELECT = `
+/** `ownerParam`: tham số chứa id người tạo lịch trình; giờ trong ghi chú của họ ưu tiên hơn giờ của địa điểm. */
+function placeSelect(ownerParam: string): string {
+  return `
   SELECT p.id, p.name, p.category, p.source, p.location_source, ST_Y(p.location) AS lat, ST_X(p.location) AS lng,
-         p.address, p.description, p.tags->>'opening_hours' AS opening_hours
-    FROM places p`;
+         p.address, p.description, COALESCE(n.opening_hours, p.tags->>'opening_hours') AS opening_hours
+    FROM places p
+    LEFT JOIN place_notes n ON n.place_id = p.id AND n.user_id = ${ownerParam}::uuid`;
+}
 
 function toCandidate(
   row: PlaceRow,
