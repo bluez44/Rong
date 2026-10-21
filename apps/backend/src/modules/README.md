@@ -48,8 +48,9 @@ Spec: `docs/superpowers/specs/2026-10-21-google-zalo-login-design.md`.
 - `auth/external/ZaloProfileClient` gọi `graph.zalo.me/v2.0/me` kèm `appsecret_proof`. Id Zalo riêng
   theo app; Zalo không trả email.
 - `AuthService.loginExternal`: đã có danh tính (`provider`, `provider_account_id`) → user đó; Google
-  có `email_verified` và trùng email một danh tính khác → **gộp** vào user đó (đánh dấu email của danh
-  tính mật khẩu là đã xác minh); còn lại → user mới. Zalo không bao giờ gộp.
+  có `email_verified` (chỉ tính với `@gmail.com` hoặc token có `hd`) và trùng email một danh tính khác
+  **đã xác minh** → **gộp** vào user đó; còn lại → user mới. Không gộp vào và không xác minh hộ danh
+  tính chưa xác minh: có thể là người khác đăng ký trước bằng email này. Zalo không bao giờ gộp.
 - Thiếu env (`GOOGLE_OAUTH_CLIENT_IDS`, `ZALO_APP_ID`, `ZALO_APP_SECRET`) → 503 `PROVIDER_NOT_CONFIGURED`;
   token sai → 401 `EXTERNAL_TOKEN_INVALID`; nhà cung cấp lỗi/quá 5 s → 502 `PROVIDER_UNAVAILABLE`.
 
