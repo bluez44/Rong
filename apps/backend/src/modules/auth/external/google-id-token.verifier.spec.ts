@@ -1,5 +1,6 @@
 import {
   createLocalJWKSet,
+  errors,
   exportJWK,
   generateKeyPair,
   SignJWT,
@@ -68,6 +69,23 @@ describe('GoogleIdTokenVerifier', () => {
     expect(identity.displayName).toBeNull();
   });
 
+  it('email ngoài gmail.com chỉ tin khi có hd (Google Workspace)', async () => {
+    const consumer = await sign({
+      email: 'an@congty.vn',
+      email_verified: true,
+    });
+    const consumerIdentity = await verifier().verify(consumer);
+    expect(consumerIdentity.email).toBe('an@congty.vn');
+    expect(consumerIdentity.emailVerified).toBe(false);
+
+    const workspace = await sign({
+      email: 'an@congty.vn',
+      email_verified: true,
+      hd: 'congty.vn',
+    });
+    expect((await verifier().verify(workspace)).emailVerified).toBe(true);
+  });
+
   it('sai aud, sai iss, hết hạn, chuỗi rác → EXTERNAL_TOKEN_INVALID', async () => {
     const bad = [
       await sign({}, { aud: 'app-khac' }),
@@ -89,16 +107,36 @@ describe('GoogleIdTokenVerifier', () => {
     });
   });
 
-  it('không tải được khóa của Google → PROVIDER_UNAVAILABLE', async () => {
+  it('không tải được khóa của Google (mạng, timeout, HTTP lỗi, JWKS hỏng) → PROVIDER_UNAVAILABLE', async () => {
     const token = await sign({});
-    const failing: JWTVerifyGetKey = () =>
-      Promise.reject(new TypeError('fetch failed'));
+    const failures = [
+      new TypeError('fetch failed'),
+      new errors.JWKSTimeout(),
+      // jose ném JOSEError trơn khi trang khóa trả HTTP ≠ 200 hoặc JSON hỏng.
+      new errors.JOSEError(
+        'Expected 200 OK from the JSON Web Key Set HTTP response',
+      ),
+      new errors.JWKSInvalid('JSON Web Key Set malformed'),
+    ];
+    for (const failure of failures) {
+      const v = new GoogleIdTokenVerifier(
+        { googleClientIds: [CLIENT_ID], zaloAppId: null, zaloAppSecret: null },
+        () => Promise.reject(failure),
+      );
+      await expect(v.verify(token)).rejects.toMatchObject({
+        response: { code: 'PROVIDER_UNAVAILABLE' },
+      });
+    }
+  });
+
+  it('không có khóa khớp kid → EXTERNAL_TOKEN_INVALID', async () => {
+    const token = await sign({});
     const v = new GoogleIdTokenVerifier(
       { googleClientIds: [CLIENT_ID], zaloAppId: null, zaloAppSecret: null },
-      failing,
+      () => Promise.reject(new errors.JWKSNoMatchingKey()),
     );
     await expect(v.verify(token)).rejects.toMatchObject({
-      response: { code: 'PROVIDER_UNAVAILABLE' },
+      response: { code: 'EXTERNAL_TOKEN_INVALID' },
     });
   });
 });

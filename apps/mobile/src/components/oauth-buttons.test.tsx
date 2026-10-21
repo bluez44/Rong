@@ -75,4 +75,19 @@ describe('OAuthButtons', () => {
     await fireEvent.press(zaloButton());
     expect(onError).toHaveBeenLastCalledWith('Zalo đang không phản hồi.');
   });
+
+  // Để cuối file: hai lần bấm cùng tick tạo act() chồng nhau, React cảnh báo và có thể làm lệch test sau.
+  it('hai lần bấm liền nhau trước khi kịp vẽ lại chỉ chạy một luồng', async () => {
+    let finish!: (v: string) => void;
+    mockAuth.loginWithGoogle.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await renderButtons();
+    // Bấm hai lần trong cùng một tick: nút chưa kịp vẽ lại thành disabled.
+    const button = googleButton();
+    const first = fireEvent.press(button);
+    const second = fireEvent.press(button);
+    await waitFor(() => expect(mockAuth.loginWithGoogle).toHaveBeenCalled());
+    expect(mockAuth.loginWithGoogle).toHaveBeenCalledTimes(1);
+    await act(async () => finish('token'));
+    await Promise.all([first, second]);
+  });
 });

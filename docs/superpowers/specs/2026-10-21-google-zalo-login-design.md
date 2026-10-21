@@ -99,10 +99,11 @@ Thiếu cấu hình của nhà cung cấp (§2.5) → `PROVIDER_NOT_CONFIGURED` 
 Chạy trong một transaction:
 
 1. `SELECT … FROM auth_identities WHERE provider = $1 AND provider_account_id = $2` → có thì lấy user đó.
-2. Không có, **và** `provider = 'google'` **và** `emailVerified` **và** có danh tính khác với `lower(email) = $email`:
+2. Không có, **và** `provider = 'google'` **và** `emailVerified` **và** có danh tính khác với `lower(email) = $email` **đã xác minh** (`email_verified_at IS NOT NULL`):
    - thêm danh tính Google trỏ vào user của danh tính đó;
-   - danh tính trùng email nào có `email_verified_at IS NULL` thì đặt `now()` (Google đã xác minh email).
-   - Nhiều user cùng email (không nên xảy ra): chọn user tạo sớm nhất, ghi log cảnh báo.
+   - **không** đánh dấu xác minh hộ danh tính nào (sửa 2026-10-21 sau review: danh tính chưa xác minh có thể do kẻ khác đăng ký trước bằng email nạn nhân; gộp hay xác minh hộ nó là cho kẻ đó chiếm tài khoản).
+   - Nhiều user cùng email (không nên xảy ra): chọn user tạo sớm nhất.
+   - `emailVerified` của Google chỉ tính khi email là `@gmail.com` hoặc token có `hd` (Workspace); tài khoản Google dùng email ngoài có thể đã mất tên miền.
 3. Còn lại: tạo `users` (display_name = tên nhà cung cấp) và danh tính mới.
 
 Hai yêu cầu đăng nhập lần đầu cùng lúc: bên `INSERT` thua gặp vi phạm `uq_identity_provider_account` (23505) → rollback, đọc lại theo bước 1 và dùng user đó. Không trả 500.

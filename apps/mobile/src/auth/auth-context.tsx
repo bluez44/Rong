@@ -230,6 +230,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // người dùng kế tiếp đăng nhập trên máy này. Giữ nguyên `onboarded`.
         // Hàm không phát tin — xem comment ở signOut và trong preferences.ts.
         resetInterestsOnSignOut();
+        // Người kế tiếp dùng máy không được vào thẳng tài khoản Google/Zalo vừa xóa.
+        void signOutProviders();
       },
     }),
     [status, session, sessionExpired, startSession, applySession, authFetch, loginWith],

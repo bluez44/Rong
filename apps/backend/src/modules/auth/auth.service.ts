@@ -229,8 +229,8 @@ export class AuthService {
   /**
    * Đăng nhập bằng danh tính nhà cung cấp đã xác minh (Google, Zalo):
    * 1. đã có danh tính này → user đó;
-   * 2. Google, email đã xác minh, trùng email một danh tính khác → gộp vào
-   *    user đó (và coi email của các danh tính trùng là đã xác minh);
+   * 2. Google, email đã xác minh, trùng email một danh tính khác **cũng đã
+   *    xác minh** → gộp vào user đó;
    * 3. còn lại → user mới.
    * Hai lần đăng nhập đầu tiên đồng thời: bên thua đụng unique index thì chạy
    * lại, lần này rơi vào (1).
@@ -265,20 +265,16 @@ export class AuthService {
           const canMerge =
             external.provider === 'google' && external.emailVerified && email;
           if (canMerge) {
+            // Chỉ gộp vào danh tính đã chứng minh sở hữu email. Danh tính chưa xác minh có thể là
+            // của người khác đăng ký trước bằng email này: gộp vào đó (hay xác minh hộ nó) là để
+            // kẻ đăng ký trước chiếm tài khoản.
             const [match] = (await manager.query(
               `SELECT i.user_id FROM auth_identities i JOIN users u ON u.id = i.user_id
-                WHERE i.email = $1 ORDER BY u.created_at LIMIT 1`,
+                WHERE i.email = $1 AND i.email_verified_at IS NOT NULL
+                ORDER BY u.created_at LIMIT 1`,
               [email],
             )) as Array<{ user_id: string }>;
             userId = match?.user_id;
-            if (userId) {
-              // Google đã xác minh email này hộ: danh tính mật khẩu chưa xác minh giờ đăng nhập được.
-              await manager.update(
-                AuthIdentity,
-                { userId, email, emailVerifiedAt: IsNull() },
-                { emailVerifiedAt: new Date() },
-              );
-            }
           }
           if (!userId) {
             const created = await manager.save(

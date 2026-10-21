@@ -122,9 +122,9 @@ describe('Đăng nhập Google / Zalo (e2e)', () => {
     expect(second.body.user.id).toBe(first.body.user.id);
   });
 
-  it('gộp vào tài khoản mật khẩu cùng email (không phân biệt hoa thường) và xác minh email của nó', async () => {
+  it('gộp vào tài khoản mật khẩu đã xác minh cùng email (không phân biệt hoa thường)', async () => {
     const email = `${uid()}@gmail.test`;
-    const userId = await passwordAccount(email);
+    const userId = await passwordAccount(email, true);
     fakes.set('g-merge', googleIdentity({ email: email.toUpperCase() }));
     const res = await google('g-merge').expect(200);
     expect(res.body.user).toMatchObject({
@@ -132,11 +132,33 @@ describe('Đăng nhập Google / Zalo (e2e)', () => {
       displayName: 'Người cũ',
       emailVerified: true,
     });
-    // Danh tính mật khẩu giờ đã xác minh: đăng nhập bằng mật khẩu được.
-    await http()
-      .post('/api/auth/login')
-      .send({ email, password: 'mat-khau-e2e-du-dai' })
-      .expect(200);
+  });
+
+  it('không gộp vào danh tính chưa xác minh và không xác minh hộ nó (chặn chiếm tài khoản)', async () => {
+    // Kẻ xấu đăng ký trước bằng email nạn nhân, không xác minh được vì mã gửi tới nạn nhân.
+    const email = `${uid()}@gmail.test`;
+    const attackerId = await passwordAccount(email);
+    fakes.set('g-victim', googleIdentity({ email }));
+    const res = await google('g-victim').expect(200);
+    expect(res.body.user.id).not.toBe(attackerId);
+    // Mật khẩu của kẻ xấu vẫn không đăng nhập được.
+    expect(
+      (
+        await http()
+          .post('/api/auth/login')
+          .send({ email, password: 'mat-khau-e2e-du-dai' })
+          .expect(403)
+      ).body.code,
+    ).toBe('EMAIL_NOT_VERIFIED');
+  });
+
+  it('không gộp vào danh tính Google cũ có email chưa xác minh', async () => {
+    const email = `${uid()}@gmail.test`;
+    fakes.set('g-old-unverified', googleIdentity({ email, emailVerified: false }));
+    const old = await google('g-old-unverified').expect(200);
+    fakes.set('g-new-verified', googleIdentity({ email }));
+    const fresh = await google('g-new-verified').expect(200);
+    expect(fresh.body.user.id).not.toBe(old.body.user.id);
   });
 
   it('không gộp khi Google chưa xác minh email', async () => {
