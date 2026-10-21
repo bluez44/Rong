@@ -353,7 +353,7 @@ App chia sẻ link `https://<domain>/invite/<token>` (spec `2026-10-19-mobile-gr
 
 ## `places.source` và dòng Google
 
-`places` có hai loại dòng, phân biệt bằng cột `source`:
+`places` có ba loại dòng, phân biệt bằng cột `source`:
 
 - `web` — danh sách địa điểm tổng hợp từ bài viết (xem "Danh sách địa điểm của vùng"). Chỉ loại này được liệt
   kê, gợi ý hay dùng làm điểm bổ sung khi lập lịch, **qua `region_places` của vùng**; không truy vấn danh sách
@@ -361,6 +361,31 @@ App chia sẻ link `https://<domain>/invite/<token>` (spec `2026-10-19-mobile-gr
 - `google` — chỉ tạo khi người dùng chọn một địa điểm Google (chia sẻ vào app, tìm kiếm). Lưu `google_place_id`
   (vô thời hạn), tên do người dùng đặt, và tọa độ Google có hạn `location_expires_at`. Không bao giờ được xếp
   hạng (PRD 7.4).
+- `user` — người dùng tự ghim (`created_by`, `location_source = 'user'`, không có `google_place_id`). Riêng của
+  người tạo: không vào danh sách vùng, tìm theo tên, khớp khi share hay gợi ý; người khác chỉ thấy qua một lịch
+  trình có nó. Xem "Địa điểm tự ghim và ghi chú".
+
+### Địa điểm tự ghim và ghi chú
+
+Spec `docs/superpowers/specs/2026-10-21-user-pinned-places-design.md`.
+
+```
+POST  /api/places/user              tự ghim (trong khung bao vùng nới ~2 km), lưu luôn vào "Muốn đi"
+PATCH /api/places/user/:id          người tạo sửa tên, loại, vị trí (người khác: 404)
+PATCH /api/places/:id/notes         ghi chú của chính mình cho một điểm bất kỳ
+GET   /api/places/reverse-geocode   địa chỉ dưới ghim (Nominatim reverse), null khi không có
+```
+
+- Giới hạn ghim: 30 điểm mỗi người trong 24 giờ, 500 điểm tổng (429 `PIN_LIMIT`). Ngoài vùng: 400
+  `PIN_OUTSIDE_REGION`. `shareImportId` (của chính người gọi) → dòng "Muốn đi" `source = 'share'`, tính vào lượt chia
+  sẻ.
+- `place_notes (user_id, place_id)`: `note` ≤ 1 000 ký tự, `opening_hours` phải đọc được bằng `parseOpeningHours`,
+  giá mỗi người `price_min ≤ price_max`. Trường không gửi thì giữ, `null` thì xóa; trống hết thì xóa dòng.
+- Một bản duy nhất: `GET /saved-places` và `GET /places/:id` trả ghi chú của người xem; lịch trình
+  (`withItineraryPlaceData`, kể cả link công khai) trả ghi chú của **người tạo lịch trình**, đọc mỗi lần, không lưu
+  trong JSONB. Bộ xếp lịch (`ItineraryPlanner.loadPlaces`/`poolInArea`) lấy giờ trong ghi chú của người tạo trước
+  giờ của địa điểm.
+- Reverse geocode: cache ô ~10 m 24 giờ, 60 lần mỗi người mỗi giờ, timeout 3 giây; mọi lỗi → `{ address: null }`.
 
 Dòng `osm` của danh mục OSM/Wikidata cũ đã bỏ hẳn (migration `DropUnusedPlaceColumns`, cùng các cột `osm_type`,
 `osm_id`, `wikidata_id`, `sitelinks`, `composite_score`, `google_matched_at`). Migration dừng lại nếu DB còn dòng

@@ -71,7 +71,7 @@ Keep each external service behind its single gateway:
 
 | Gateway | Covers | Rules |
 | --- | --- | --- |
-| `modules/open-data/OpenDataService` | Nominatim | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`. The app no longer calls Overpass or Wikidata at runtime. |
+| `modules/open-data/OpenDataService` | Nominatim (search, and reverse for the pin screen) | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`. The app no longer calls Overpass or Wikidata at runtime. |
 | `modules/google/` | Google Places (New) | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days, never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
 | `modules/share-import/LinkMetadataService` | oEmbed, Open Graph of user-shared links | Blocks non-public IPs on every redirect, at most 5 redirects / 5 s / 1 MB. |
 | `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) find a region's places in web articles. Gemini models are created in `src/chat-models/`. |
@@ -83,6 +83,7 @@ Keep each external service behind its single gateway:
 - **Pipeline:** `PlaceSearchService` runs four fixed Tavily queries in parallel and one Gemini structured-output call (`thinkingLevel: 'LOW'`); fewer than 3 articles → a LangChain agent (`createAgent` + `search_web`, max 3 searches). Articles are condensed by structure (`langchain/article-condense.ts`: every section heading kept, ≤ 400 chars per section, ≤ 12,000 per article) rather than cut. If fewer than `WEB_PLACES_MIN_COUNT` (10) places survive, the agent runs one second round told which names to avoid (max 2 rounds; a short list is still saved, and a refresh that comes back smaller than the old list keeps the old one). Wards are sent to the pipeline as "<short name>, <former province>". A place is kept only if an article mentions it (`web-grounding.ts`). Each is matched with `GooglePlacesService.findPlace` inside the region bbox (`web-place-match.ts`: name similarity ≥ `MATCH_MIN_SIMILARITY`, no category conflict); unmatched places keep the AI's coordinates if they fall inside the region. Matching runs only when `WEB_PLACES_GOOGLE_MATCH=true`. It is off by default: Vietnam is a Google Maps Platform Prohibited Territory and Places returns 403, so new places get AI coordinates. `RegionPlaceStore` saves them as `places.source = 'web'` rows with `location_source` `google` (30-day coordinates) or `ai` (shown as "Vị trí gần đúng").
 
 - **Place search** (`GET /regions/:id/places/search`, `GET /places/google/:googlePlaceId`, `POST /places/google`): matches against `web` rows while typing, Google Text Search only on submit (per-user daily limit, `PLACE_SEARCH_DAILY_LIMIT`), Google results previewed live (Google calls for preview/save have their own per-user limit, `PLACE_DETAILS_DAILY_LIMIT`) and saved as `source = 'google'` rows named by the user (`addToSaved: false` returns the id without adding it to "Muốn đi", for adding a place while planning).
+- **Pinned places and notes** (spec `2026-10-21-user-pinned-places`): when nothing matches, a user pins their own place (`POST /places/user`, `places.source = 'user'` with `created_by`, inside the region's bbox + ~2 km, 30/day and 500 in total) and it goes straight into "Muốn đi"; only its creator edits it (`PATCH /places/user/:id`). It never appears in region lists, name search, share matching or recommendations — only through an itinerary that contains it. `GET /places/reverse-geocode` gives the address under the pin (Nominatim, cached ~10 m, 60/h per user, `null` on any failure). Every user can keep one note per place in `place_notes` (note, `opening_hours`, price per person; `PATCH /places/:id/notes`), returned with saved places and place detail.
 
 `src/modules/README.md` is the module map and documents these flows and the deliberate PRD deviations. Update it when module responsibilities change.
 
@@ -96,6 +97,7 @@ Keep each external service behind its single gateway:
 
 Other behavior:
 - If Gemini fails, a heuristic planner takes over (`planner: 'heuristic'`). `planningMode: 'manual'` leaves the days empty.
+- Itineraries show the **creator's** `place_notes` for each stop, read live on every response (app, group members, public link) and never stored in the JSONB; the creator's noted opening hours take precedence over the place's when planning and re-timing.
 - Edits (`PUT /itineraries/:id`) are re-timed by `planning/retime.ts`. That produces advisory warnings such as a long leg, a long day, a missing meal or a closed place. They never block the save.
 - `GET /itineraries/:id/alternatives` suggests similar places.
 - Party rules, meal windows and typical hours per category are in `planning/rules.ts`.
