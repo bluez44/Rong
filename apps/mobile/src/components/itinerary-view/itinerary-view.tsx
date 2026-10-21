@@ -14,11 +14,14 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { viewStyles as styles } from '@/components/itinerary-view/styles';
+import { PlaceNotesSheet } from '@/components/place-notes-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ApproximateLocation } from '@/components/ui/approximate-location';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Button } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { CATEGORY_LABELS } from '@/constants/places';
+import { notesSummary } from '@/lib/place-notes';
 import { Colors, Palette, Spacing } from '@/constants/theme';
 import {
   BUDGET_LABELS,
@@ -135,6 +138,10 @@ type ItineraryViewBodyProps = {
   onStartEdit?: () => void;
   /** Vẽ cuối danh sách (nút xóa lịch trình). */
   footer?: ReactNode;
+  /** Người tạo lịch trình: sửa được ghi chú của từng điểm (một bản với "Muốn đi"). */
+  notesEditable?: boolean;
+  /** Sau khi sửa ghi chú: tải lại lịch trình để thấy ghi chú mới. */
+  onNotesSaved?: () => void;
 };
 
 export function ItineraryViewBody({
@@ -144,7 +151,10 @@ export function ItineraryViewBody({
   onOpenDayMap,
   onStartEdit,
   footer,
+  notesEditable,
+  onNotesSaved,
 }: ItineraryViewBodyProps) {
+  const [notesFor, setNotesFor] = useState<ItineraryItem | null>(null);
   const currentDay = itinerary.days[selectedDayIndex] ?? itinerary.days[0];
   const totalActivities = itinerary.days.reduce((total, day) => total + day.items.length, 0);
   const routeStops = currentDay?.items
@@ -265,7 +275,11 @@ export function ItineraryViewBody({
               {idx > 0 && item.travelMinutesFromPrevious ? (
                 <TimelineTravelLeg item={item} />
               ) : null}
-              <TimelineItemCard item={item} stopIndex={idx + 1} />
+              <TimelineItemCard
+                item={item}
+                stopIndex={idx + 1}
+                onEditNotes={notesEditable ? setNotesFor : undefined}
+              />
             </View>
           ))}
         </View>
@@ -296,6 +310,16 @@ export function ItineraryViewBody({
       ) : null}
 
       {footer}
+      {notesFor?.placeId ? (
+        <PlaceNotesSheet
+          visible
+          placeId={notesFor.placeId}
+          placeName={notesFor.place?.name ?? 'Địa điểm'}
+          notes={notesFor.place?.notes ?? null}
+          onClose={() => setNotesFor(null)}
+          onSaved={() => onNotesSaved?.()}
+        />
+      ) : null}
     </>
   );
 }
@@ -392,7 +416,21 @@ function TimelineTravelLeg({ item }: { item: ItineraryItem }) {
   );
 }
 
-function TimelineItemCard({ item, stopIndex }: { item: ItineraryItem; stopIndex: number }) {
+/**
+ * Một điểm trong lịch trình. `onEditNotes` có khi người xem là người tạo; không có thì mở chi tiết kèm ghi chú của
+ * người tạo (chỉ đọc).
+ */
+export function TimelineItemCard({
+  item,
+  stopIndex,
+  onEditNotes,
+}: {
+  item: ItineraryItem;
+  stopIndex: number;
+  onEditNotes?: (item: ItineraryItem) => void;
+}) {
+  const notes = item.place?.notes ?? null;
+  const summary = notesSummary(notes);
   const time = `${formatTime(item.startsAt)}–${formatTime(item.endsAt)}`;
   const icon: IconName =
     item.kind === 'rest'
@@ -431,6 +469,12 @@ function TimelineItemCard({ item, stopIndex }: { item: ItineraryItem; stopIndex:
               <Text style={styles.stopTitle}>{title}</Text>
               {kind ? <Text style={styles.stopSubtitle}>{kind}</Text> : null}
               {item.place?.address ? <Text style={styles.stopAddress}>{item.place.address}</Text> : null}
+              {notes?.note ? (
+                <Text style={styles.stopNote} numberOfLines={2}>
+                  {notes.note}
+                </Text>
+              ) : null}
+              {summary ? <Text style={styles.stopAddress}>{summary}</Text> : null}
             </View>
           </View>
           {canOpen ? (
@@ -452,6 +496,15 @@ function TimelineItemCard({ item, stopIndex }: { item: ItineraryItem; stopIndex:
         </View>
 
         {item.reason ? <Text style={styles.stopReasonText}>{item.reason}</Text> : null}
+        {onEditNotes && item.placeId && item.kind !== 'rest' ? (
+          <Button
+            label={notes ? 'Sửa ghi chú' : 'Thêm ghi chú'}
+            variant="plain"
+            size="sm"
+            onPress={() => onEditNotes(item)}
+            style={styles.notesAction}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -462,7 +515,15 @@ function TimelineItemCard({ item, stopIndex }: { item: ItineraryItem; stopIndex:
       accessibilityRole="button"
       accessibilityHint="Mở chi tiết địa điểm"
       onPress={() =>
-        router.push({ pathname: '/place/[id]', params: { id: item.placeId!, name: title } })
+        router.push({
+          pathname: '/place/[id]',
+          params: {
+            id: item.placeId!,
+            name: title,
+            // Lịch trình của người khác: chi tiết hiện ghi chú của người tạo, chỉ đọc.
+            ...(!onEditNotes && notes && { ownerNotes: JSON.stringify(notes) }),
+          },
+        })
       }
       style={({ pressed }) => [pressed && styles.pressed]}>
       {cardContent}

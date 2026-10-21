@@ -239,6 +239,9 @@ export default function ItineraryScreen() {
               router.push({ pathname: '/itinerary/day-map', params: { id: data.id, day: String(day) } })
             }
             onStartEdit={canEdit ? () => setEditing(true) : undefined}
+            // Ghi chú trong lịch trình là của người tạo: chỉ người tạo sửa.
+            notesEditable={data.myRole === 'creator'}
+            onNotesSaved={itinerary.reload}
             footer={
               data.myRole === 'creator' || data.myRole === 'owner' ? (
                 <>

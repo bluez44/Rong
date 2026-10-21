@@ -13,6 +13,7 @@ import { CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { useShareImports } from '@/hooks/use-share-imports';
 import { useSavedPlaces } from '@/lib/saved-places';
+import { notesSummary } from '@/lib/place-notes';
 import { planFromSaved } from '@/lib/plan-from-saved';
 import { MAX_SELECTED_PLACES } from '@/lib/trip-draft';
 
@@ -155,7 +156,9 @@ function SavedRow({ item, onRemove }: { item: SavedPlace; onRemove: () => void }
             <Text style={styles.name} numberOfLines={1}>
               {item.name}
             </Text>
-            <Text style={styles.meta}>{CATEGORY_LABELS[item.category]}</Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {[CATEGORY_LABELS[item.category], notesSummary(item.notes)].filter(Boolean).join(' · ')}
+            </Text>
           </View>
         </Pressable>
         {source ? (
