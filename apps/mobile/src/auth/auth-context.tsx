@@ -1,7 +1,15 @@
-import type { AuthTokens, PlaceCategory, RegisterResult, UserProfile } from '@rong/shared-types';
+import type {
+  AuthTokens,
+  GoogleLoginRequest,
+  PlaceCategory,
+  RegisterResult,
+  UserProfile,
+  ZaloLoginRequest,
+} from '@rong/shared-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ApiError, apiFetch, type RequestOptions } from '@/lib/api';
+import { OAuthUnavailableError, signInWithGoogle, signInWithZalo, signOutProviders, type OAuthResult } from '@/lib/oauth';
 import { resetInterestsOnSignOut } from '@/lib/preferences';
 import { clearSession, loadSession, saveSession, type Session } from '@/lib/session-storage';
 
@@ -16,6 +24,12 @@ type AuthContextValue = {
   verifyEmail: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /**
+   * Đăng nhập/đăng ký bằng Google hoặc Zalo. Trả 'token' khi đã vào phiên, 'cancelled' khi người
+   * dùng tự hủy; ném ApiError (backend từ chối) hoặc OAuthUnavailableError (máy không hỗ trợ).
+   */
+  loginWithGoogle: () => Promise<OAuthResult['kind']>;
+  loginWithZalo: () => Promise<OAuthResult['kind']>;
   signOut: () => Promise<void>;
   /**
    * Gọi API cần đăng nhập. Access token sắp hết hạn hoặc bị từ chối (401) thì
@@ -143,6 +157,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshSession, expireSession],
   );
 
+  const loginWith = useCallback(
+    async (signIn: () => Promise<OAuthResult>, path: '/auth/google' | '/auth/zalo'): Promise<OAuthResult['kind']> => {
+      const result = await signIn();
+      if (result.kind === 'cancelled') return 'cancelled';
+      if (result.kind === 'unavailable') throw new OAuthUnavailableError(result.message);
+      const body: GoogleLoginRequest | ZaloLoginRequest =
+        path === '/auth/google' ? { idToken: result.token } : { accessToken: result.token };
+      await startSession(await apiFetch<AuthTokens>(path, { method: 'POST', body }));
+      return 'token';
+    },
+    [startSession],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
@@ -156,6 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login: async (email, password) => {
         await startSession(await apiFetch<AuthTokens>('/auth/login', { method: 'POST', body: { email, password } }));
       },
+      loginWithGoogle: () => loginWith(signInWithGoogle, '/auth/google'),
+      loginWithZalo: () => loginWith(signInWithZalo, '/auth/zalo'),
       signOut: async () => {
         const refreshToken = sessionRef.current?.refreshToken;
         await clearSession();
@@ -171,6 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (refreshToken) {
           apiFetch<void>('/auth/logout', { method: 'POST', body: { refreshToken } }).catch(() => undefined);
         }
+        // Đăng xuất khỏi Google/Zalo trên máy để lần sau được chọn lại tài khoản; lỗi thì thôi.
+        void signOutProviders();
       },
       authFetch,
       updateDisplayName: async (displayName) => {
@@ -201,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetInterestsOnSignOut();
       },
     }),
-    [status, session, sessionExpired, startSession, applySession, authFetch],
+    [status, session, sessionExpired, startSession, applySession, authFetch, loginWith],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

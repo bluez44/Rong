@@ -66,6 +66,12 @@ const config: ExpoConfig = {
     ],
     // Lưu access token trong Keychain / Keystore.
     'expo-secure-store',
+    // Đăng nhập Google (spec 2026-10-21-google-zalo-login). Client ID truyền lúc chạy qua EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.
+    '@react-native-google-signin/google-signin',
+    // Đăng nhập Zalo: chỉ cấu hình native khi có ZALO_APP_ID.
+    ...(process.env.ZALO_APP_ID
+      ? [['react-native-zalo-kit', { appId: process.env.ZALO_APP_ID }] as [string, object]]
+      : []),
     // Vị trí hiện tại trên bản đồ vùng, chỉ khi đang dùng app (không chạy nền).
     [
       'expo-location',
@@ -89,6 +95,8 @@ const config: ExpoConfig = {
   },
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3001',
+    // Bật nút đăng nhập Zalo (lib/oauth.ts); plugin native đọc cùng biến lúc build.
+    zaloAppId: process.env.ZALO_APP_ID ?? null,
     eas: {
       projectId: 'ee0015b7-3b87-4e3d-8a5f-1edf7738cbb4',
     },
