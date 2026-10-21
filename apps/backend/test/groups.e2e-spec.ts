@@ -582,8 +582,12 @@ describe('Nhóm & chia sẻ (e2e)', () => {
         (await call('a').get(`/itineraries/${personal.body.id}`).expect(200))
           .body.myRole,
       ).toBe('owner');
+      // Chủ nhóm gỡ được khỏi nhóm, nhưng không chuyển sang nhóm khác: chỉ người tạo làm được.
+      const elsewhere = (
+        await call('a').post('/groups', { name: 'Nhóm khác của a' }).expect(201)
+      ).body.id;
       await call('a')
-        .patch(`/itineraries/${personal.body.id}/group`, { groupId: null })
+        .patch(`/itineraries/${personal.body.id}/group`, { groupId: elsewhere })
         .expect(403);
       const out = await call('b')
         .patch(`/itineraries/${personal.body.id}/group`, { groupId: null })
@@ -607,6 +611,90 @@ describe('Nhóm & chia sẻ (e2e)', () => {
       await call('b')
         .patch(`/itineraries/${mine.body.id}/group`, { groupId: other })
         .expect(403);
+    });
+
+    describe('gỡ lịch trình khỏi nhóm (DELETE /groups/:groupId/itineraries/:id)', () => {
+      // Lúc này b là editor của nhóm (test "editor sửa được"), c ở ngoài nhóm.
+      const inGroup = async (as: 'a' | 'b') =>
+        (
+          await call(as)
+            .post('/itineraries', manualTrip({ groupId }))
+            .expect(201)
+        ).body.id as string;
+      const remove = (as: 'a' | 'b' | 'c', group: string, id: string) =>
+        call(as).delete(`/groups/${group}/itineraries/${id}`);
+
+      it('chủ nhóm gỡ lịch trình của thành viên: về lại người tạo, ghi nhật ký', async () => {
+        const id = await inGroup('b');
+
+        await remove('a', groupId, id).expect(204);
+
+        const mine = await call('b').get(`/itineraries/${id}`).expect(200);
+        expect(mine.body).toMatchObject({
+          groupId: null,
+          groupName: null,
+          myRole: 'creator',
+        });
+        await call('a').get(`/itineraries/${id}`).expect(404);
+        const log = await call('a')
+          .get(`/groups/${groupId}/activity`)
+          .expect(200);
+        expect(log.body.items).toContainEqual(
+          expect.objectContaining({
+            type: 'itinerary_removed',
+            actorId: userIds.a,
+            payload: expect.objectContaining({ itineraryId: id }),
+          }),
+        );
+        // Đã gỡ rồi: không còn trong nhóm.
+        await remove('b', groupId, id).expect(404);
+      });
+
+      it('người tạo tự gỡ lịch trình của mình', async () => {
+        const id = await inGroup('b');
+        await remove('b', groupId, id).expect(204);
+        expect(
+          (await call('b').get(`/itineraries/${id}`).expect(200)).body.groupId,
+        ).toBeNull();
+      });
+
+      it('editor không phải người tạo: 403; người ngoài nhóm: 404', async () => {
+        const id = await inGroup('a');
+        const denied = await remove('b', groupId, id).expect(403);
+        expect(denied.body.code).toBe('FORBIDDEN_ROLE');
+        await remove('c', groupId, id).expect(404);
+        expect(
+          (await call('a').get(`/itineraries/${id}`).expect(200)).body.groupId,
+        ).toBe(groupId);
+      });
+
+      it('lịch trình không nằm trong nhóm đó: 404', async () => {
+        const id = await inGroup('a');
+        const other = (
+          await call('a')
+            .post('/groups', { name: 'Nhóm không chứa' })
+            .expect(201)
+        ).body.id;
+        const res = await remove('a', other, id).expect(404);
+        expect(res.body.code).toBe('ITINERARY_NOT_FOUND');
+        const personal = await call('a')
+          .post('/itineraries', manualTrip())
+          .expect(201);
+        await remove('a', groupId, personal.body.id).expect(404);
+      });
+
+      it('chủ nhóm gỡ được bằng PATCH groupId: null (cùng quyền)', async () => {
+        const id = await inGroup('b');
+        const res = await call('a')
+          .patch(`/itineraries/${id}/group`, { groupId: null })
+          .expect(200);
+        expect(res.body.groupId).toBeNull();
+      });
+
+      it('id không phải UUID: 400', async () => {
+        await remove('a', groupId, 'khong-phai-uuid').expect(400);
+        await remove('a', 'khong-phai-uuid', groupId).expect(400);
+      });
     });
 
     it('thành viên bị xóa khỏi nhóm mất quyền với lịch trình của nhóm ngay', async () => {

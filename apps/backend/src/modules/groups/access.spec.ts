@@ -9,38 +9,44 @@ import {
 } from './access.js';
 
 describe('decide — bảng quyền trên lịch trình (spec S8 mục 4.6)', () => {
-  const actions: ItineraryAction[] = ['view', 'edit', 'delete', 'move'];
+  const actions: ItineraryAction[] = [
+    'view',
+    'edit',
+    'delete',
+    'move',
+    'remove_from_group',
+  ];
   const cases: Array<[string, ItineraryAccess, string[]]> = [
-    // tên, quyền, kết quả theo thứ tự view, edit, delete, move
+    // tên, quyền, kết quả theo thứ tự view, edit, delete, move, remove_from_group
     [
       'người tạo, không nhóm',
       { isCreator: true, groupRole: null },
-      ['allow', 'allow', 'allow', 'allow'],
+      ['allow', 'allow', 'allow', 'allow', 'allow'],
     ],
     [
       'người tạo là viewer của nhóm',
       { isCreator: true, groupRole: 'viewer' },
-      ['allow', 'allow', 'allow', 'allow'],
+      ['allow', 'allow', 'allow', 'allow', 'allow'],
     ],
     [
       'owner nhóm',
       { isCreator: false, groupRole: 'owner' },
-      ['allow', 'allow', 'allow', 'forbidden'],
+      ['allow', 'allow', 'allow', 'forbidden', 'allow'],
     ],
     [
       'editor',
       { isCreator: false, groupRole: 'editor' },
-      ['allow', 'allow', 'forbidden', 'forbidden'],
+      ['allow', 'allow', 'forbidden', 'forbidden', 'forbidden'],
     ],
     [
       'viewer',
       { isCreator: false, groupRole: 'viewer' },
-      ['allow', 'forbidden', 'forbidden', 'forbidden'],
+      ['allow', 'forbidden', 'forbidden', 'forbidden', 'forbidden'],
     ],
     [
       'không liên quan',
       { isCreator: false, groupRole: null },
-      ['not_found', 'not_found', 'not_found', 'not_found'],
+      ['not_found', 'not_found', 'not_found', 'not_found', 'not_found'],
     ],
   ];
 
