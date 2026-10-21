@@ -135,7 +135,7 @@ export function PlaceRow({ place, selected, onPress, onOpenDetail, tripAction, s
             hitSlop={{ top: 8, bottom: 8 }}
             onPress={onOpenDetail}
             style={({ pressed }) => [styles.detail, pressed && styles.detailPressed]}>
-            <Text style={styles.detailLabel}>Xem chi tiết</Text>
+            <Text numberOfLines={1} style={styles.detailLabel}>Xem chi tiết</Text>
             <Icon name="forward" size={14} color={Colors.light.primary} />
           </Pressable>
         ) : null}

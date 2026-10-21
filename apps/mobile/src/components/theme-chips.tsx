@@ -32,7 +32,7 @@ export function ThemeChips({
               style={[styles.moodChip, styles.chipTransition, active ? styles.moodChipActive : styles.moodChipInactive]}>
               <Icon name={isThemeIcon(theme.icon) ? theme.icon : 'sparkles'} size={16} color={active ? Palette.onPine : Colors.light.primary} />
               <View>
-                <Text style={[styles.moodChipText, active && styles.moodChipTextActive]}>{theme.label}</Text>
+                <Text numberOfLines={1} style={[styles.moodChipText, active && styles.moodChipTextActive]}>{theme.label}</Text>
                 {theme.regionHint ? (
                   <Text style={[styles.hint, active && styles.moodChipTextActive]} numberOfLines={1}>
                     {theme.regionHint}

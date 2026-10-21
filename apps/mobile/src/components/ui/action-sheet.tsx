@@ -59,7 +59,7 @@ export function ActionSheet({ visible, title, message, actions = [], children, o
               <Icon name={action.icon} size={20} color={action.destructive ? Colors.light.danger : Colors.light.primary} />
             ) : null}
             <View style={styles.flex}>
-              <Text style={[styles.label, action.destructive && { color: Colors.light.danger }]}>{action.label}</Text>
+              <Text numberOfLines={1} style={[styles.label, action.destructive && { color: Colors.light.danger }]}>{action.label}</Text>
               {action.detail ? <Text style={styles.detail}>{action.detail}</Text> : null}
             </View>
           </Pressable>
@@ -67,7 +67,7 @@ export function ActionSheet({ visible, title, message, actions = [], children, o
         {children}
       </ScrollView>
       <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}>
-        <Text style={styles.cancelLabel}>Đóng</Text>
+        <Text numberOfLines={1} style={styles.cancelLabel}>Đóng</Text>
       </Pressable>
     </BottomSheet>
   );

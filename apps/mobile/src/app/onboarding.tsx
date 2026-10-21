@@ -58,7 +58,7 @@ export default function OnboardingScreen() {
         <Text style={styles.brand}>Rong</Text>
         {page < last ? (
           <Pressable accessibilityRole="button" onPress={() => finish(false)} hitSlop={8} style={styles.skip}>
-            <Text style={styles.skipLabel}>Bỏ qua</Text>
+            <Text numberOfLines={1} style={styles.skipLabel}>Bỏ qua</Text>
           </Pressable>
         ) : null}
       </View>

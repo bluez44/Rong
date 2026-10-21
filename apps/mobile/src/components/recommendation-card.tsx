@@ -98,7 +98,7 @@ export function RecommendationCard({
           {card.revisit ? (
             <View style={styles.badgePill}>
               <Icon name="undo" size={13} color={Colors.light.primary} />
-              <Text style={styles.badgePillText}>Quay lại</Text>
+              <Text numberOfLines={1} style={styles.badgePillText}>Quay lại</Text>
             </View>
           ) : null}
           {card.savedItineraryId ? (
@@ -147,7 +147,7 @@ export function RecommendationCard({
           </View>
         </View>
         <View style={styles.exploreButton}>
-          <Text style={styles.exploreButtonText}>{card.savedItineraryId ? 'Mở chuyến' : 'Xem lịch'}</Text>
+          <Text numberOfLines={1} style={styles.exploreButtonText}>{card.savedItineraryId ? 'Mở chuyến' : 'Xem lịch'}</Text>
           <Icon name="forward" size={15} color={Colors.light.primary} />
         </View>
       </View>

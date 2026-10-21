@@ -174,7 +174,7 @@ function GroupBody({ group, reload, bottomInset }: { group: GroupDetail; reload:
           <Text style={styles.sectionTitle} accessibilityRole="header">Lịch trình</Text>
           {group.myRole !== 'viewer' ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Thêm lịch trình vào nhóm" onPress={() => setAdding(true)} hitSlop={8}>
-              <Text style={styles.sectionAction}>+ Thêm</Text>
+              <Text numberOfLines={1} style={styles.sectionAction}>+ Thêm</Text>
             </Pressable>
           ) : null}
         </View>

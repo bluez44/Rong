@@ -131,7 +131,7 @@ export default function RegionScreen() {
         style={[styles.plan, { top: insets.top + Spacing.two }, !canPlan && styles.planDisabled]}>
         <Glass shape="capsule" variant={draft.places.length ? 'tinted' : 'regular'} interactive={canPlan} style={styles.planGlass}>
           <Icon name="calendar" size={18} color={draft.places.length ? Colors.light.onPrimary : Colors.light.primary} />
-          <Text style={[styles.planLabel, draft.places.length > 0 && styles.planLabelActive]}>
+          <Text numberOfLines={1} style={[styles.planLabel, draft.places.length > 0 && styles.planLabelActive]}>
             {draft.places.length ? `Lập lịch trình · ${draft.places.length}` : 'Lập lịch trình'}
           </Text>
         </Glass>
