@@ -34,6 +34,8 @@ export interface AreaSource {
   adminLevel?: string;
   date?: string;
   radiusMeters?: number;
+  /** Xã/phường: phiên bản bộ dữ liệu đã seed (vietnam-wards.json). */
+  dataset?: string;
 }
 
 @Entity('regions')

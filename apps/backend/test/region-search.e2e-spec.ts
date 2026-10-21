@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { OpenDataService } from '../src/modules/open-data/open-data.service.js';
+import { RegionSeeder } from '../src/modules/regions/region-seeder.js';
 
 /** Tìm vùng (F1): điểm đến đã seed, và ghi lại từ khóa không ra kết quả. */
 describe('Tìm vùng (e2e)', () => {
@@ -81,10 +82,13 @@ describe('Tìm vùng (e2e)', () => {
     ['trang an', 'Tam Cốc – Tràng An'],
     ['moc chau', 'Mộc Châu'],
     ['ly son', 'Lý Sơn'],
-  ])('"%s" ra điểm đến đã seed "%s" mà không cần tìm online', async (q, name) => {
-    const res = await search(q);
-    expect(res.body.map((r: { name: string }) => r.name)).toContain(name);
-  });
+  ])(
+    '"%s" ra điểm đến đã seed "%s" mà không cần tìm online',
+    async (q, name) => {
+      const res = await search(q);
+      expect(res.body.map((r: { name: string }) => r.name)).toContain(name);
+    },
+  );
 
   it('từ khóa không ra kết quả được đếm riêng cho danh mục và cho tìm online', async () => {
     let res = await search(missQuery);
@@ -147,5 +151,68 @@ describe('Tìm vùng (e2e)', () => {
       `SELECT count(*)::int AS n FROM region_search_misses WHERE search_key = 'da lat'`,
     )) as Array<{ n: number }>;
     expect(n).toBe(0);
+  });
+  describe('xã/phường sau sáp nhập', () => {
+    type Hit = {
+      name: string;
+      parent: { id: string; displayName: string } | null;
+    };
+
+    it.each(['phuoc hai', 'Phước Hải', 'xa phuoc hai', 'Xã Phước Hải'])(
+      '"%s" ra Xã Phước Hải thuộc TP.HCM ở đầu, không gọi Nominatim',
+      async (q) => {
+        const spy = vi.spyOn(app.get(OpenDataService), 'searchPlaces');
+        spy.mockClear();
+        const res = await search(q, true);
+        const top = res.body[0] as Hit;
+        expect(top.name).toBe('Xã Phước Hải');
+        expect(top.parent?.displayName).toContain('Hồ Chí Minh');
+        expect(spy).not.toHaveBeenCalled();
+      },
+    );
+
+    it('"long hai" ra Xã Long Hải', async () => {
+      const res = await search('long hai');
+      expect((res.body[0] as Hit).name).toBe('Xã Long Hải');
+    });
+
+    it('"vung tau": điểm đến Vũng Tàu đứng trước Phường Vũng Tàu', async () => {
+      const names = (await search('vung tau')).body.map((r: Hit) => r.name);
+      const ward = names.findIndex((n: string) =>
+        n.startsWith('Phường Vũng Tàu'),
+      );
+      expect(ward).toBeGreaterThan(-1);
+      expect(names.indexOf('Vũng Tàu')).toBeGreaterThan(-1);
+      expect(names.indexOf('Vũng Tàu')).toBeLessThan(ward);
+    });
+
+    it('xã trùng tên ở hai tỉnh đều xuất hiện, mỗi kết quả kèm tỉnh', async () => {
+      const [row] = (await db.query(
+        `SELECT name FROM regions WHERE source_key LIKE 'vn:ward:%'
+          GROUP BY name HAVING count(DISTINCT parent_id) = 2 ORDER BY name LIMIT 1`,
+      )) as Array<{ name: string }>;
+      const hits = ((await search(row.name)).body as Hit[]).filter(
+        (r) => r.name === row.name,
+      );
+      expect(hits).toHaveLength(2);
+      expect(hits.every((h) => h.parent !== null)).toBe(true);
+      expect(new Set(hits.map((h) => h.parent!.id)).size).toBe(2);
+    });
+
+    it('seed có đủ 3.321 xã; seed lần hai bỏ qua', async () => {
+      const [{ n }] = (await db.query(
+        `SELECT count(*)::int AS n FROM regions WHERE source_key LIKE 'vn:ward:%'`,
+      )) as Array<{ n: number }>;
+      expect(n).toBe(3321);
+      const seeder = app.get(RegionSeeder);
+      const log = vi.spyOn(
+        (seeder as unknown as { logger: { log: (m: string) => void } }).logger,
+        'log',
+      );
+      await seeder.onApplicationBootstrap();
+      expect(
+        log.mock.calls.some(([m]) => String(m).includes('bỏ qua seed xã')),
+      ).toBe(true);
+    });
   });
 });

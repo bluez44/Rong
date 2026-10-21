@@ -64,7 +64,7 @@ interface Entry {
  * Dựng danh sách kết quả cuối từ các vùng khớp trực tiếp với từ khóa.
  *
  * - Có kết quả khớp rõ thì bỏ các kết quả khớp yếu.
- * - Các vùng khớp trực tiếp xếp theo FR-1.4: điểm đến khớp đúng tên lên đầu;
+ * - Các vùng khớp trực tiếp xếp theo FR-1.4: khớp đúng tên/bí danh trước (điểm đến lên đầu);
  *   rồi tỉnh/thành, điểm đến, xã/phường; kết quả khớp yếu xếp sau cùng.
  * - Ngay sau mỗi vùng là các vùng liên quan (FR-1.9): tỉnh cũ → tỉnh mới kế
  *   nhiệm ("bao gồm X cũ"); điểm đến/xã phường → tỉnh mới rồi tỉnh cũ chứa nó.
@@ -118,11 +118,14 @@ export function arrangeRegionResults(
     const strongB = b.score >= STRONG_MATCH;
     if (strongA !== strongB) return strongA ? -1 : 1;
     if (strongA) {
-      const exactA =
-        a.score >= EXACT_MATCH && groupOf(a.region) === 'destination';
-      const exactB =
-        b.score >= EXACT_MATCH && groupOf(b.region) === 'destination';
+      // Khớp đúng (tên hay bí danh) đứng trước khớp na ná, kể cả xã/phường: "long hai" ra
+      // Xã Long Hải trước Hạ Long. Trong nhóm khớp đúng, điểm đến lên đầu.
+      const exactA = a.score >= EXACT_MATCH;
+      const exactB = b.score >= EXACT_MATCH;
       if (exactA !== exactB) return exactA ? -1 : 1;
+      const destA = exactA && groupOf(a.region) === 'destination';
+      const destB = exactB && groupOf(b.region) === 'destination';
+      if (destA !== destB) return destA ? -1 : 1;
       const group =
         GROUP_RANK[groupOf(a.region)] - GROUP_RANK[groupOf(b.region)];
       if (group !== 0) return group;
