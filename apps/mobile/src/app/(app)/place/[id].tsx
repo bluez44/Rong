@@ -1,4 +1,4 @@
-import type { PlaceCategory, PlaceDetail, PlaceImage } from '@rong/shared-types';
+import type { PlaceCategory, PlaceDetail, PlaceImage, PlaceNotes } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/glass';
 import { GooglePlaceContentBlock } from '@/components/google-place-content';
+import { PlaceNotesCard } from '@/components/place-notes-card';
+import { PlaceNotesSheet } from '@/components/place-notes-sheet';
 import { PointsMap } from '@/components/points-map';
 import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,8 @@ type Params = {
   regionId?: string;
   regionName?: string;
   from?: 'saved';
+  /** Mở từ lịch trình của người khác: ghi chú của người tạo lịch trình (JSON `PlaceNotes`), chỉ đọc. */
+  ownerNotes?: string;
 };
 
 export default function PlaceDetailScreen() {
@@ -43,6 +47,9 @@ export default function PlaceDetailScreen() {
   const place = detail.place;
   // Ngón tay đang trên bản đồ thì tắt cuộn trang để kéo dọc di chuyển bản đồ.
   const [mapTouched, setMapTouched] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const saved = useSavedPlaces();
+  const ownerNotes = parseNotes(params.ownerNotes);
 
   const name = place?.name ?? params.name ?? 'Địa điểm';
   const category = place?.category ?? (params.category && params.category in CATEGORY_LABELS ? params.category : null);
@@ -81,6 +88,12 @@ export default function PlaceDetailScreen() {
         {place ? (
           <Animated.View layout={layoutShift} style={styles.facts}>
             {place.locationSource === 'ai' ? <ApproximateLocation /> : null}
+            {place.locationSource === 'user' ? (
+              <View style={styles.addressRow}>
+                <Icon name="pin" size={16} color={Colors.light.primary} />
+                <Text style={styles.pinnedLabel}>Vị trí bạn ghim</Text>
+              </View>
+            ) : null}
             <Hours place={place} />
             {/* Địa chỉ của Rong (từ bài viết), ngay dưới giờ mở cửa. */}
             <Animated.View layout={layoutShift} style={styles.addressRow}>
@@ -112,6 +125,36 @@ export default function PlaceDetailScreen() {
         ) : null}
 
         {place ? (
+          ownerNotes ? (
+            <PlaceNotesCard notes={ownerNotes} readOnly />
+          ) : (
+            <PlaceNotesCard notes={place.notes} onEdit={() => setEditingNotes(true)} />
+          )
+        ) : null}
+
+        {place?.createdByMe && place.coordinates ? (
+          <Button
+            label="Sửa tên, loại, vị trí"
+            variant="plain"
+            onPress={() =>
+              router.push({
+                pathname: '/place/pin',
+                params: {
+                  editPlaceId: place.id,
+                  name: place.name,
+                  category: place.category,
+                  regionId: params.regionId ?? '',
+                  regionName: params.regionName ?? '',
+                  lat: String(place.coordinates!.lat),
+                  lng: String(place.coordinates!.lng),
+                },
+              })
+            }
+            style={styles.inlineAction}
+          />
+        ) : null}
+
+        {place ? (
           <PlaceBody
             place={place}
             regionId={params.regionId}
@@ -120,8 +163,30 @@ export default function PlaceDetailScreen() {
           />
         ) : null}
       </ScrollView>
+      {place ? (
+        <PlaceNotesSheet
+          visible={editingNotes}
+          placeId={place.id}
+          placeName={place.name}
+          notes={place.notes}
+          onClose={() => setEditingNotes(false)}
+          onSaved={() => {
+            detail.retry();
+            saved.reload();
+          }}
+        />
+      ) : null}
     </Screen>
   );
+}
+
+function parseNotes(raw: string | undefined): PlaceNotes | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as PlaceNotes;
+  } catch {
+    return null;
+  }
 }
 
 /** "zalopay.vn" từ link bài viết, bỏ "www.". */
@@ -382,6 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   status: { paddingVertical: Spacing.six, alignItems: 'center' },
+  pinnedLabel: { ...Type.footnote, color: Colors.light.primary },
   inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
   actionGroup: { gap: Spacing.three },
   actions: { flexDirection: 'row', gap: Spacing.three },
