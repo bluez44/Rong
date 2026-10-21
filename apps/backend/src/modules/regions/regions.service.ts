@@ -158,13 +158,16 @@ export class RegionsService {
          SELECT region_id, search_alias, 0.02 FROM region_aliases
           WHERE search_alias % $1 OR search_alias LIKE $1 || '%' OR search_alias LIKE '% ' || $1 || '%'
        )
-       SELECT region_id, MAX(
-                CASE WHEN text = $1 THEN 1.0
-                     WHEN text LIKE $1 || '%' THEN 0.9
-                     WHEN text LIKE '% ' || $1 || '%' THEN 0.8
-                     ELSE similarity(text, $1) END - penalty
+       SELECT c.region_id, MAX(
+                CASE WHEN c.text = $1 THEN 1.0
+                     WHEN c.text LIKE $1 || '%' THEN 0.9
+                     WHEN c.text LIKE '% ' || $1 || '%' THEN 0.8
+                     ELSE similarity(c.text, $1) END - c.penalty
               ) AS score
-         FROM candidates GROUP BY region_id ORDER BY score DESC LIMIT 20`,
+         FROM candidates c JOIN regions r ON r.id = c.region_id
+        GROUP BY c.region_id, r.level
+        -- Hơn 3.000 xã/phường: cùng điểm thì xã xếp sau, để "da" không đẩy Đà Nẵng, Đà Lạt khỏi 20 dòng.
+        ORDER BY score DESC, (r.level IS NOT DISTINCT FROM 'ward') ASC LIMIT 20`,
       [key],
     )) as Array<{ region_id: string; score: string | number }>;
     return rows.map((row) => ({

@@ -851,6 +851,35 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         expect(agent.findPlaces).toHaveBeenCalledTimes(1);
       });
 
+      it('lượt 2 lỗi thì vẫn lưu địa điểm của lượt 1', async () => {
+        agent.findPlaces.mockResolvedValue(one(18, 'E2E wp Còn Giữ'));
+        agent.findMorePlaces.mockRejectedValue(new Error('Gemini quá tải'));
+        google.findPlace.mockResolvedValue([]);
+        const res = await get().expect(200);
+        expect(names(res.body)).toEqual(['E2E wp Còn Giữ']);
+      });
+
+      it('làm mới ra 0 địa điểm thì giữ danh sách cũ và lùi hạn', async () => {
+        agent.findPlaces.mockResolvedValueOnce(one(19, 'E2E wp Giữ Lại'));
+        google.findPlace.mockResolvedValue([]);
+        await get().expect(200);
+        await db.query(
+          `UPDATE region_place_lists SET expires_at = now() - interval '1 day' WHERE region_id = $1`,
+          [regionId],
+        );
+        agent.findPlaces.mockResolvedValueOnce({ places: [], sources: [] });
+
+        await app.get(WebPlacesService).refresh(regionId);
+
+        const res = await get().expect(200);
+        expect(names(res.body)).toEqual(['E2E wp Giữ Lại']);
+        const [state] = (await db.query(
+          `SELECT expires_at > now() AS fresh FROM region_place_lists WHERE region_id = $1`,
+          [regionId],
+        )) as Array<{ fresh: boolean }>;
+        expect(state.fresh).toBe(true);
+      });
+
       it('cả hai lượt không có địa điểm nào: 503 PLACES_UNAVAILABLE', async () => {
         agent.findPlaces.mockResolvedValue({ places: [], sources: [] });
         const res = await get().expect(503);

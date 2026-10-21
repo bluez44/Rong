@@ -9,7 +9,7 @@ import { Repository } from 'typeorm';
 import { bboxAround, unionBbox, type Bbox } from './bbox.js';
 import { RegionAlias } from './entities/region-alias.entity.js';
 import { Region } from './entities/region.entity.js';
-import { searchKey } from './search-text.js';
+import { foldText, searchKey } from './search-text.js';
 import { PROVINCE_BBOXES } from './seed/province-bboxes.js';
 import {
   DESTINATIONS,
@@ -25,6 +25,11 @@ export const PRE_MERGER_DATE = '2025-06-30T00:00:00Z';
 const oldKey = (key: string) => `vn:province:${key}:pre_merger`;
 const newKey = (key: string) => `vn:province:${key}:current`;
 const destinationKey = (key: string) => `vn:destination:${key}`;
+/**
+ * Tăng khi cách seed xã thay đổi mà dữ liệu nguồn giữ nguyên, để lần khởi động sau seed lại.
+ * r2: bí danh xã dùng `foldText` (r1 dùng `searchKey`, làm "Quan Sơn" thành "son").
+ */
+const WARD_SEED_REVISION = 'r2';
 
 type SeedRow = Pick<
   Region,
@@ -195,7 +200,9 @@ export class RegionSeeder implements OnApplicationBootstrap {
 
   /** 3.321 xã/phường (spec 2026-10-21-ward-search §1.2). Bỏ qua khi đã seed đúng phiên bản. */
   private async seedWards(id: (key: string) => string | null): Promise<void> {
-    const { version, wards } = wardsFile as WardSeedFile;
+    const { version: dataVersion, wards } = wardsFile as WardSeedFile;
+    // Ghi vào `area_source.dataset`: phiên bản dữ liệu + lần sửa cách seed.
+    const version = `${dataVersion}+${WARD_SEED_REVISION}`;
     const [state] = (await this.regions.query(
       `SELECT count(*) FILTER (WHERE area_source->>'dataset' = $1)::int AS current
          FROM regions WHERE source_key LIKE 'vn:ward:%'`,
@@ -223,9 +230,11 @@ export class RegionSeeder implements OnApplicationBootstrap {
       north: w.bbox?.[2] ?? null,
       east: w.bbox?.[3] ?? null,
     }));
-    // Một câu cho cả 3.321 dòng: upsert từng dòng qua TypeORM mất vài chục giây trên Neon.
-    await this.regions.query(
-      `INSERT INTO regions (source_key, name, type, boundary_version, level, parent_id, former_parent_id,
+    // Một transaction: dừng giữa chừng thì không để lại dòng đã đánh dấu phiên bản mà thiếu bí danh.
+    await this.regions.manager.transaction(async (m) => {
+      // Một câu cho cả 3.321 dòng: upsert từng dòng qua TypeORM mất vài chục giây trên Neon.
+      await m.query(
+        `INSERT INTO regions (source_key, name, type, boundary_version, level, parent_id, former_parent_id,
                             search_name, center, bbox_south, bbox_west, bbox_north, bbox_east, area_source)
        SELECT w.source_key, w.name, 'administrative', 'current', 'ward', w.parent_id, w.former_parent_id,
               w.search_name,
@@ -241,25 +250,33 @@ export class RegionSeeder implements OnApplicationBootstrap {
               center = EXCLUDED.center, bbox_south = EXCLUDED.bbox_south, bbox_west = EXCLUDED.bbox_west,
               bbox_north = EXCLUDED.bbox_north, bbox_east = EXCLUDED.bbox_east,
               area_source = EXCLUDED.area_source`,
-      [JSON.stringify(rows), version],
-    );
-    // Tên ngắn ("Phước Hải") làm bí danh: gõ không có tiền tố xã/phường vẫn khớp đúng.
-    await this.regions.query(
-      `INSERT INTO region_aliases (region_id, alias, search_alias)
+        [JSON.stringify(rows), version],
+      );
+      // Bí danh của xã chỉ do seed tạo: xóa rồi ghi lại, để sửa cả bí danh sai của lần seed trước.
+      await m.query(
+        `DELETE FROM region_aliases
+        WHERE region_id IN (SELECT id FROM regions WHERE source_key LIKE 'vn:ward:%')`,
+      );
+      // Tên ngắn ("Phước Hải") làm bí danh: gõ không có tiền tố xã/phường vẫn khớp đúng. Dùng
+      // `foldText`, không dùng `searchKey`: tên ngắn không có tiền tố, mà "Quan Sơn", "Phương Bình"
+      // lại mở đầu bằng chữ giống tiền tố hành chính.
+      await m.query(
+        `INSERT INTO region_aliases (region_id, alias, search_alias)
        SELECT r.id, a.alias, a.search_alias
          FROM jsonb_to_recordset($1::jsonb) AS a(source_key text, alias text, search_alias text)
          JOIN regions r ON r.source_key = a.source_key
        ON CONFLICT ON CONSTRAINT uq_region_alias DO NOTHING`,
-      [
-        JSON.stringify(
-          wards.map((w) => ({
-            source_key: `vn:ward:${w.code}`,
-            alias: w.name,
-            search_alias: searchKey(w.name),
-          })),
-        ),
-      ],
-    );
+        [
+          JSON.stringify(
+            wards.map((w) => ({
+              source_key: `vn:ward:${w.code}`,
+              alias: w.name,
+              search_alias: foldText(w.name),
+            })),
+          ),
+        ],
+      );
+    });
     this.logger.log(`Đã seed ${wards.length} xã/phường (${version}).`);
   }
 }
