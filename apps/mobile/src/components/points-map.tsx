@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 import type { MapPoint, PointsMapProps } from '@/components/points-map-shared';
-import { MapMarker } from '@/components/ui/map-marker';
+import { MapMarker, markerKey } from '@/components/ui/map-marker';
 
 /** Một điểm duy nhất: khung khoảng 1 km quanh nó. */
 const SINGLE_DELTA = 0.01;
@@ -63,14 +63,18 @@ export function PointsMap({
       showsPointsOfInterests={false}
       toolbarEnabled={false}
       showsCompass={false}>
-      {points.map((point) => (
-        <PointMarker
-          key={point.key}
-          point={point}
-          selected={point.key === selectedKey}
-          onPress={interactive ? () => onSelect?.(point.key) : undefined}
-        />
-      ))}
+      {points.map((point) => {
+        const selected = point.key === selectedKey;
+        // Khóa gồm cả trạng thái chọn: đổi chọn thì tạo lại marker native (xem `markerKey`).
+        return (
+          <PointMarker
+            key={markerKey(point.key, selected)}
+            point={point}
+            selected={selected}
+            onPress={interactive ? () => onSelect?.(point.key) : undefined}
+          />
+        );
+      })}
     </MapView>
   );
 
@@ -100,13 +104,13 @@ export function PointsMap({
 }
 
 function PointMarker({ point, selected, onPress }: { point: MapPoint; selected: boolean; onPress?: () => void }) {
-  // Marker tùy biến chụp lại view mỗi khung hình nếu để tracksViewChanges; chỉ bật lúc vừa đổi trạng thái.
+  // Marker tùy biến chụp lại view mỗi khung hình nếu để tracksViewChanges: chỉ bật lúc vừa tạo, đủ để vẽ xong icon và
+  // nhãn. Đổi chọn thì marker được tạo lại (`markerKey`), nên không cần bật lại ở đây.
   const [tracking, setTracking] = useState(true);
   useEffect(() => {
-    setTracking(true); // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setTimeout(() => setTracking(false), 400);
     return () => clearTimeout(timer);
-  }, [selected]);
+  }, []);
 
   return (
     <Marker

@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 
 import { placeKey, type RegionMapProps } from '@/components/region-map-shared';
-import { MapMarker } from '@/components/ui/map-marker';
+import { MapMarker, markerKey } from '@/components/ui/map-marker';
 import { MAX_MAP_MARKERS } from '@/constants/places';
 import { Spacing } from '@/constants/theme';
 
@@ -86,21 +86,30 @@ export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomI
       showsPointsOfInterests={false}
       toolbarEnabled={false}
       showsCompass={false}>
-      {markers.map((place) => (
-        <PlaceMarker key={placeKey(place)} place={place} selected={placeKey(place) === selectedKey} onPress={() => onSelect(placeKey(place))} />
-      ))}
+      {markers.map((place) => {
+        const selected = placeKey(place) === selectedKey;
+        // Khóa gồm cả trạng thái chọn: đổi chọn thì tạo lại marker native (xem `markerKey`).
+        return (
+          <PlaceMarker
+            key={markerKey(placeKey(place), selected)}
+            place={place}
+            selected={selected}
+            onPress={() => onSelect(placeKey(place))}
+          />
+        );
+      })}
     </MapView>
   );
 }
 
 function PlaceMarker({ place, selected, onPress }: { place: PlaceListItem; selected: boolean; onPress: () => void }) {
-  // Marker tùy biến chụp lại view mỗi khung hình nếu để tracksViewChanges; chỉ bật lúc vừa đổi trạng thái.
+  // Marker tùy biến chụp lại view mỗi khung hình nếu để tracksViewChanges: chỉ bật lúc vừa tạo, đủ để vẽ xong icon và
+  // nhãn. Đổi chọn thì marker được tạo lại (`markerKey`), nên không cần bật lại ở đây.
   const [tracking, setTracking] = useState(true);
   useEffect(() => {
-    setTracking(true); // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setTimeout(() => setTracking(false), 400);
     return () => clearTimeout(timer);
-  }, [selected]);
+  }, []);
 
   return (
     <Marker
