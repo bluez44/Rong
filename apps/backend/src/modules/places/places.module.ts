@@ -23,6 +23,8 @@ import {
 } from './places.controller.js';
 import { PlacesService } from './places.service.js';
 import { RegionPlaceStore } from './region-place-store.js';
+import { UserPlacesController } from './user-places.controller.js';
+import { UserPlacesService } from './user-places.service.js';
 import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
 
 @Module({
@@ -34,7 +36,8 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
     LangchainModule,
     SavedPlacesModule,
   ],
-  controllers: [PlacesController, PlaceDetailController],
+  // UserPlacesController trước PlaceDetailController: route tĩnh của nó không rơi vào `GET /places/:id`.
+  controllers: [PlacesController, UserPlacesController, PlaceDetailController],
   providers: [
     PlacesService,
     WebPlacesService,
@@ -44,6 +47,7 @@ import { WEB_PLACES_CONFIG, WebPlacesService } from './web-places.service.js';
     PlaceSearchService,
     RegionPlaceStore,
     PlaceNotesService,
+    UserPlacesService,
     {
       provide: PLACE_SEARCH_CONFIG,
       inject: [ConfigService],
