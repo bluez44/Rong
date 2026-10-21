@@ -24,9 +24,17 @@ import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 /**
  * `name` và `category` truyền từ danh sách để phần đầu hiện ngay trong lúc tải.
  * `regionId`/`regionName` có khi mở từ bản đồ vùng hoặc "Muốn đi": bật nút thêm
- * vào lịch trình của vùng đó, và là vùng được ghi khi thả tim.
+ * vào lịch trình của vùng đó, và là vùng được ghi khi thả tim. `from: 'saved'` (mở từ "Muốn đi") thì ẩn nút thêm
+ * vào lịch trình / chọn nơi lưu trú: lên lịch từ "Muốn đi" đi qua nút "Xếp lịch giúp tôi" của cả vùng.
  */
-type Params = { id: string; name?: string; category?: PlaceCategory; regionId?: string; regionName?: string };
+type Params = {
+  id: string;
+  name?: string;
+  category?: PlaceCategory;
+  regionId?: string;
+  regionName?: string;
+  from?: 'saved';
+};
 
 export default function PlaceDetailScreen() {
   const params = useLocalSearchParams<Params>();
@@ -103,7 +111,14 @@ export default function PlaceDetailScreen() {
           </Notice>
         ) : null}
 
-        {place ? <PlaceBody place={place} regionId={params.regionId} onMapTouch={setMapTouched} /> : null}
+        {place ? (
+          <PlaceBody
+            place={place}
+            regionId={params.regionId}
+            showTripActions={params.from !== 'saved'}
+            onMapTouch={setMapTouched}
+          />
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -178,10 +193,12 @@ function vietnamWeekdayIndex(): number {
 function PlaceBody({
   place,
   regionId,
+  showTripActions,
   onMapTouch,
 }: {
   place: PlaceDetail;
   regionId?: string;
+  showTripActions: boolean;
   onMapTouch: (active: boolean) => void;
 }) {
   const { height } = useWindowDimensions();
@@ -218,13 +235,13 @@ function PlaceBody({
         <View style={styles.actions}>
           <Button
             label="Chỉ đường"
-            variant={regionId ? 'glass' : 'primary'}
+            variant={regionId && showTripActions ? 'glass' : 'primary'}
             onPress={() => Linking.openURL(directionsUrl(place))}
             style={styles.action}
           />
           {place.website ? <Button label="Trang web" variant="glass" onPress={() => Linking.openURL(place.website!)} style={styles.action} /> : null}
         </View>
-        {regionId ? <TripButton place={place} regionId={regionId} /> : null}
+        {regionId && showTripActions ? <TripButton place={place} regionId={regionId} /> : null}
       </View>
 
       {place.description ? <Text style={styles.description}>{place.description}</Text> : null}

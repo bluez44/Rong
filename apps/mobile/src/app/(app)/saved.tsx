@@ -126,7 +126,14 @@ function SavedRow({ item, onRemove }: { item: SavedPlace; onRemove: () => void }
   const openDetail = () =>
     router.push({
       pathname: '/place/[id]',
-      params: { id: item.placeId, name: item.name, category: item.category, regionId: item.regionId, regionName: item.regionName },
+      params: {
+        id: item.placeId,
+        name: item.name,
+        category: item.category,
+        regionId: item.regionId,
+        regionName: item.regionName,
+        from: 'saved',
+      },
     });
 
   const source = item.shareSource;
