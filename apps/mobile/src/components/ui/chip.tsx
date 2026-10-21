@@ -19,7 +19,9 @@ export function Chip({ label, selected, icon, glass, onPress }: ChipProps) {
   const content = (
     <>
       {icon ? <Icon name={icon} size={16} color={selected ? Colors.light.onPrimary : Colors.light.primary} /> : null}
-      <Text style={[styles.label, { color }]}>{label}</Text>
+      <Text style={[styles.label, { color }]} numberOfLines={1} ellipsizeMode="tail">
+        {label}
+      </Text>
     </>
   );
 
@@ -54,6 +56,6 @@ const styles = StyleSheet.create({
   },
   solid: { backgroundColor: Colors.light.surface, borderWidth: 1, borderColor: Colors.light.hairline },
   selected: { backgroundColor: Colors.light.primary, borderWidth: 1, borderColor: Colors.light.primary },
-  label: { ...Type.subhead },
+  label: { ...Type.subhead, flexShrink: 1 },
   pressed: { opacity: 0.8 },
 });

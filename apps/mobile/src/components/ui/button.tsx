@@ -26,7 +26,12 @@ export function Button({ label, variant = 'primary', size = 'md', loading, disab
   const content = (
     <>
       {loading ? <ActivityIndicator size="small" color={textColor} /> : null}
-      <Text style={[size === 'lg' ? styles.labelLg : size === 'sm' ? styles.labelSm : styles.label, { color: textColor }]}>{label}</Text>
+      <Text
+        style={[size === 'lg' ? styles.labelLg : size === 'sm' ? styles.labelSm : styles.label, styles.shrink, { color: textColor }]}
+        numberOfLines={1}
+        ellipsizeMode="tail">
+        {label}
+      </Text>
     </>
   );
 
@@ -79,4 +84,6 @@ const styles = StyleSheet.create({
   label: { ...Type.headline, fontSize: 16, lineHeight: 22 },
   labelLg: Type.headline,
   labelSm: Type.subhead,
+  // Nhãn luôn một dòng (numberOfLines): co lại để "…" hiện trong nút thay vì tràn ra ngoài.
+  shrink: { flexShrink: 1 },
 });
