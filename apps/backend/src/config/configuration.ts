@@ -116,6 +116,19 @@ export interface RecommendationsConfig {
   unsplashAccessKey: string | null;
 }
 
+/**
+ * Route quản trị (reset địa điểm của vùng). Tắt (route trả 404) khi thiếu `emails` hoặc `apiKey`: gọi được phải
+ * đăng nhập bằng tài khoản có email đã xác minh nằm trong `emails` và gửi kèm khóa.
+ */
+export interface AdminConfig {
+  /** `ADMIN_EMAILS`, viết thường. */
+  emails: string[];
+  /** `ADMIN_API_KEY` (≥ 32 ký tự), so với header `X-Admin-Key`. */
+  apiKey: string | null;
+  /** Số lần reset tối đa của cả hệ thống trong 24 giờ (mỗi lần tốn phí Tavily + Gemini). */
+  refreshDailyLimit: number;
+}
+
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
@@ -132,6 +145,7 @@ export interface AppConfig {
   shareLinks: ShareLinksConfig;
   oauth: OAuthConfig;
   recommendations: RecommendationsConfig;
+  admin: AdminConfig;
 }
 
 class MissingEnvError extends Error {
@@ -306,6 +320,16 @@ export function loadConfig(): AppConfig {
     recommendations: {
       queueEnabled: recommendationsQueueEnabled(process.env),
       unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY || null,
+    },
+    admin: {
+      emails: (process.env.ADMIN_EMAILS ?? '')
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+      apiKey: process.env.ADMIN_API_KEY
+        ? requireStrongSecret(process.env.ADMIN_API_KEY, 'ADMIN_API_KEY')
+        : null,
+      refreshDailyLimit: positiveInt('ADMIN_REFRESH_DAILY_LIMIT', 30),
     },
   };
 }
