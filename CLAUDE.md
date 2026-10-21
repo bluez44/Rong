@@ -126,6 +126,9 @@ Redis is required in dev for the recommendations queue (`pnpm infra:up`); set `R
 - `infra/prod/` holds the EC2 + Caddy + Docker Compose setup; see its README.
 - Set `SHARE_LINK_SECRET` on the backend host. Without it share-link tokens derive from `JWT_SECRET`, and rotating that makes every existing share link unrecoverable (the next share replaces it).
 - The GitHub Actions workflow `.github/workflows/deploy-backend.yml` is currently commented out.
+- Pushing a `v*` tag runs two mobile release workflows in parallel, both `eas build --local`, both attaching to the tag's GitHub Release through `.github/scripts/upload-release-asset.sh`:
+  - `release-apk.yml` (Ubuntu) builds the Android APK.
+  - `release-ios.yml` (macOS) builds an iOS Simulator app. Its ad hoc `.ipa` + Firebase App Distribution job stays off until the repo variable `IOS_ADHOC_ENABLED=true` is set; that needs an Apple Developer account (see `docs/setup-ios-firebase.md`).
 - Home recommendations need Redis: `infra/prod/docker-compose.yml` has no Redis service yet — add one before deploying.
 
 ## Other apps
