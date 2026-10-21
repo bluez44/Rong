@@ -22,6 +22,7 @@ describe('Địa điểm tự ghim và ghi chú (e2e)', () => {
   let webPlaceId: string;
   let shareImportId: string;
   let pinnedId: string;
+  let groupId: string | undefined;
   const openData = {
     searchPlaces: vi.fn(async () => []),
     reverse: vi.fn(),
@@ -75,6 +76,10 @@ describe('Địa điểm tự ghim và ghi chú (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (groupId) await db?.query(`DELETE FROM groups WHERE id = $1`, [groupId]);
+    await db?.query(
+      `DELETE FROM itineraries WHERE owner_id IN (SELECT id FROM users WHERE display_name = 'e2e-user-places')`,
+    );
     await db?.query(
       `DELETE FROM users WHERE display_name IN ('e2e-user-places', 'e2e-user-places-other')`,
     );
@@ -326,5 +331,149 @@ describe('Địa điểm tự ghim và ghi chú (e2e)', () => {
     await api()
       .get('/api/places/reverse-geocode?lat=200&lng=108.45')
       .expect(400);
+  });
+  it('lịch trình: thành viên nhóm và link công khai thấy ghi chú của người tạo; giờ ghi chú sinh cảnh báo đóng cửa', async () => {
+    // Người tạo ghi chú: quán chỉ mở 06:00–09:00.
+    await api()
+      .patch(`/api/places/${webPlaceId}/notes`)
+      .send({ note: 'Đi sớm', openingHours: 'Mo-Su 06:00-09:00' })
+      .expect(200);
+    // Thành viên có ghi chú riêng khác: không được hiện trong lịch trình của người tạo.
+    await api(otherToken)
+      .patch(`/api/places/${webPlaceId}/notes`)
+      .send({ note: 'Của thành viên' })
+      .expect(200);
+    groupId = (
+      await api().post('/api/groups').send({ name: 'E2E up nhóm' }).expect(201)
+    ).body.id as string;
+    await db.query(
+      `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'editor')`,
+      [groupId, otherId],
+    );
+    const created = await api()
+      .post('/api/itineraries')
+      .send({
+        regionId: daLat,
+        planningMode: 'manual',
+        startsAt: '2026-11-01T08:00:00+07:00',
+        endsAt: '2026-11-01T21:00:00+07:00',
+        travelParty: 'friends',
+        adults: 2,
+        children: 0,
+        selectedPlaceIds: [webPlaceId],
+        groupId,
+      })
+      .expect(201);
+    const { id, days } = created.body as {
+      id: string;
+      days: Array<{ id: string }>;
+    };
+    // Xếp vào 14:00, ngoài giờ mở cửa trong ghi chú: PUT tính lại giờ và cảnh báo.
+    const updated = await api()
+      .put(`/api/itineraries/${id}`)
+      .send({
+        days: days.map((d, i) => ({
+          id: d.id,
+          items:
+            i === 0
+              ? [
+                  {
+                    kind: 'visit',
+                    placeId: webPlaceId,
+                    durationMinutes: 60,
+                    startTime: '14:00',
+                  },
+                ]
+              : [],
+        })),
+        unscheduledPlaceIds: [],
+      })
+      .expect(200);
+    expect(
+      updated.body.warnings.map((w: { type: string }) => w.type),
+    ).toContain('place_closed');
+
+    const stopOf = (body: {
+      days: Array<{
+        items: Array<{ placeId: string; place: { notes?: unknown } }>;
+      }>;
+    }) => body.days[0].items.find((i) => i.placeId === webPlaceId)!;
+    const asMember = await api(otherToken)
+      .get(`/api/itineraries/${id}`)
+      .expect(200);
+    expect(stopOf(asMember.body).place.notes).toMatchObject({
+      note: 'Đi sớm',
+      openingHours: 'Mo-Su 06:00-09:00',
+    });
+
+    const link = await api()
+      .post(`/api/itineraries/${id}/share-link`)
+      .expect(201);
+    const pub = await request(app.getHttpServer())
+      .get(`/api/public/itineraries/${link.body.token}`)
+      .expect(200);
+    expect(stopOf(pub.body).place.notes).toMatchObject({ note: 'Đi sớm' });
+
+    // Người tạo sửa ghi chú → lần đọc sau thấy ngay (một bản, không chép).
+    await api()
+      .patch(`/api/places/${webPlaceId}/notes`)
+      .send({ note: 'Đi trước 8h' })
+      .expect(200);
+    const again = await api(otherToken)
+      .get(`/api/itineraries/${id}`)
+      .expect(200);
+    expect(stopOf(again.body).place.notes).toMatchObject({
+      note: 'Đi trước 8h',
+    });
+    // Ghi chú không nằm trong dữ liệu đã lưu của lịch trình.
+    const [{ days: stored }] = (await db.query(
+      `SELECT days FROM itineraries WHERE id = $1`,
+      [id],
+    )) as Array<{
+      days: unknown;
+    }>;
+    expect(JSON.stringify(stored)).not.toContain('Đi trước 8h');
+  });
+  it('lịch trình: dời ghim thì lịch trình thấy vị trí mới', async () => {
+    const created = await api()
+      .post('/api/itineraries')
+      .send({
+        regionId: daLat,
+        planningMode: 'manual',
+        startsAt: '2026-11-02T08:00:00+07:00',
+        endsAt: '2026-11-02T21:00:00+07:00',
+        travelParty: 'friends',
+        adults: 2,
+        children: 0,
+        selectedPlaceIds: [pinnedId],
+      })
+      .expect(201);
+    const { id, days } = created.body as {
+      id: string;
+      days: Array<{ id: string }>;
+    };
+    await api()
+      .put(`/api/itineraries/${id}`)
+      .send({
+        days: days.map((d, i) => ({
+          id: d.id,
+          items:
+            i === 0
+              ? [{ kind: 'visit', placeId: pinnedId, durationMinutes: 60 }]
+              : [],
+        })),
+        unscheduledPlaceIds: [],
+      })
+      .expect(200);
+    await api()
+      .patch(`/api/places/user/${pinnedId}`)
+      .send({ lat: 11.96, lng: 108.46 })
+      .expect(204);
+    const res = await api().get(`/api/itineraries/${id}`).expect(200);
+    const stop = res.body.days[0].items.find(
+      (i: { placeId: string }) => i.placeId === pinnedId,
+    );
+    expect(stop.place.coordinates.lat).toBeCloseTo(11.96);
+    expect(stop.place.locationSource).toBe('user');
   });
 });

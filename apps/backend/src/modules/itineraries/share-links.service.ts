@@ -112,11 +112,14 @@ export class ShareLinksService {
     );
   }
 
-  /** Chỉ dữ liệu riêng của app; không id người dùng, ghi chú, nhóm hay nội dung Google. */
+  /**
+   * Chỉ dữ liệu riêng của app và ghi chú địa điểm của người tạo (spec 2026-10-21-user-pinned-places §4); không id
+   * người dùng, ghi chú chuyến đi, nhóm hay nội dung Google.
+   */
   async getPublic(token: string): Promise<PublicItinerary> {
     if (!isTokenShape(token)) throw shareLinkNotFound();
     const [row] = (await this.db.query(
-      `SELECT i.input, i.planner, i.starts_at, i.ends_at, i.days, i.unscheduled,
+      `SELECT i.owner_id, i.input, i.planner, i.starts_at, i.ends_at, i.days, i.unscheduled,
               i.warnings, i.tips, i.updated_at, r.name AS region_name, pr.name AS parent_name
          FROM itinerary_share_links s
          JOIN itineraries i ON i.id = s.itinerary_id
@@ -125,6 +128,7 @@ export class ShareLinksService {
         WHERE s.token_hash = $1 AND s.revoked_at IS NULL`,
       [hashToken(token)],
     )) as Array<{
+      owner_id: string;
       input: ItineraryInput;
       planner: PlannerKind;
       starts_at: Date;
@@ -148,7 +152,7 @@ export class ShareLinksService {
       adults: row.input.adults,
       children: row.input.children,
       planner: row.planner,
-      days: await withItineraryPlaceData(this.db, row.days),
+      days: await withItineraryPlaceData(this.db, row.days, row.owner_id),
       unscheduled: row.unscheduled,
       warnings: row.warnings,
       tips: row.tips,

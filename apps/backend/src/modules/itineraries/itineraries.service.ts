@@ -60,7 +60,7 @@ export class ItinerariesService {
     const groupId = dto.groupId ?? null;
     if (groupId) await this.access.requireGroupRole(ownerId, groupId, 'editor');
 
-    const plan = await this.planner.planTrip(input);
+    const plan = await this.planner.planTrip(input, { notesOwnerId: ownerId });
 
     const saved = await this.db.transaction(async (m) => {
       const it = await m.save(
@@ -135,6 +135,7 @@ export class ItinerariesService {
     input: ItineraryInput,
     days: ItineraryDay[],
     warnings: ItineraryWarning[],
+    notesOwnerId: string | null = null,
   ): Promise<{ days: ItineraryDay[]; warnings: ItineraryWarning[] }> {
     const placeIds = [
       ...new Set(
@@ -144,10 +145,17 @@ export class ItinerariesService {
       ),
     ];
     const places = new Map(
-      (await this.planner.loadPlaces(placeIds, true)).map((c) => [c.id, c]),
+      (await this.planner.loadPlaces(placeIds, true, notesOwnerId)).map((c) => [
+        c.id,
+        c,
+      ]),
     );
     const [accommodation] = input.accommodationPlaceId
-      ? await this.planner.loadPlaces([input.accommodationPlaceId], false)
+      ? await this.planner.loadPlaces(
+          [input.accommodationPlaceId],
+          false,
+          notesOwnerId,
+        )
       : [];
     const transport =
       input.transport ?? PARTY_RULES[input.travelParty].defaultTransport;
@@ -254,7 +262,11 @@ export class ItinerariesService {
           'Tạm thời không lấy được vị trí của một địa điểm. Hãy thử lưu lại sau.',
       });
     }
-    const found = await this.planner.loadPlaces(placeIds, true);
+    const found = await this.planner.loadPlaces(
+      placeIds,
+      true,
+      itinerary.ownerId,
+    );
     const missing = placeIds.filter((pid) => !found.some((c) => c.id === pid));
     if (missing.length > 0) {
       throw bad('UNKNOWN_PLACES', 'Có địa điểm không tồn tại trong danh mục.', {
@@ -263,7 +275,11 @@ export class ItinerariesService {
     }
     const places = new Map(found.map((c) => [c.id, c]));
     const [accommodation] = input.accommodationPlaceId
-      ? await this.planner.loadPlaces([input.accommodationPlaceId], false)
+      ? await this.planner.loadPlaces(
+          [input.accommodationPlaceId],
+          false,
+          itinerary.ownerId,
+        )
       : [];
     const transport =
       input.transport ?? PARTY_RULES[input.travelParty].defaultTransport;
@@ -444,7 +460,7 @@ export class ItinerariesService {
     }
     return toResponse(
       it,
-      await withItineraryPlaceData(this.db, it.days),
+      await withItineraryPlaceData(this.db, it.days, it.ownerId),
       groupName,
       access.isCreator ? 'creator' : access.groupRole!,
     );
