@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { ArticleSource, PlaceCategory, PlaceImage } from '@rong/shared-types';
+import type {
+  ArticleSource,
+  PlaceCategory,
+  PlaceImage,
+} from '@rong/shared-types';
 import { DataSource, type EntityManager } from 'typeorm';
 
 import { searchKey } from '../regions/search-text.js';
@@ -59,8 +63,14 @@ export class RegionPlaceStore {
     const [row] = (await this.db.query(
       `SELECT status, expires_at, sources FROM region_place_lists WHERE region_id = $1`,
       [regionId],
-    )) as Array<{ status: 'ready' | 'building' | 'failed'; expires_at: Date | null; sources: ArticleSource[] }>;
-    return row ? { status: row.status, expiresAt: row.expires_at, sources: row.sources } : null;
+    )) as Array<{
+      status: 'ready' | 'building' | 'failed';
+      expires_at: Date | null;
+      sources: ArticleSource[];
+    }>;
+    return row
+      ? { status: row.status, expiresAt: row.expires_at, sources: row.sources }
+      : null;
   }
 
   /** Chỉ đánh dấu khi chưa có danh sách: vùng đã `ready` thì giữ nguyên trong lúc làm mới. */
@@ -84,6 +94,25 @@ export class RegionPlaceStore {
     );
   }
 
+  async count(regionId: string): Promise<number> {
+    const [row] = (await this.db.query(
+      `SELECT count(*)::int AS n FROM region_places WHERE region_id = $1`,
+      [regionId],
+    )) as Array<{ n: number }>;
+    return row?.n ?? 0;
+  }
+
+  /** Giữ danh sách hiện có thêm một chu kỳ (làm mới ra kết quả kém hơn). */
+  async postpone(regionId: string, refreshDays: number): Promise<void> {
+    await this.db.query(
+      `UPDATE region_place_lists
+          SET status = 'ready', error_code = NULL,
+              expires_at = now() + make_interval(days => $2::int)
+        WHERE region_id = $1`,
+      [regionId, refreshDays],
+    );
+  }
+
   async replace(
     regionId: string,
     places: WebPlaceInput[],
@@ -100,10 +129,18 @@ export class RegionPlaceStore {
 
       const ids: string[] = [];
       for (const place of places) {
-        ids.push(await this.upsertPlace(m, place, aiByName.get(searchKey(place.name)) ?? null));
+        ids.push(
+          await this.upsertPlace(
+            m,
+            place,
+            aiByName.get(searchKey(place.name)) ?? null,
+          ),
+        );
       }
 
-      await m.query(`DELETE FROM region_places WHERE region_id = $1`, [regionId]);
+      await m.query(`DELETE FROM region_places WHERE region_id = $1`, [
+        regionId,
+      ]);
       const seen = new Set<string>();
       for (const [rank, id] of ids.entries()) {
         if (seen.has(id)) continue; // hai tên trong bài cùng ra một place_id
@@ -131,7 +168,10 @@ export class RegionPlaceStore {
     });
   }
 
-  async list(regionId: string, categories: PlaceCategory[] | null): Promise<StoredPlaceRow[]> {
+  async list(
+    regionId: string,
+    categories: PlaceCategory[] | null,
+  ): Promise<StoredPlaceRow[]> {
     const rows = (await this.db.query(
       `SELECT p.id, p.name, p.category, p.address, p.description, p.location_source, p.google_place_id,
               CASE WHEN p.location_source <> 'google' OR p.location_expires_at > now() THEN ST_Y(p.location) END AS lat,
@@ -150,8 +190,14 @@ export class RegionPlaceStore {
     }));
   }
 
-  private async upsertPlace(m: EntityManager, place: WebPlaceInput, aiRowId: string | null): Promise<string> {
-    const tags = JSON.stringify(place.openingHours ? { opening_hours: place.openingHours } : {});
+  private async upsertPlace(
+    m: EntityManager,
+    place: WebPlaceInput,
+    aiRowId: string | null,
+  ): Promise<string> {
+    const tags = JSON.stringify(
+      place.openingHours ? { opening_hours: place.openingHours } : {},
+    );
     const address = place.address?.trim() || null;
     const { location } = place;
 
@@ -166,7 +212,13 @@ export class RegionPlaceStore {
                   address = CASE WHEN source = 'web' THEN COALESCE($5::text, address) ELSE address END,
                   location_expires_at = now() + make_interval(days => $4::int), updated_at = now()
             WHERE id = $1`,
-          [existing.id, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, address],
+          [
+            existing.id,
+            location.lng,
+            location.lat,
+            GOOGLE_LOCATION_TTL_DAYS,
+            address,
+          ],
         );
         return existing.id;
       }
@@ -178,7 +230,15 @@ export class RegionPlaceStore {
                   location_expires_at = now() + make_interval(days => $5::int),
                   description = $6, address = COALESCE($7::text, address), updated_at = now()
             WHERE id = $1`,
-          [aiRowId, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS, place.description, address],
+          [
+            aiRowId,
+            location.placeId,
+            location.lng,
+            location.lat,
+            GOOGLE_LOCATION_TTL_DAYS,
+            place.description,
+            address,
+          ],
         );
         return aiRowId;
       }
@@ -189,7 +249,17 @@ export class RegionPlaceStore {
                  ST_SetSRID(ST_MakePoint($7::float8, $8::float8), 4326), 'google',
                  now() + make_interval(days => $9::int))
          RETURNING id`,
-        [place.name, place.category, place.description, address, tags, location.placeId, location.lng, location.lat, GOOGLE_LOCATION_TTL_DAYS],
+        [
+          place.name,
+          place.category,
+          place.description,
+          address,
+          tags,
+          location.placeId,
+          location.lng,
+          location.lat,
+          GOOGLE_LOCATION_TTL_DAYS,
+        ],
       )) as Array<{ id: string }>;
       return row.id;
     }
@@ -207,7 +277,15 @@ export class RegionPlaceStore {
       `INSERT INTO places (source, name, category, description, address, tags, location, location_source)
        VALUES ('web', $1, $2::place_category, $3, $4, $5::jsonb, ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326), 'ai')
        RETURNING id`,
-      [place.name, place.category, place.description, address, tags, location.lng, location.lat],
+      [
+        place.name,
+        place.category,
+        place.description,
+        address,
+        tags,
+        location.lng,
+        location.lat,
+      ],
     )) as Array<{ id: string }>;
     return row.id;
   }

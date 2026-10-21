@@ -24,7 +24,10 @@ import {
   RegionPlaceStore,
   type WebPlaceInput,
 } from '../src/modules/places/region-place-store.js';
-import { WEB_PLACES_CONFIG } from '../src/modules/places/web-places.service.js';
+import {
+  WEB_PLACES_CONFIG,
+  WebPlacesService,
+} from '../src/modules/places/web-places.service.js';
 
 /** Dòng `web` của danh sách địa điểm từ bài viết (spec 2026-10-14). */
 describe('Địa điểm từ bài viết (e2e)', () => {
@@ -34,7 +37,13 @@ describe('Địa điểm từ bài viết (e2e)', () => {
   let token: string;
 
   // Ghép Google tắt mặc định (Việt Nam là Prohibited Territory); các test ghép Google bật lại.
-  const config = { refreshDays: 30, waitMs: 2000, googleMatch: true };
+  // minCount 3 (thay vì 10) để các test dễ dựng đủ/thiếu ngưỡng.
+  const config = {
+    refreshDays: 30,
+    waitMs: 2000,
+    minCount: 3,
+    googleMatch: true,
+  };
   const google = {
     enabled: true,
     findPlace: vi.fn(),
@@ -45,7 +54,11 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     preview: vi.fn(),
     summary: vi.fn(async () => null),
   };
-  const agent = { enabled: true, findPlaces: vi.fn() };
+  const agent = {
+    enabled: true,
+    findPlaces: vi.fn(),
+    findMorePlaces: vi.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -496,6 +509,9 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         regionId,
       ]);
       agent.findPlaces.mockReset();
+      agent.findMorePlaces
+        .mockReset()
+        .mockResolvedValue({ places: [], sources: [] });
       google.findPlace.mockReset();
     });
 
@@ -744,6 +760,131 @@ describe('Địa điểm từ bài viết (e2e)', () => {
       google.findPlace.mockRejectedValue(new Error('500'));
       const res = await get().expect(200);
       expect(res.body.items[0].locationSource).toBe('ai');
+    });
+
+    describe('tối thiểu địa điểm (lượt 2)', () => {
+      const one = (n: number, title: string) => ({
+        places: [agentPlace(title, 'nature')],
+        sources: [article(n, `Nên ghé ${title}.`)],
+      });
+
+      it('lượt 1 đủ ngưỡng thì không chạy lượt 2', async () => {
+        agent.findPlaces.mockResolvedValue({
+          places: [
+            agentPlace('E2E wp Đủ Một', 'nature'),
+            agentPlace('E2E wp Đủ Hai', 'nature'),
+            agentPlace('E2E wp Đủ Ba', 'nature'),
+          ],
+          sources: [
+            article(10, 'E2E wp Đủ Một, E2E wp Đủ Hai và E2E wp Đủ Ba.'),
+          ],
+        });
+        google.findPlace.mockResolvedValue([]);
+        const res = await get().expect(200);
+        expect(names(res.body)).toHaveLength(3);
+        expect(agent.findMorePlaces).not.toHaveBeenCalled();
+      });
+
+      it('lượt 1 thiếu thì chạy lượt 2 với tên đã có; gộp, lượt 1 đứng trước', async () => {
+        const firstSources = [
+          article(11, 'E2E wp Lượt Một A và E2E wp Lượt Một B.'),
+        ];
+        agent.findPlaces.mockResolvedValue({
+          places: [
+            agentPlace('E2E wp Lượt Một A', 'nature'),
+            agentPlace('E2E wp Lượt Một B', 'nature'),
+          ],
+          sources: firstSources,
+        });
+        agent.findMorePlaces.mockResolvedValue({
+          places: [
+            agentPlace('E2E wp Lượt Hai A', 'nature'),
+            agentPlace('E2E wp Lượt Hai B', 'food'),
+          ],
+          sources: [
+            ...firstSources,
+            article(12, 'Thêm E2E wp Lượt Hai A và E2E wp Lượt Hai B.'),
+          ],
+        });
+        google.findPlace.mockResolvedValue([]);
+
+        const res = await get('?categories=nature,food').expect(200);
+
+        expect(agent.findMorePlaces).toHaveBeenCalledTimes(1);
+        const [, known, sources] = agent.findMorePlaces.mock
+          .calls[0] as unknown as [string, string[], Array<{ uri: string }>];
+        expect(known).toEqual(['E2E wp Lượt Một A', 'E2E wp Lượt Một B']);
+        expect(sources.map((s) => s.uri)).toEqual(['https://wp.test/11']);
+        expect(names(res.body)).toEqual([
+          'E2E wp Lượt Một A',
+          'E2E wp Lượt Một B',
+          'E2E wp Lượt Hai A',
+          'E2E wp Lượt Hai B',
+        ]);
+      });
+
+      it('lượt 2 trùng tên lượt 1 (khác dấu/hoa thường) thì không nhân đôi', async () => {
+        agent.findPlaces.mockResolvedValue(one(13, 'E2E wp Dinh Cô'));
+        agent.findMorePlaces.mockResolvedValue({
+          places: [
+            agentPlace('E2E WP DINH CO', 'nature'),
+            agentPlace('E2E wp Hồ Cốc', 'nature'),
+          ],
+          sources: [article(14, 'E2E WP DINH CO gần E2E wp Hồ Cốc.')],
+        });
+        google.findPlace.mockResolvedValue([]);
+        const res = await get().expect(200);
+        expect(names(res.body)).toEqual(['E2E wp Dinh Cô', 'E2E wp Hồ Cốc']);
+      });
+
+      it('sau 2 lượt vẫn thiếu thì vẫn lưu', async () => {
+        agent.findPlaces.mockResolvedValue(one(15, 'E2E wp Chỉ Một'));
+        google.findPlace.mockResolvedValue([]);
+        const res = await get().expect(200);
+        expect(res.body.status).toBe('ready');
+        expect(names(res.body)).toEqual(['E2E wp Chỉ Một']);
+        expect(agent.findMorePlaces).toHaveBeenCalledTimes(1);
+        expect(agent.findPlaces).toHaveBeenCalledTimes(1);
+      });
+
+      it('cả hai lượt không có địa điểm nào: 503 PLACES_UNAVAILABLE', async () => {
+        agent.findPlaces.mockResolvedValue({ places: [], sources: [] });
+        const res = await get().expect(503);
+        expect(res.body.code).toBe('PLACES_UNAVAILABLE');
+        expect(agent.findMorePlaces).toHaveBeenCalledTimes(1);
+      });
+
+      it('làm mới ra ít hơn danh sách cũ và dưới ngưỡng thì giữ danh sách cũ, lùi hạn', async () => {
+        agent.findPlaces.mockResolvedValueOnce({
+          places: [
+            agentPlace('E2E wp Cũ Một', 'nature'),
+            agentPlace('E2E wp Cũ Hai', 'nature'),
+            agentPlace('E2E wp Cũ Ba', 'nature'),
+          ],
+          sources: [article(16, 'E2E wp Cũ Một, E2E wp Cũ Hai, E2E wp Cũ Ba.')],
+        });
+        google.findPlace.mockResolvedValue([]);
+        await get().expect(200);
+        await db.query(
+          `UPDATE region_place_lists SET expires_at = now() - interval '1 day' WHERE region_id = $1`,
+          [regionId],
+        );
+        agent.findPlaces.mockResolvedValueOnce(one(17, 'E2E wp Mới Một'));
+
+        await app.get(WebPlacesService).refresh(regionId);
+
+        const res = await get().expect(200);
+        expect(names(res.body)).toEqual([
+          'E2E wp Cũ Một',
+          'E2E wp Cũ Hai',
+          'E2E wp Cũ Ba',
+        ]);
+        const [state] = (await db.query(
+          `SELECT status, expires_at > now() AS fresh FROM region_place_lists WHERE region_id = $1`,
+          [regionId],
+        )) as Array<{ status: string; fresh: boolean }>;
+        expect(state).toEqual({ status: 'ready', fresh: true });
+      });
     });
 
     it('vùng không tồn tại: 404 REGION_NOT_FOUND', async () => {

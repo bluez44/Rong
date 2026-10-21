@@ -17,6 +17,7 @@ import { DataSource } from 'typeorm';
 import type { WebPlacesType } from '../../chat-models/schema.js';
 import type { WebPlacesConfig } from '../../config/configuration.js';
 import { PlaceSearchService as AgentPlaceSearch } from '../../langchain/place-search.service.js';
+import type { WebSource } from '../../langchain/web-search.js';
 import { GooglePlacesService } from '../google/google-places.service.js';
 import type { Bbox } from '../regions/bbox.js';
 import { RegionAreaService } from '../regions/region-area.service.js';
@@ -33,6 +34,7 @@ import {
   fetchPublishedDate,
   groundedAddress,
   groundedImage,
+  normalizeForMatch,
 } from './web-grounding.js';
 import { pickGoogleMatch } from './web-place-match.js';
 
@@ -47,6 +49,8 @@ const MATCH_CONCURRENCY = 5;
 const DATES_WAIT_MS = 1500;
 /** Mặc định không gồm lưu trú, để khách sạn không lấn át điểm vui chơi (FR-2.12). */
 const DEFAULT_CATEGORIES = PLACE_CATEGORIES.filter((c) => c !== 'stay');
+/** Trần số địa điểm lưu cho một vùng, cùng giá trị `MAX_PLACES` của `langchain/place-search.service.ts`. */
+const MAX_PLACES_STORED = 40;
 const HHMM = /^([01]?\d|2[0-4]):[0-5]\d$/;
 
 /**
@@ -140,60 +144,62 @@ export class WebPlacesService {
         );
         return null;
       });
-      const found = await this.agent.findPlaces(regionName);
-      const grounded = found.places.flatMap((place) => {
-        const articles = articlesMentioning(
-          place.title,
-          regionName,
-          found.sources,
-        );
-        return articles.length > 0 ? [{ place, articles }] : [];
-      });
-
+      const first = await this.agent.findPlaces(regionName);
       const cited = new Map<string, ArticleSource>();
-      for (const { articles } of grounded) {
-        for (const a of articles) {
-          if (!cited.has(a.uri)) {
-            cited.set(a.uri, {
-              title: a.title,
-              uri: a.uri,
-              publishedAt: a.publishedAt,
-            });
-          }
-        }
-      }
-      await waitAtMost(
-        Promise.all(
-          [...cited.values()]
-            .filter((a) => a.publishedAt === null)
-            .map(async (a) => {
-              a.publishedAt = await fetchPublishedDate(a.uri);
-            }),
-        ),
-        DATES_WAIT_MS,
-      );
-
-      const located = await this.locate(
-        grounded.map((g) => g.place),
+      const inputs = await this.collect(
+        first.places,
+        first.sources,
         regionName,
         bbox,
+        cited,
       );
-      const inputs = grounded.flatMap(({ place, articles }, i) => {
-        const location = located[i];
-        if (!location) return [];
-        const input: WebPlaceInput = {
-          name: place.title.trim(),
-          category: place.category,
-          address: groundedAddress(place.address, articles),
-          image: groundedImage(place.title, regionName, articles),
-          description: place.description.trim() || null,
-          openingHours: openingHours(place.openHours),
-          // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.
-          articles: articles.map((a) => ({ ...cited.get(a.uri)! })),
-          location,
-        };
-        return [input];
-      });
+      let found = first.places.length;
+      let rounds = 1;
+
+      // Lượt 2 (spec 2026-10-21-ward-search §3): thiếu thì agent tìm thêm, tránh các tên đã có.
+      if (inputs.length < this.config.minCount) {
+        rounds = 2;
+        const more = await this.agent.findMorePlaces(
+          regionName,
+          inputs.map((p) => p.name),
+          first.sources,
+        );
+        found += more.places.length;
+        const known = new Set(inputs.map((p) => normalizeForMatch(p.name)));
+        const extra = await this.collect(
+          more.places.filter((p) => !known.has(normalizeForMatch(p.title))),
+          more.sources,
+          regionName,
+          bbox,
+          cited,
+        );
+        for (const p of extra) {
+          const key = normalizeForMatch(p.name);
+          if (!known.has(key)) {
+            known.add(key);
+            inputs.push(p);
+          }
+        }
+        inputs.splice(MAX_PLACES_STORED);
+      }
+
+      if (inputs.length === 0) {
+        throw new Error('Không có địa điểm nào qua kiểm chứng');
+      }
+
+      if (inputs.length < this.config.minCount) {
+        const previous = await this.store.count(regionId);
+        if (previous > inputs.length) {
+          await this.store.postpone(regionId, this.config.refreshDays);
+          this.logger.warn(
+            `"${regionName}": làm mới chỉ được ${inputs.length} địa điểm (< ${this.config.minCount}), giữ ${previous} địa điểm cũ`,
+          );
+          return;
+        }
+        this.logger.warn(
+          `"${regionName}": sau ${rounds} lượt chỉ có ${inputs.length} địa điểm (< ${this.config.minCount})`,
+        );
+      }
 
       await this.store.replace(
         regionId,
@@ -204,7 +210,7 @@ export class WebPlacesService {
       const matched = inputs.filter((p) => p.location.source === 'google');
       const withImage = inputs.filter((p) => p.image !== null);
       this.logger.log(
-        `"${regionName}": lưu ${inputs.length}/${found.places.length} địa điểm (${matched.length} ghép Google, ${withImage.length} có ảnh) trong ${Date.now() - started} ms`,
+        `"${regionName}": lưu ${inputs.length}/${found} địa điểm sau ${rounds} lượt (${matched.length} ghép Google, ${withImage.length} có ảnh) trong ${Date.now() - started} ms`,
       );
     } catch (error) {
       this.logger.error(
@@ -213,6 +219,70 @@ export class WebPlacesService {
       );
       await this.store.markFailed(regionId, 'PLACES_UNAVAILABLE');
     }
+  }
+
+  /**
+   * Kiểm chứng tên, ngày đăng, vị trí cho một loạt địa điểm; trả địa điểm hợp lệ. Bài được trích
+   * dồn vào `cited` (dùng chung giữa hai lượt).
+   */
+  private async collect(
+    places: WebPlacesType,
+    sources: WebSource[],
+    regionName: string,
+    bbox: Bbox | null,
+    cited: Map<string, ArticleSource>,
+  ): Promise<WebPlaceInput[]> {
+    const grounded = places.flatMap((place) => {
+      const articles = articlesMentioning(place.title, regionName, sources);
+      return articles.length > 0 ? [{ place, articles }] : [];
+    });
+
+    const added: ArticleSource[] = [];
+    for (const { articles } of grounded) {
+      for (const a of articles) {
+        if (!cited.has(a.uri)) {
+          const source: ArticleSource = {
+            title: a.title,
+            uri: a.uri,
+            publishedAt: a.publishedAt,
+          };
+          cited.set(a.uri, source);
+          added.push(source);
+        }
+      }
+    }
+    await waitAtMost(
+      Promise.all(
+        added
+          .filter((a) => a.publishedAt === null)
+          .map(async (a) => {
+            a.publishedAt = await fetchPublishedDate(a.uri);
+          }),
+      ),
+      DATES_WAIT_MS,
+    );
+
+    const located = await this.locate(
+      grounded.map((g) => g.place),
+      regionName,
+      bbox,
+    );
+    return grounded.flatMap(({ place, articles }, i) => {
+      const location = located[i];
+      if (!location) return [];
+      const input: WebPlaceInput = {
+        name: place.title.trim(),
+        category: place.category,
+        address: groundedAddress(place.address, articles),
+        image: groundedImage(place.title, regionName, articles),
+        description: place.description.trim() || null,
+        openingHours: openingHours(place.openHours),
+        // Bản sao để ngày đăng đọc về muộn không đổi dữ liệu đã lưu.
+        articles: articles.map((a) => ({ ...cited.get(a.uri)! })),
+        location,
+      };
+      return [input];
+    });
   }
 
   /**

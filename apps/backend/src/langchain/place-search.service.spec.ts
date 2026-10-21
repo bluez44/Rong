@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  findMorePlacesFromWeb,
   findPlacesFromWeb,
   type PlaceSearchDeps,
 } from './place-search.service.js';
@@ -120,5 +121,42 @@ describe('findPlacesFromWeb — chuyển sang agent', () => {
     await expect(findPlacesFromWeb('Xã Tà Xùa', d)).rejects.toThrow(
       'Gemini 500',
     );
+  });
+});
+
+describe('findMorePlacesFromWeb', () => {
+  it('gọi agent với bài đã có và danh sách tên cần tránh; gộp nguồn', async () => {
+    const old = [source('https://a.vn/1')];
+    const fresh = [source('https://b.vn/2')];
+    const agent = vi.fn(async (_request: string) => ({
+      places: [place('Hồ Cốc')],
+      sources: fresh,
+    }));
+    const result = await findMorePlacesFromWeb(
+      'Phước Hải, Bà Rịa - Vũng Tàu',
+      ['Dinh Cô', 'Chợ Phước Hải'],
+      old,
+      { agent },
+    );
+    const prompt = agent.mock.calls[0][0] as string;
+    expect(prompt).toContain('Dinh Cô');
+    expect(prompt).toContain('Chợ Phước Hải');
+    expect(prompt).toContain('https://a.vn/1');
+    expect(prompt).toMatch(/không lặp lại/i);
+    expect(result.places.map((p) => p.title)).toEqual(['Hồ Cốc']);
+    expect(result.sources.map((s) => s.uri)).toEqual([
+      'https://a.vn/1',
+      'https://b.vn/2',
+    ]);
+  });
+
+  it('giữ tối đa 40 địa điểm', async () => {
+    const agent = vi.fn(async () => ({
+      places: Array.from({ length: 50 }, (_, i) => place(`Nơi ${i}`)),
+      sources: [],
+    }));
+    expect(
+      (await findMorePlacesFromWeb('X', [], [], { agent })).places,
+    ).toHaveLength(40);
   });
 });
