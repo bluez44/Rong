@@ -35,11 +35,15 @@ const ZALO_CANCEL_CODES = new Set(['-7008', 'LOGIN_SUPERSEDED']);
 
 let googleConfigured = false;
 
+/** SDK Google từ chối mọi lệnh (kể cả signOut) trước configure(). */
+function ensureGoogleConfigured() {
+  if (googleConfigured) return;
+  GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+  googleConfigured = true;
+}
+
 export async function signInWithGoogle(): Promise<OAuthResult> {
-  if (!googleConfigured) {
-    GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
-    googleConfigured = true;
-  }
+  ensureGoogleConfigured();
   try {
     await GoogleSignin.hasPlayServices();
     const response = await GoogleSignin.signIn();
@@ -75,7 +79,11 @@ export async function signInWithZalo(): Promise<OAuthResult> {
 
 /** Gọi khi đăng xuất, để lần sau người dùng được chọn lại tài khoản. Không bao giờ ném lỗi. */
 export async function signOutProviders(): Promise<void> {
-  if (googleAvailable) await GoogleSignin.signOut().catch(() => undefined);
+  if (googleAvailable) {
+    // Mở lại app rồi đăng xuất: chưa signIn lần nào trong phiên này nên phải configure trước.
+    ensureGoogleConfigured();
+    await GoogleSignin.signOut().catch(() => undefined);
+  }
   if (zaloAvailable) {
     try {
       zaloLogout();

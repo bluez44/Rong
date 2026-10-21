@@ -16,6 +16,19 @@ import {
   type ExternalIdentity,
 } from './external-identity.js';
 
+/** Lỗi do chính token (chữ ký, hạn, aud/iss, định dạng, không có khóa khớp kid). */
+const TOKEN_ERRORS = [
+  errors.JWTExpired,
+  errors.JWTClaimValidationFailed,
+  errors.JWTInvalid,
+  errors.JWSInvalid,
+  errors.JWSSignatureVerificationFailed,
+  errors.JWKSNoMatchingKey,
+  errors.JWKSMultipleMatchingKeys,
+  errors.JOSEAlgNotAllowed,
+  errors.JOSENotSupported,
+];
+
 /** Bộ khóa công khai của Google (token DI, để test thay bằng khóa tự tạo). */
 export const GOOGLE_JWKS = 'GOOGLE_JWKS';
 
@@ -50,11 +63,9 @@ export class GoogleIdTokenVerifier {
         algorithms: ['RS256'],
       }));
     } catch (error) {
-      // Lỗi của chính token (chữ ký, hạn, aud, định dạng) là JOSEError; còn lại là mạng/timeout.
-      if (
-        error instanceof errors.JOSEError &&
-        !(error instanceof errors.JWKSTimeout)
-      ) {
+      // Chỉ lỗi của chính token là 401. Còn lại (mạng, timeout, trang khóa trả HTTP lỗi hay JSON
+      // hỏng — jose ném JOSEError trơn hoặc JWKSInvalid) là Google không phản hồi.
+      if (TOKEN_ERRORS.some((type) => error instanceof type)) {
         throw externalTokenInvalid();
       }
       throw providerUnavailable('Google');
@@ -66,8 +77,14 @@ export class GoogleIdTokenVerifier {
       typeof payload.email === 'string'
         ? payload.email.trim().toLowerCase()
         : null;
+    // Google chỉ bảo đảm email còn thuộc người này với Gmail hoặc tài khoản Workspace (có `hd`).
+    // Tài khoản Google dùng email ngoài: email đã xác minh lúc tạo, nhưng tên miền có thể đã đổi chủ.
+    const trustedDomain =
+      email?.endsWith('@gmail.com') ||
+      (typeof payload.hd === 'string' && payload.hd !== '');
     const verified =
-      payload.email_verified === true || payload.email_verified === 'true';
+      trustedDomain &&
+      (payload.email_verified === true || payload.email_verified === 'true');
     const name =
       typeof payload.name === 'string' && payload.name.trim()
         ? payload.name.trim()

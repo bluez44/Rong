@@ -32,6 +32,8 @@ export default function RegisterScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   async function submit() {
+    // Bàn phím "Go" vẫn gọi submit dù nút đã khóa: không chạy song song với đăng nhập Google/Zalo.
+    if (oauthBusy) return;
     const next = { email: validateEmail(email), password: validatePassword(password) };
     setErrors(next);
     setFormError(null);

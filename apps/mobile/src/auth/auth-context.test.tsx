@@ -102,6 +102,20 @@ describe('loginWithGoogle / loginWithZalo', () => {
     expect(result.current.status).toBe('signedOut');
   });
 
+  it('xóa tài khoản cũng đăng xuất khỏi Google/Zalo', async () => {
+    mockOauth.signInWithGoogle.mockResolvedValue({ kind: 'token', token: 'id-tok' });
+    mockApiFetch.mockResolvedValue(TOKENS);
+    const { result } = await setup();
+    await act(async () => {
+      await result.current.loginWithGoogle();
+    });
+    mockApiFetch.mockResolvedValue(undefined);
+    await act(async () => {
+      await result.current.deleteAccount();
+    });
+    expect(mockOauth.signOutProviders).toHaveBeenCalled();
+  });
+
   it('đăng xuất gọi signOutProviders', async () => {
     mockOauth.signInWithGoogle.mockResolvedValue({ kind: 'token', token: 'id-tok' });
     mockApiFetch.mockResolvedValue(TOKENS);

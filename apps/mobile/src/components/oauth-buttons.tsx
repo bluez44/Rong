@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
@@ -22,11 +22,14 @@ type Props = {
 export function OAuthButtons({ label, disabled, onBusyChange, onError }: Props) {
   const { loginWithGoogle, loginWithZalo } = useAuth();
   const [pending, setPending] = useState<Provider | null>(null);
+  // Khóa đồng bộ: hai lần bấm trong cùng một tick đều thấy `pending` cũ (chưa vẽ lại).
+  const busy = useRef(false);
 
   if (!googleAvailable && !zaloAvailable) return null;
 
   async function start(provider: Provider) {
-    if (pending || disabled) return;
+    if (busy.current || disabled) return;
+    busy.current = true;
     setPending(provider);
     onBusyChange?.(true);
     onError(null);
@@ -40,6 +43,7 @@ export function OAuthButtons({ label, disabled, onBusyChange, onError }: Props) 
           : 'Không đăng nhập được. Thử lại sau ít phút.',
       );
     } finally {
+      busy.current = false;
       setPending(null);
       onBusyChange?.(false);
     }

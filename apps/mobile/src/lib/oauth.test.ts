@@ -91,6 +91,15 @@ describe('oauth', () => {
     expect((await load().signInWithZalo()).kind).toBe('unavailable');
   });
 
+  it('signOutProviders sau khi mở lại app (chưa signIn) vẫn configure Google trước khi signOut', async () => {
+    mockGoogle.signOut.mockResolvedValue(null);
+    await load().signOutProviders();
+    expect(mockGoogle.configure).toHaveBeenCalledWith({ webClientId: 'web-client' });
+    expect(mockGoogle.configure.mock.invocationCallOrder[0]).toBeLessThan(
+      mockGoogle.signOut.mock.invocationCallOrder[0],
+    );
+  });
+
   it('signOutProviders nuốt lỗi', async () => {
     mockGoogle.signOut.mockRejectedValue(new Error('x'));
     mockZalo.logout.mockImplementation(() => {
