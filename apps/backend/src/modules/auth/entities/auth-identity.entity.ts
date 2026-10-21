@@ -12,14 +12,14 @@ import {
 
 import { User } from '../../users/entities/user.entity.js';
 
-export const AUTH_PROVIDERS = ['password', 'google', 'apple'] as const;
+export const AUTH_PROVIDERS = ['password', 'google', 'apple', 'zalo'] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 
 /**
  * Một cách người dùng chứng minh danh tính. Một `user` có nhiều identity.
  *
- * Thêm Google sau này chỉ là insert một dòng `provider='google'` trỏ về cùng
- * `user_id` (tìm qua `email` đã xác minh), không cần migration.
+ * Nhà cung cấp ngoài (Google, Zalo) là một dòng trỏ về cùng `user_id` — xem
+ * `AuthService.loginExternal`.
  */
 @Entity('auth_identities')
 @Unique('uq_identity_provider_account', ['provider', 'providerAccountId'])

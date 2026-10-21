@@ -59,3 +59,17 @@ export class RefreshTokenDto {
   @MaxLength(200)
   refreshToken!: string;
 }
+
+export class GoogleLoginDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4096)
+  idToken!: string;
+}
+
+export class ZaloLoginDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  accessToken!: string;
+}

@@ -4,7 +4,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 
 | Thư mục | PRD | Trách nhiệm |
 | --- | --- | --- |
-| `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, JWT guard toàn cục (`@Public()` để mở route). Sẵn chỗ cho Google / Apple qua `auth_identities` |
+| `auth/` | F11 | Đăng ký / đăng nhập email + mật khẩu, xác minh email, đăng nhập Google / Zalo (`auth/external/`), JWT guard toàn cục (`@Public()` để mở route) |
 | `users/` | F11 | Hồ sơ, hạn mức lượt AI hằng tháng (FR-6.5), xóa tài khoản |
 | `regions/` | F1 | Tìm vùng (tỉnh cũ/mới, điểm đến, xã/phường), bí danh, khung bao (bbox) seed sẵn, seed sáp nhập 1/7/2025 |
 | `places/` | F2, F5 | Danh sách địa điểm từ bài viết (Tavily + Gemini), ghép Google Places, lưu `places.source = 'web'`; chi tiết; tìm theo tên (xem "Danh sách địa điểm của vùng", "Tìm địa điểm theo tên") |
@@ -32,6 +32,26 @@ thành thứ review được trong code và test được tự động.
 
 **Quy tắc:** không module nào ngoài `google/` được phép import SDK hay gọi
 endpoint của Google. Các module khác đi qua service mà `google/` cung cấp.
+
+## Đăng nhập Google / Zalo (F11)
+
+```
+POST /api/auth/google { idToken }       đăng nhập/đăng ký bằng Google (ID token, aud ∈ GOOGLE_OAUTH_CLIENT_IDS)
+POST /api/auth/zalo   { accessToken }   đăng nhập/đăng ký bằng Zalo (Graph API + appsecret_proof)
+```
+
+Spec: `docs/superpowers/specs/2026-10-21-google-zalo-login-design.md`.
+
+- `auth/external/GoogleIdTokenVerifier` kiểm chữ ký ID token bằng `jose` với khóa công khai
+  `googleapis.com/oauth2/v3/certs`. **Ngoại lệ có chủ ý với quy tắc của `google/`:** đây là Google
+  Identity (đăng nhập), không phải Google Maps Platform, không đọc hay lưu dữ liệu địa điểm nào.
+- `auth/external/ZaloProfileClient` gọi `graph.zalo.me/v2.0/me` kèm `appsecret_proof`. Id Zalo riêng
+  theo app; Zalo không trả email.
+- `AuthService.loginExternal`: đã có danh tính (`provider`, `provider_account_id`) → user đó; Google
+  có `email_verified` và trùng email một danh tính khác → **gộp** vào user đó (đánh dấu email của danh
+  tính mật khẩu là đã xác minh); còn lại → user mới. Zalo không bao giờ gộp.
+- Thiếu env (`GOOGLE_OAUTH_CLIENT_IDS`, `ZALO_APP_ID`, `ZALO_APP_SECRET`) → 503 `PROVIDER_NOT_CONFIGURED`;
+  token sai → 401 `EXTERNAL_TOKEN_INVALID`; nhà cung cấp lỗi/quá 5 s → 502 `PROVIDER_UNAVAILABLE`.
 
 ## Tìm điểm đến không dùng AI (S2)
 

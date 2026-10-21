@@ -20,6 +20,7 @@ import { AUTH_CONFIG, type AccessTokenPayload } from './auth.constants.js';
 import type { LoginDto, RegisterDto, VerifyEmailDto } from './dto/auth.dto.js';
 import { normalizeEmail } from './email.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
+import type { ExternalIdentity } from './external/external-identity.js';
 import { OneTimeTokenService } from './one-time-token.service.js';
 import { PasswordService } from './password.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
@@ -28,6 +29,9 @@ import { RefreshTokenService } from './refresh-token.service.js';
 const RESEND_COOLDOWN_MS = 60_000;
 
 const PG_UNIQUE_VIOLATION = '23505';
+
+/** Giới hạn tên hiển thị, khớp `RegisterDto.displayName`. */
+const MAX_DISPLAY_NAME = 60;
 
 @Injectable()
 export class AuthService {
@@ -220,6 +224,92 @@ export class AuthService {
   /** Đăng xuất: thu hồi refresh token (và cả họ của nó). Luôn thành công. */
   logout(refreshToken: string): Promise<void> {
     return this.refreshTokens.revoke(refreshToken);
+  }
+
+  /**
+   * Đăng nhập bằng danh tính nhà cung cấp đã xác minh (Google, Zalo):
+   * 1. đã có danh tính này → user đó;
+   * 2. Google, email đã xác minh, trùng email một danh tính khác → gộp vào
+   *    user đó (và coi email của các danh tính trùng là đã xác minh);
+   * 3. còn lại → user mới.
+   * Hai lần đăng nhập đầu tiên đồng thời: bên thua đụng unique index thì chạy
+   * lại, lần này rơi vào (1).
+   */
+  async loginExternal(external: ExternalIdentity): Promise<AuthTokens> {
+    try {
+      return await this.findOrCreateExternal(external);
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code === PG_UNIQUE_VIOLATION
+      ) {
+        return this.findOrCreateExternal(external);
+      }
+      throw error;
+    }
+  }
+
+  private async findOrCreateExternal(
+    external: ExternalIdentity,
+  ): Promise<AuthTokens> {
+    const email = external.email ? normalizeEmail(external.email) : null;
+    const { user, identities } = await this.dataSource.transaction(
+      async (manager) => {
+        const existing = await manager.findOneBy(AuthIdentity, {
+          provider: external.provider,
+          providerAccountId: external.accountId,
+        });
+        let userId = existing?.userId;
+
+        if (!userId) {
+          const canMerge =
+            external.provider === 'google' && external.emailVerified && email;
+          if (canMerge) {
+            const [match] = (await manager.query(
+              `SELECT i.user_id FROM auth_identities i JOIN users u ON u.id = i.user_id
+                WHERE i.email = $1 ORDER BY u.created_at LIMIT 1`,
+              [email],
+            )) as Array<{ user_id: string }>;
+            userId = match?.user_id;
+            if (userId) {
+              // Google đã xác minh email này hộ: danh tính mật khẩu chưa xác minh giờ đăng nhập được.
+              await manager.update(
+                AuthIdentity,
+                { userId, email, emailVerifiedAt: IsNull() },
+                { emailVerifiedAt: new Date() },
+              );
+            }
+          }
+          if (!userId) {
+            const created = await manager.save(
+              manager.create(User, {
+                displayName:
+                  external.displayName?.slice(0, MAX_DISPLAY_NAME) || null,
+              }),
+            );
+            userId = created.id;
+          }
+          await manager.save(
+            manager.create(AuthIdentity, {
+              userId,
+              provider: external.provider,
+              providerAccountId: external.accountId,
+              email,
+              emailVerifiedAt:
+                email && external.emailVerified ? new Date() : null,
+              passwordHash: null,
+            }),
+          );
+        }
+
+        await manager.update(User, userId, { lastSeenAt: new Date() });
+        return {
+          user: await manager.findOneByOrFail(User, { id: userId }),
+          identities: await manager.findBy(AuthIdentity, { userId }),
+        };
+      },
+    );
+    return this.issueTokens(user, identities);
   }
 
   private async issueTokens(

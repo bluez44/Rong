@@ -12,6 +12,16 @@ import { AUTH_CONFIG } from './auth.constants.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthIdentity } from './entities/auth-identity.entity.js';
+import { OAUTH_CONFIG } from './external/external-identity.js';
+import {
+  GOOGLE_JWKS,
+  GoogleIdTokenVerifier,
+  googleJwks,
+} from './external/google-id-token.verifier.js';
+import {
+  ZALO_FETCH,
+  ZaloProfileClient,
+} from './external/zalo-profile.client.js';
 import { OneTimeToken } from './entities/one-time-token.entity.js';
 import { RefreshToken } from './entities/refresh-token.entity.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
@@ -51,6 +61,16 @@ function authConfigFrom(config: ConfigService): AuthConfig {
     OneTimeTokenService,
     RefreshTokenService,
     JwtStrategy,
+    GoogleIdTokenVerifier,
+    ZaloProfileClient,
+    {
+      provide: OAUTH_CONFIG,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        config.getOrThrow<AppConfig['oauth']>('oauth'),
+    },
+    { provide: GOOGLE_JWKS, useFactory: googleJwks },
+    { provide: ZALO_FETCH, useValue: fetch },
     {
       provide: AUTH_CONFIG,
       inject: [ConfigService],

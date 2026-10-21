@@ -41,3 +41,13 @@ export interface UpdateProfileRequest {
   /** 1–50 ký tự sau khi bỏ khoảng trắng hai đầu. */
   displayName: string;
 }
+
+/** POST /auth/google — ID token từ Google Sign-In trên app. */
+export interface GoogleLoginRequest {
+  idToken: string;
+}
+
+/** POST /auth/zalo — access token từ Zalo SDK trên app. */
+export interface ZaloLoginRequest {
+  accessToken: string;
+}
