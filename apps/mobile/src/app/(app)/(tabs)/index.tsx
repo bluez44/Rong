@@ -98,7 +98,9 @@ export default function HomeScreen() {
             <View style={styles.searchIconContainer}>
               <Icon name="explore" size={20} color={Colors.light.secondary} />
             </View>
-            <Text style={styles.searchPlaceholder}>Tìm tỉnh, thành phố hoặc điểm đến...</Text>
+            <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
+              Tìm tỉnh, thành phố hoặc điểm đến
+            </Text>
             <View style={styles.filterButton}>
               <Icon name="tune" size={18} color={Colors.light.textSecondary} />
             </View>
