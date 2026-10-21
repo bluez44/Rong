@@ -54,12 +54,14 @@ jobs:
             --output "$GITHUB_WORKSPACE/$name"
           echo "file=$name" >> "$GITHUB_OUTPUT"
 
+      # Chung script với workflow iOS (chạy song song cùng tag): bên nào tới trước tạo release.
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ steps.apk.outputs.file }}
-          generate_release_notes: true
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FILE: ${{ steps.apk.outputs.file }}
+        run: .github/scripts/upload-release-asset.sh "$GITHUB_REF_NAME" "$FILE"
 
       # Manual runs (workflow_dispatch) only keep the APK as an artifact.
       - name: Upload artifact
