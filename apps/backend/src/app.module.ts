@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { loadConfig } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
 import { LangchainModule } from './langchain/langchain.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { GroupsModule } from './modules/groups/groups.module.js';
 import { HealthModule } from './modules/health/health.module.js';
@@ -38,6 +39,7 @@ import { VisitsModule } from './modules/visits/visits.module.js';
     RecommendationsQueueModule,
     RecommendationsModule,
     HealthModule,
+    AdminModule,
     LangchainModule,
   ],
 })

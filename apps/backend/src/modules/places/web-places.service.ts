@@ -54,6 +54,22 @@ const DEFAULT_CATEGORIES = PLACE_CATEGORIES.filter((c) => c !== 'stay');
 const MAX_PLACES_STORED = 40;
 const HHMM = /^([01]?\d|2[0-4]):[0-5]\d$/;
 
+/** Kết quả một lượt pipeline của vùng. */
+export type RefreshOutcome =
+  | { result: 'replaced'; count: number }
+  /** Ra ít hơn danh sách cũ (làm mới định kỳ) hoặc 0 địa điểm: giữ danh sách cũ. */
+  | { result: 'kept'; count: number; found: number }
+  /** Lỗi (đã ghi `PLACES_UNAVAILABLE`); danh sách cũ, nếu có, vẫn được phục vụ. */
+  | { result: 'failed' };
+
+export type RefreshOptions = {
+  /**
+   * Admin reset (`POST /regions/:id/places/refresh`): bản mới thay bản cũ kể cả khi ít địa điểm hơn; chỉ 0 địa
+   * điểm hoặc lỗi mới giữ bản cũ.
+   */
+  force?: boolean;
+};
+
 /**
  * Danh sách địa điểm của một vùng (spec 2026-10-14-web-places): tổng hợp từ
  * bài viết (Tavily + Gemini), ghép Google Places để lấy place_id + tọa độ,
@@ -63,7 +79,7 @@ const HHMM = /^([01]?\d|2[0-4]):[0-5]\d$/;
 @Injectable()
 export class WebPlacesService {
   private readonly logger = new Logger(WebPlacesService.name);
-  private readonly inFlight = new Map<string, Promise<void>>();
+  private readonly inFlight = new Map<string, Promise<RefreshOutcome>>();
 
   constructor(
     @InjectDataSource() private readonly db: DataSource,
@@ -120,13 +136,18 @@ export class WebPlacesService {
   }
 
   /**
-   * Một lượt pipeline cho vùng; các lời gọi trong lúc đang chạy dùng chung.
+   * Một lượt pipeline cho vùng; các lời gọi trong lúc đang chạy dùng chung (kể cả lời gọi `force`: nhập vào
+   * lượt đang chạy chứ không chạy thêm lượt tốn phí).
    * Không ném lỗi pipeline: lỗi được ghi vào `region_place_lists`.
    */
-  refresh(regionId: string, regionName?: string): Promise<void> {
+  refresh(
+    regionId: string,
+    regionName?: string,
+    options: RefreshOptions = {},
+  ): Promise<RefreshOutcome> {
     let pending = this.inFlight.get(regionId);
     if (!pending) {
-      pending = this.build(regionId, regionName).finally(() =>
+      pending = this.build(regionId, regionName, options).finally(() =>
         this.inFlight.delete(regionId),
       );
       this.inFlight.set(regionId, pending);
@@ -134,7 +155,23 @@ export class WebPlacesService {
     return pending;
   }
 
-  private async build(regionId: string, knownName?: string): Promise<void> {
+  /**
+   * Kiểm tra trước khi admin reset vùng: vùng phải tồn tại (404) và pipeline phải chạy được (503). Trả tên vùng
+   * để đưa vào `refresh`, và vùng có đang chạy pipeline không.
+   */
+  async prepareRefresh(
+    regionId: string,
+  ): Promise<{ regionName: string; running: boolean }> {
+    const regionName = await this.regionName(regionId);
+    if (!this.agent.enabled) throw unavailable();
+    return { regionName, running: this.inFlight.has(regionId) };
+  }
+
+  private async build(
+    regionId: string,
+    knownName: string | undefined,
+    { force = false }: RefreshOptions,
+  ): Promise<RefreshOutcome> {
     const regionName = knownName ?? (await this.regionName(regionId));
     const started = Date.now();
     await this.store.markBuilding(regionId);
@@ -194,13 +231,13 @@ export class WebPlacesService {
       if (inputs.length < this.config.minCount) {
         const previous = await this.store.count(regionId);
         // Làm mới ra kém hơn (kể cả 0 địa điểm): giữ danh sách cũ và lùi hạn, để không làm mới
-        // (tốn phí) lại ở mỗi request.
-        if (previous > inputs.length) {
+        // (tốn phí) lại ở mỗi request. Admin reset (`force`) thì chỉ giữ khi ra 0 địa điểm.
+        if (previous > inputs.length && (!force || inputs.length === 0)) {
           await this.store.postpone(regionId, this.config.refreshDays);
           this.logger.warn(
             `"${regionName}": làm mới chỉ được ${inputs.length} địa điểm (< ${this.config.minCount}), giữ ${previous} địa điểm cũ`,
           );
-          return;
+          return { result: 'kept', count: previous, found: inputs.length };
         }
         if (inputs.length === 0) {
           throw new Error('Không có địa điểm nào qua kiểm chứng');
@@ -221,12 +258,14 @@ export class WebPlacesService {
       this.logger.log(
         `"${regionName}": lưu ${inputs.length}/${found} địa điểm sau ${rounds} lượt (${matched.length} ghép Google, ${withImage.length} có ảnh) trong ${Date.now() - started} ms`,
       );
+      return { result: 'replaced', count: inputs.length };
     } catch (error) {
       this.logger.error(
         `Tổng hợp địa điểm "${regionName}" lỗi`,
         (error as Error).stack,
       );
       await this.store.markFailed(regionId, 'PLACES_UNAVAILABLE');
+      return { result: 'failed' };
     }
   }
 

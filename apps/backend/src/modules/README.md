@@ -17,6 +17,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
 | `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
 | `health/` | — | Kiểm tra sức khỏe service và kết nối PostGIS |
+| `admin/` | — | Route quản trị: reset địa điểm của vùng (`POST /regions/:id/places/refresh`), tắt mặc định (xem "Reset địa điểm của vùng (admin)") |
 
 ## Vì sao `google/` đứng riêng
 
@@ -143,6 +144,30 @@ Dữ liệu:
   `google_place_id` chỉ một dòng: trùng với dòng người dùng đã lưu thì dùng lại, không đổi tên; làm mới thì dòng
   AI cùng tên được dùng lại (và nâng cấp nếu lần này ghép được).
 - Mục `locationSource: 'ai'` được app đánh dấu **"Vị trí gần đúng"**; thời gian di chuyển tới đó chỉ là ước tính.
+
+### Reset địa điểm của vùng (admin)
+
+`POST /api/regions/:id/places/refresh` (`admin/admin.controller.ts`) chạy lại pipeline cho một vùng ở nền, trả **202**
+`{ status: 'building' }` ngay. Người dùng vẫn thấy danh sách cũ trong lúc chạy; xong thì bản mới **luôn thay** bản cũ, kể
+cả khi ít địa điểm hơn (`refresh(..., { force: true })`), trừ khi ra 0 địa điểm hoặc lỗi thì giữ bản cũ. Vùng đang chạy
+pipeline thì nhập vào lượt đó, không chạy thêm.
+
+Bảo vệ (`AdminGuard`, chạy sau JWT toàn cục):
+1. Tắt khi thiếu `ADMIN_EMAILS` hoặc `ADMIN_API_KEY` (≥ 32 ký tự) → 404.
+2. Không có JWT → 401 (như mọi route).
+3. Tài khoản phải có một identity với email **đã xác minh** nằm trong `ADMIN_EMAILS` → không thì 404.
+4. Header `X-Admin-Key` phải khớp `ADMIN_API_KEY` (so SHA-256 bằng `timingSafeEqual`) → không thì 404.
+5. Giới hạn (`AdminRefreshLimiter`, trong bộ nhớ, đủ cho một instance): mỗi vùng một lần trong 10 phút, cả hệ thống
+   `ADMIN_REFRESH_DAILY_LIMIT` (30) lần trong 24 giờ → 429 `REFRESH_RATE_LIMITED`. Vùng không tồn tại (404) và thiếu
+   Tavily (503) được kiểm tra trước, không tính lượt.
+
+Mọi lần từ chối và mọi lần chạy (người gọi, vùng, kết quả) được ghi log `Admin`; không ghi khóa.
+
+```bash
+curl -X POST https://<backend>/api/regions/<regionId>/places/refresh \
+  -H "Authorization: Bearer <access token của tài khoản admin>" \
+  -H "X-Admin-Key: <ADMIN_API_KEY>"
+```
 
 ## Chi tiết địa điểm và Google (F5)
 
