@@ -1,4 +1,4 @@
-import type { PlaceCategory, SavedPlace } from '@rong/shared-types';
+import type { Coordinates, LocationSource, PlaceCategory, SavedPlace } from '@rong/shared-types';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
 
@@ -6,7 +6,14 @@ import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/lib/api';
 
 /** Địa điểm có trong danh mục (có id) — mục AI chưa khớp danh mục thì không lưu được. */
-export type SaveablePlace = { id: string; name: string; category: PlaceCategory };
+export type SaveablePlace = {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  /** Có thì điểm vừa lưu hiện ngay trên bản đồ vùng, không chờ tải lại danh sách. */
+  coordinates?: Coordinates | null;
+  locationSource?: LocationSource;
+};
 
 type SavedPlacesValue = {
   status: 'loading' | 'refreshing' | 'done' | 'error';
@@ -71,6 +78,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
               regionId: region.id,
               regionName: region.name,
               savedAt: new Date().toISOString(),
+              coordinates: place.coordinates ?? null,
+              locationSource: place.locationSource ?? 'ai',
               source: 'manual' as const,
               shareSource: null,
             },

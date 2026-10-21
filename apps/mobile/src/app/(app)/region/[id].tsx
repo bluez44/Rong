@@ -84,7 +84,10 @@ export default function RegionScreen() {
 
   const saveAction = (place: PlaceListItem) => ({
     active: saved.isSaved(place.id),
-    onPress: () => saved.toggle({ id: place.id, name: place.name, category: place.category }, { id: params.id, name: regionName }),
+    onPress: () => saved.toggle(
+        { id: place.id, name: place.name, category: place.category, coordinates: place.coordinates, locationSource: place.locationSource },
+        { id: params.id, name: regionName },
+      ),
   });
 
   // Mọi mục trong danh sách của vùng đều có id nên dùng được cho lịch trình (FR-6.3).

@@ -250,6 +250,9 @@ export interface SavedPlace {
   regionId: string;
   regionName: string;
   savedAt: string;
+  /** null khi chưa có tọa độ (dòng Google đã hết hạn 30 ngày): không vẽ lên bản đồ. */
+  coordinates: Coordinates | null;
+  locationSource: LocationSource;
   /** 'share' từ chia sẻ (F4), 'search' từ ô tìm địa điểm. */
   source: 'manual' | 'share' | 'search';
   /** Chỉ khi `source = 'share'` và lượt chia sẻ còn: để ghi nguồn và mở link gốc. */
