@@ -96,6 +96,8 @@ export class PlacesService {
       attribution: ATTRIBUTIONS[row.source],
       googleStatus: status,
       google: content,
+      notes: null,
+      createdByMe: false,
     };
   }
 
@@ -129,7 +131,7 @@ export class PlacesService {
 function toListItem(
   row: DetailRow,
   content: GooglePlaceContent | null,
-): Omit<PlaceDetail, 'attribution' | 'googleStatus' | 'google'> {
+): Omit<PlaceDetail, 'attribution' | 'googleStatus' | 'google' | 'notes' | 'createdByMe'> {
   const query = encodeURIComponent(row.name);
   return {
     id: row.id,

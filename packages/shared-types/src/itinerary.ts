@@ -1,5 +1,5 @@
 import type { GroupRole } from './group';
-import type { LocationSource, PlaceCategory } from './place';
+import type { LocationSource, PlaceCategory, PlaceNotes } from './place';
 
 /** Quyền của người đang xem trên một lịch trình: người tạo, hoặc vai trò trong nhóm chứa nó. */
 export type ItineraryRole = 'creator' | GroupRole;
@@ -69,6 +69,8 @@ export interface ItineraryPlaceSnapshot {
   coordinates: { lat: number; lng: number } | null;
   /** `ai`: vị trí do AI ước đoán, thời gian di chuyển tới đây chỉ là ước tính. Thiếu = không rõ (lịch trình cũ). */
   locationSource?: LocationSource;
+  /** Ghi chú của người tạo lịch trình cho điểm này; server điền mỗi lần trả, không lưu trong lịch trình. */
+  notes?: PlaceNotes | null;
 }
 
 export interface ItineraryItem {

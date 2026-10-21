@@ -17,6 +17,7 @@ const saved = (id: string, category: SavedPlace['category'], savedAt: string): S
   coordinates: { lat: 11.9, lng: 108.4 },
   locationSource: 'ai',
   source: 'manual',
+  notes: null,
   shareSource: null,
 });
 

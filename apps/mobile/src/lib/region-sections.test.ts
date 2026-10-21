@@ -12,6 +12,7 @@ const saved = (id: string, category: PlaceCategory, regionId = 'r1', coordinates
   coordinates,
   locationSource: 'ai',
   source: 'manual',
+  notes: null,
   shareSource: null,
 });
 const place = (id: string) => ({ id, name: `Nơi ${id}`, category: 'nature' }) as PlaceListItem;

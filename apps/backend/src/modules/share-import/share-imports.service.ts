@@ -499,6 +499,7 @@ export class ShareImportsService implements OnModuleInit, OnModuleDestroy {
       quote: c.quote,
       confidence: c.confidence,
       options: c.options.map(present),
+      regionHint: null,
     }));
   }
 
