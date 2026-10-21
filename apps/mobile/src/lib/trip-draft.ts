@@ -39,6 +39,30 @@ export const tripDraft = {
     if (!exists && current.places.length >= MAX_SELECTED_PLACES) return;
     set({ ...current, places: exists ? current.places.filter((p) => p.id !== place.id) : [...current.places, place] });
   },
+  /**
+   * Thêm nhiều địa điểm (nút "Thêm tất cả" ở màn Vùng), theo thứ tự, bỏ qua địa điểm đã có; dừng khi đủ
+   * `MAX_SELECTED_PLACES`. Trả số địa điểm đã thêm.
+   */
+  addPlaces(regionId: string, places: DraftPlace[]): number {
+    const current = forRegion(regionId);
+    const have = new Set(current.places.map((p) => p.id));
+    const room = MAX_SELECTED_PLACES - current.places.length;
+    const added: DraftPlace[] = [];
+    for (const place of places) {
+      if (added.length >= room) break;
+      if (have.has(place.id)) continue;
+      have.add(place.id);
+      added.push(place);
+    }
+    set({ ...current, places: [...current.places, ...added] });
+    return added.length;
+  },
+  /** Bỏ nhiều địa điểm khỏi bản nháp; nơi lưu trú giữ nguyên. */
+  removePlaces(regionId: string, ids: string[]) {
+    const current = forRegion(regionId);
+    const drop = new Set(ids);
+    set({ ...current, places: current.places.filter((p) => !drop.has(p.id)) });
+  },
   /** Chọn lại đúng điểm đang là nơi ở thì bỏ chọn. */
   toggleAccommodation(regionId: string, place: DraftPlace) {
     const current = forRegion(regionId);
