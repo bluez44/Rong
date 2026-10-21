@@ -1,6 +1,6 @@
 import type { PlaceCategory, PlaceListItem } from '@rong/shared-types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 // Bản của gesture-handler: phối hợp được với cử chỉ kéo sheet (PlaceSheet), bản
 // của react-native thì bị cử chỉ đó giành mất nên không cuộn được.
@@ -23,6 +23,7 @@ import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 import { usePlaceSearch } from '@/hooks/use-place-search';
 import { useRegionPlaces } from '@/hooks/use-region-places';
+import { regionRows, savedInRegion, type RegionRow } from '@/lib/region-sections';
 import { useSavedPlaces } from '@/lib/saved-places';
 import { tripDraft, useTripDraft } from '@/lib/trip-draft';
 import { formatFullDate } from '@/lib/trip-format';
@@ -41,9 +42,13 @@ export default function RegionScreen() {
   // Mở màn thì sheet thu gọn để thấy bản đồ; chọn marker hay kéo lên mới mở danh sách.
   const [detent, setDetent] = useState<SheetDetent>('collapsed');
   const [halfHeight, setHalfHeight] = useState(0);
-  const list = useRef<FlatList<PlaceListItem>>(null);
+  const list = useRef<FlatList<RegionRow>>(null);
   const draft = useTripDraft(params.id);
   const saved = useSavedPlaces();
+  // Điểm "Muốn đi" của vùng: đầu danh sách và luôn có marker. Giữ nguyên mảng giữa các lần vẽ (useMemo): bản đồ đưa
+  // camera tới điểm đang chọn mỗi khi object của điểm đó đổi.
+  const savedHere = useMemo(() => savedInRegion(saved.items, params.id, categories), [saved.items, params.id, categories]);
+  const rows = regionRows(savedHere, places.items);
   const regionName = params.name ?? 'Vùng đã chọn';
   // `q` có sẵn khi mở từ màn xem trước địa điểm Google.
   const [placeQuery, setPlaceQuery] = useState(params.q ?? '');
@@ -59,7 +64,7 @@ export default function RegionScreen() {
   const selectFromMap = (key: string) => {
     setSelectedKey(key);
     if (detent === 'collapsed') setDetent('half');
-    const index = places.items.findIndex((p) => placeKey(p) === key);
+    const index = rows.findIndex((r) => r.kind === 'place' && placeKey(r.place) === key);
     if (index >= 0) list.current?.scrollToIndex({ index, viewPosition: 0, animated: true });
   };
 
@@ -90,8 +95,9 @@ export default function RegionScreen() {
       ),
   });
 
-  // Mọi mục trong danh sách của vùng đều có id nên dùng được cho lịch trình (FR-6.3).
-  const canPlan = places.items.length > 0;
+  // Mọi mục trong danh sách của vùng đều có id nên dùng được cho lịch trình (FR-6.3). Bản nháp đã có điểm (đi từ
+  // "Muốn đi") thì lập được ngay, kể cả khi vùng còn đang tổng hợp danh sách.
+  const canPlan = places.items.length > 0 || draft.places.length > 0;
   const planTrip = () => {
     if (canPlan) router.push({ pathname: '/itinerary/new', params: { regionId: params.id, regionName } });
   };
@@ -109,6 +115,7 @@ export default function RegionScreen() {
         bbox={bbox}
         center={center}
         places={places.items}
+        pinned={savedHere}
         selectedKey={selectedKey}
         onSelect={selectFromMap}
         topInset={insets.top + MinTouch}
@@ -181,24 +188,33 @@ export default function RegionScreen() {
         ) : (
           <FlatList
             ref={list}
-            data={places.items}
-            keyExtractor={placeKey}
+            data={rows}
+            keyExtractor={(row) => row.key}
             // Dòng phụ thuộc cả dòng đang chọn lẫn bản nháp lịch trình, không chỉ `data`.
             extraData={`${selectedKey}|${draft.places.map((p) => p.id).join()}|${draft.accommodation?.id}|${saved.items.length}`}
-            renderItem={({ item }) => (
-              <PlaceRow
-                place={item}
-                selected={placeKey(item) === selectedKey}
-                onPress={() => selectFromList(item)}
-                onOpenDetail={() => openDetail(item)}
-                tripAction={tripAction(item)}
-                saveAction={saveAction(item)}
-              />
-            )}
+            renderItem={({ item: row }) =>
+              row.kind === 'header' ? (
+                <Text style={styles.sectionHeader} accessibilityRole="header">
+                  {row.title}
+                </Text>
+              ) : (
+                <PlaceRow
+                  place={row.place}
+                  selected={placeKey(row.place) === selectedKey}
+                  onPress={() => selectFromList(row.place)}
+                  onOpenDetail={() => openDetail(row.place)}
+                  tripAction={tripAction(row.place)}
+                  saveAction={saveAction(row.place)}
+                />
+              )
+            }
             onScrollToIndexFailed={({ index }) => list.current?.scrollToOffset({ offset: index * 80, animated: true })}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={<ListStatus places={places} />}
-            ListFooterComponent={places.items.length > 0 ? <ListFooter places={places} /> : null}
+            // Chỉ có mục "Muốn đi" (vùng đang tải/tổng hợp hoặc lọc rỗng): trạng thái của danh sách vùng nằm dưới nó.
+            ListFooterComponent={
+              places.items.length > 0 ? <ListFooter places={places} /> : rows.length > 0 ? <ListStatus places={places} /> : null
+            }
           />
         )}
       </PlaceSheet>
@@ -294,6 +310,7 @@ const styles = StyleSheet.create({
   chips: { gap: Spacing.two, paddingHorizontal: Spacing.five },
   addAll: { marginLeft: Spacing.five },
   listContent: { padding: Spacing.two, paddingBottom: Spacing.eight },
+  sectionHeader: { ...Type.headline, color: Colors.light.text, paddingHorizontal: Spacing.three, paddingTop: Spacing.three, paddingBottom: Spacing.one },
   status: { padding: Spacing.four, gap: Spacing.two, alignItems: 'flex-start' },
   emptyTitle: { ...Type.headline, color: Colors.light.text },
   hint: { ...Type.callout, color: Colors.light.textSecondary },
