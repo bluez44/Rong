@@ -102,6 +102,11 @@ describe('Muốn đi (e2e)', () => {
       regionId: daLat,
     });
     expect(typeof res.body[0].regionName).toBe('string');
+    // Tọa độ để màn Vùng vẽ điểm "Muốn đi" lên bản đồ.
+    expect(res.body[0]).toMatchObject({
+      coordinates: { lat: 11.9, lng: 108.4 },
+      locationSource: 'ai',
+    });
 
     // Người khác không thấy danh sách của mình.
     await api(otherToken)

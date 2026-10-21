@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import type {
+  LocationSource,
   PlaceCategory,
   SavedPlace,
   SharePlatform,
@@ -40,6 +41,9 @@ interface SavedRow {
   platform: SharePlatform | null;
   share_title: string | null;
   share_url: string | null;
+  lat: number | null;
+  lng: number | null;
+  location_source: LocationSource;
 }
 
 @Injectable()
@@ -51,7 +55,8 @@ export class SavedPlacesService {
     const rows = (await this.db.query(
       `SELECT s.place_id, COALESCE(s.display_name, p.name) AS name, p.category, s.region_id, r.name AS region_name,
               pr.name AS parent_name, s.created_at, s.source, si.platform,
-              si.metadata->>'title' AS share_title, si.url AS share_url
+              si.metadata->>'title' AS share_title, si.url AS share_url,
+              ST_Y(p.location) AS lat, ST_X(p.location) AS lng, p.location_source
          FROM saved_places s
          JOIN places p ON p.id = s.place_id
          JOIN regions r ON r.id = s.region_id
@@ -71,6 +76,11 @@ export class SavedPlacesService {
         ? `${r.region_name}, ${r.parent_name}`
         : r.region_name,
       savedAt: r.created_at.toISOString(),
+      coordinates:
+        r.lat === null || r.lng === null
+          ? null
+          : { lat: Number(r.lat), lng: Number(r.lng) },
+      locationSource: r.location_source,
       source: r.source,
       shareSource:
         r.source === 'share' && r.platform
