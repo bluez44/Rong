@@ -1,7 +1,7 @@
 import type { ItineraryItem, PublicItinerary } from "@rong/shared-types";
 import { describe, expect, it } from "vitest";
 
-import { describeItem, formatDateRange, formatPlanDate, formatTime, partyLabel } from "./format";
+import { describeItem, formatDateRange, formatPlanDate, formatTime, notesLine, partyLabel } from "./format";
 
 const item = (over: Partial<ItineraryItem>): ItineraryItem => ({
   id: "1",
@@ -48,5 +48,23 @@ describe("format", () => {
     ).toBe("Hồ Xuân Hương");
     expect(describeItem(item({ kind: "meal", mealType: "lunch" }))).toBe("Bữa trưa");
     expect(describeItem(item({ kind: "rest", placeId: null }))).toBe("Nghỉ ngơi");
+  });
+});
+
+describe("notesLine", () => {
+  it("ghi chú, giờ và giá của người tạo trên một dòng", () => {
+    expect(
+      notesLine({ note: "Đi sớm", openingHours: "Mo-Su 06:00-09:00", priceMin: 20000, priceMax: 40000 }),
+    ).toBe("Đi sớm · Giờ: Mo-Su 06:00-09:00 · Giá: 20.000–40.000 đ");
+  });
+
+  it("chỉ có giá từ, hoặc miễn phí", () => {
+    expect(notesLine({ note: null, openingHours: null, priceMin: 300000, priceMax: null })).toBe("Giá: từ 300.000 đ");
+    expect(notesLine({ note: null, openingHours: null, priceMin: 0, priceMax: 0 })).toBe("Giá: miễn phí");
+  });
+
+  it("không có ghi chú → null", () => {
+    expect(notesLine(null)).toBeNull();
+    expect(notesLine(undefined)).toBeNull();
   });
 });

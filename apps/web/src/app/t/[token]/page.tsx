@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { describeItem, formatDateRange, formatPlanDate, formatTime, partyLabel } from "@/lib/format";
+import { describeItem, formatDateRange, formatPlanDate, formatTime, notesLine, partyLabel } from "@/lib/format";
 import { getPublicItinerary } from "@/lib/public-itinerary";
 
 /**
@@ -61,6 +61,9 @@ export default async function SharedItineraryPage({ params }: PageProps) {
                   </span>
                   <div className="min-w-0">
                     <p className="font-medium">{describeItem(item)}</p>
+                    {notesLine(item.place?.notes) ? (
+                      <p className="text-sm opacity-70">{notesLine(item.place?.notes)}</p>
+                    ) : null}
                     {item.travelMinutesFromPrevious ? (
                       <p className="text-xs opacity-60">
                         Di chuyển ~{item.travelMinutesFromPrevious} phút

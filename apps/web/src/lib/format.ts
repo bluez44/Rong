@@ -1,4 +1,4 @@
-import type { ItineraryItem, MealType, PublicItinerary, TravelParty } from "@rong/shared-types";
+import type { ItineraryItem, MealType, PlaceNotes, PublicItinerary, TravelParty } from "@rong/shared-types";
 
 /** Nhãn khớp `apps/mobile/src/lib/trip-format.ts`. */
 const TZ = "Asia/Ho_Chi_Minh";
@@ -70,4 +70,19 @@ export function describeItem(item: ItineraryItem): string {
   if (item.place) return item.place.name;
   if (item.kind === "meal") return item.mealType ? MEAL_LABELS[item.mealType] : "Ăn uống";
   return "Nghỉ ngơi";
+}
+
+const vnd = (v: number) => `${v.toLocaleString("vi-VN")} đ`;
+
+/** Ghi chú của người tạo lịch trình cho một điểm, trên một dòng; không có → null. */
+export function notesLine(notes: PlaceNotes | null | undefined): string | null {
+  if (!notes) return null;
+  const { note, openingHours, priceMin, priceMax } = notes;
+  let price: string | null = null;
+  if (priceMin === 0 && priceMax === 0) price = "miễn phí";
+  else if (priceMin !== null && priceMax !== null) price = `${priceMin.toLocaleString("vi-VN")}–${vnd(priceMax)}`;
+  else if (priceMin !== null) price = `từ ${vnd(priceMin)}`;
+  else if (priceMax !== null) price = `đến ${vnd(priceMax)}`;
+  const parts = [note, openingHours ? `Giờ: ${openingHours}` : null, price ? `Giá: ${price}` : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
 }
