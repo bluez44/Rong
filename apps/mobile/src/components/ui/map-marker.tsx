@@ -16,6 +16,16 @@ type MapMarkerProps = {
   approximate?: boolean;
 };
 
+/**
+ * `key` cho `<Marker>` bọc `MapMarker`: gồm cả trạng thái chọn, để đổi chọn thì marker native được tạo lại.
+ * Trên Android (Fabric), react-native-maps vẽ marker thành ảnh và chỉ chụp lại chắc chắn lúc marker vừa tạo: thêm/bỏ
+ * nhãn tên ở tầng con không báo được cho nó (ReactViewGroup chặn requestLayout), `tracksViewChanges` cũng không chụp
+ * lại khi bộ đếm `updated` đã về 0. Giữ marker cũ thì nhãn của điểm vừa bỏ chọn còn mãi trên bản đồ.
+ */
+export function markerKey(key: string, selected: boolean): string {
+  return `${key}:${selected ? 'selected' : 'idle'}`;
+}
+
 /** Nội dung vẽ bên trong `<Marker>`. Không dùng ảnh Google (FR-2.2). */
 export function MapMarker({ icon, number, selected, label, approximate }: MapMarkerProps) {
   const size = selected ? 48 : 36;
