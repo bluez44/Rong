@@ -8,6 +8,8 @@ export type RegionMapProps = {
   bbox: Bbox | null;
   center: { lat: number; lng: number } | null;
   places: PlaceListItem[];
+  /** Điểm "Muốn đi" của vùng: luôn có marker, ngoài giới hạn số marker. */
+  pinned?: PlaceListItem[];
   selectedKey: string | null;
   onSelect: (key: string) => void;
   /** Phần đáy bị bottom sheet che, để zoom vừa vùng mà không lọt dưới sheet. */

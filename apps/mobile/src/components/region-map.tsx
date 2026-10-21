@@ -11,7 +11,7 @@ import { Spacing } from '@/constants/theme';
 
 const FALLBACK_DELTA = 0.2;
 
-export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomInset, topInset }: RegionMapProps) {
+export function RegionMap({ bbox, center, places, pinned = [], selectedKey, onSelect, bottomInset, topInset }: RegionMapProps) {
   const map = useRef<MapView>(null);
   const [visible, setVisible] = useState<Region | null>(null);
   const fittedToPlaces = useRef(false);
@@ -60,17 +60,19 @@ export function RegionMap({ bbox, center, places, selectedKey, onSelect, bottomI
   }, [bbox, places]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chọn từ danh sách thì đưa địa điểm vào giữa phần bản đồ còn nhìn thấy.
-  const selected = places.find((p) => placeKey(p) === selectedKey) ?? null;
+  const selected = [...pinned, ...places].find((p) => placeKey(p) === selectedKey) ?? null;
   useEffect(() => {
     if (!selected) return;
     map.current?.animateCamera({ center: { latitude: selected.coordinates.lat, longitude: selected.coordinates.lng } }, { duration: 350 });
   }, [selected]);
 
   // Chỉ vẽ tối đa 5 điểm xếp hạng cao nhất trong khung nhìn (FR-2.1; danh sách đã theo
-  // thứ hạng), luôn kèm điểm đang chọn.
+  // thứ hạng), luôn kèm điểm "Muốn đi" (`pinned`) và điểm đang chọn; mỗi địa điểm một marker.
   const inView = visible ? places.filter((p) => contains(visible, p)) : places;
   const markers = inView.slice(0, MAX_MAP_MARKERS);
-  if (selected && !markers.includes(selected)) markers.push(selected);
+  for (const extra of [...pinned, ...(selected ? [selected] : [])]) {
+    if (!markers.some((m) => placeKey(m) === placeKey(extra))) markers.push(extra);
+  }
 
   return (
     <MapView
