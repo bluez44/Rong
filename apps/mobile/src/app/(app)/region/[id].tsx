@@ -7,6 +7,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'r
 import { FlatList, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AddAllPlacesButton } from '@/components/add-all-places-button';
 import { Glass } from '@/components/glass';
 import { PlaceSearchResults } from '@/components/place-search-results';
 import { PlaceSheet, type SheetDetent } from '@/components/place-sheet';
@@ -159,12 +160,16 @@ export default function RegionScreen() {
               />
             </View>
             {searching ? null : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
-                {CATEGORIES.map((c) => (
-                  <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={categories.includes(c)} onPress={() => toggle(c)} />
-                ))}
-              </ScrollView>
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                  <Chip label="Tất cả" selected={categories.length === 0} onPress={() => setCategories([])} />
+                  {CATEGORIES.map((c) => (
+                    <Chip key={c} label={CATEGORY_LABELS[c]} icon={c} selected={categories.includes(c)} onPress={() => toggle(c)} />
+                  ))}
+                </ScrollView>
+                {/* Đưa mọi địa điểm đang hiện (theo chip) vào lịch trình. */}
+                <AddAllPlacesButton regionId={params.id} places={places.items} style={styles.addAll} />
+              </>
             )}
           </View>
         }>
@@ -284,6 +289,7 @@ const styles = StyleSheet.create({
   count: { ...Type.subhead, color: Colors.light.textSecondary },
   searchRow: { paddingHorizontal: Spacing.five },
   chips: { gap: Spacing.two, paddingHorizontal: Spacing.five },
+  addAll: { marginLeft: Spacing.five },
   listContent: { padding: Spacing.two, paddingBottom: Spacing.eight },
   status: { padding: Spacing.four, gap: Spacing.two, alignItems: 'flex-start' },
   emptyTitle: { ...Type.headline, color: Colors.light.text },
