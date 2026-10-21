@@ -16,6 +16,13 @@ export interface NominatimResult {
   address?: Record<string, string>;
 }
 
+/** Kết quả Nominatim /reverse (format=jsonv2, addressdetails=1); `error` khi không có gì ở tọa độ đó. */
+export interface NominatimReverse {
+  display_name?: string;
+  address?: Record<string, string>;
+  error?: string;
+}
+
 export interface LatLon {
   lat: number;
   lon: number;

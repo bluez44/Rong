@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { OpenDataConfig } from '../../config/configuration.js';
 import { ThrottledHttp } from './http.js';
-import type { NominatimResult } from './open-data.types.js';
+import type { NominatimResult, NominatimReverse } from './open-data.types.js';
 
 export const OPEN_DATA_CONFIG = 'OPEN_DATA_CONFIG';
 
@@ -39,4 +39,25 @@ export class OpenDataService {
     }).toString();
     return this.http.getJson<NominatimResult[]>(url.toString());
   }
+
+  /**
+   * Địa chỉ của một tọa độ (màn ghim vị trí). Cùng hàng đợi 1 request/giây với `searchPlaces`; chờ tối đa 3 giây.
+   * Lỗi hay hết giờ thì null.
+   */
+  reverse(lat: number, lng: number): Promise<NominatimReverse | null> {
+    const url = new URL('/reverse', this.config.nominatimUrl);
+    url.search = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lng),
+      format: 'jsonv2',
+      zoom: '18',
+      addressdetails: '1',
+      'accept-language': 'vi',
+    }).toString();
+    return this.http
+      .getJson<NominatimReverse>(url.toString(), {}, REVERSE_TIMEOUT_MS)
+      .catch(() => null);
+  }
 }
+
+const REVERSE_TIMEOUT_MS = 3000;
