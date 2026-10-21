@@ -126,6 +126,15 @@ export function PlaceSearchResults({ search, regionId, regionName, query }: Prop
           ) : null}
           {loading ? <ActivityIndicator color={Colors.light.primary} /> : null}
           {noResults ? <Text style={styles.hint}>{`Không tìm thấy “${q}” ở ${regionName}`}</Text> : null}
+          {/* Không có trong Rong (Google thường tắt ở Việt Nam): người dùng tự ghim địa điểm của mình. */}
+          {status === 'done' && inRong.length === 0 && q ? (
+            <Button
+              label="Thêm địa điểm của riêng bạn"
+              onPress={() =>
+                router.push({ pathname: '/place/pin', params: { regionId, regionName, name: q } })
+              }
+            />
+          ) : null}
           {showGoogleButton && !loading ? (
             <Button
               label="Tìm trên Google Maps"
