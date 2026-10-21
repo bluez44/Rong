@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import type { OverpassElement } from '../open-data/open-data.types.js';
 import { pickRelation } from './bbox.js';
-import { foldText, isWardName, searchKey } from './search-text.js';
+import {
+  foldText,
+  isWardName,
+  nominatimQueries,
+  searchKey,
+  stripWardPrefix,
+} from './search-text.js';
 
 describe('searchKey', () => {
   it.each([
@@ -51,5 +57,26 @@ describe('pickRelation', () => {
     expect(pickRelation(candidates, 'Bà Rịa - Vũng Tàu')?.id).toBe(2);
     expect(pickRelation(candidates, 'Huế')?.id).toBe(3);
     expect(pickRelation(candidates, 'Ninh Thuận')).toBeUndefined();
+  });
+});
+
+describe('stripWardPrefix', () => {
+  it('bỏ xã/phường/thị trấn/đặc khu ở đầu, giữ nguyên dấu', () => {
+    expect(stripWardPrefix('Xã Phước Hải')).toBe('Phước Hải');
+    expect(stripWardPrefix('phường Vũng Tàu')).toBe('Vũng Tàu');
+    expect(stripWardPrefix('Thị trấn Long Hải')).toBe('Long Hải');
+    expect(stripWardPrefix('Đặc khu Côn Đảo')).toBe('Côn Đảo');
+    expect(stripWardPrefix('Hồ Tràm')).toBe('Hồ Tràm');
+  });
+});
+
+describe('nominatimQueries', () => {
+  it('câu gốc rồi bản không dấu đã bỏ tiền tố; không trùng', () => {
+    expect(nominatimQueries('Xã Phước Hải')).toEqual([
+      'Xã Phước Hải',
+      'Phuoc Hai',
+    ]);
+    expect(nominatimQueries('Hồ Tràm')).toEqual(['Hồ Tràm', 'Ho Tram']);
+    expect(nominatimQueries('phuoc hai')).toEqual(['phuoc hai']);
   });
 });

@@ -108,6 +108,10 @@ describe('Địa điểm từ bài viết (e2e)', () => {
     );
     await db?.query(`DELETE FROM places WHERE name LIKE 'E2E wp %'`);
     await db?.query(`DELETE FROM regions WHERE source_key = 'e2e:web-places'`);
+    // Danh sách dựng thử cho xã seed thật (test "vùng là xã").
+    await db?.query(
+      `DELETE FROM region_place_lists WHERE region_id IN (SELECT id FROM regions WHERE source_key = 'vn:ward:26686')`,
+    );
     await db?.query(`DELETE FROM users WHERE display_name = 'e2e-web-places'`);
     await app?.close();
   });
@@ -885,6 +889,23 @@ describe('Địa điểm từ bài viết (e2e)', () => {
         )) as Array<{ status: string; fresh: boolean }>;
         expect(state).toEqual({ status: 'ready', fresh: true });
       });
+    });
+
+    it('vùng là xã: pipeline nhận "<tên ngắn>, <tỉnh cũ>"', async () => {
+      const [ward] = (await db.query(
+        `SELECT id FROM regions WHERE source_key = 'vn:ward:26686'`,
+      )) as Array<{ id: string }>;
+      await db.query(`DELETE FROM region_place_lists WHERE region_id = $1`, [
+        ward.id,
+      ]);
+      agent.findPlaces.mockResolvedValue({ places: [], sources: [] });
+      await request(app.getHttpServer())
+        .get(`/api/regions/${ward.id}/places`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(503);
+      expect(agent.findPlaces).toHaveBeenCalledWith(
+        'Phước Hải, Bà Rịa - Vũng Tàu',
+      );
     });
 
     it('vùng không tồn tại: 404 REGION_NOT_FOUND', async () => {

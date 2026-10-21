@@ -11,7 +11,7 @@ import {
   type RegionLite,
   type RegionMatch,
 } from './region-search-arrange.js';
-import { isWardName, searchKey } from './search-text.js';
+import { isWardName, nominatimQueries, searchKey } from './search-text.js';
 
 /** Khớp từ mức này trở lên thì không cần hỏi Nominatim nữa. */
 const GOOD_ENOUGH = 0.8;
@@ -228,18 +228,24 @@ export class RegionsService {
 
   /** Lưu các địa danh Nominatim tìm được thành vùng trong danh mục. Trả về số vùng hợp lệ. */
   private async importFromNominatim(query: string): Promise<number> {
-    const results = (await this.openData.searchPlaces(query)).filter(
-      (r) =>
-        ['boundary', 'place'].includes(r.category) &&
-        r.addresstype in ACCEPTED_ADDRESS_TYPES,
-    );
+    // Câu gốc trước, rồi bản không dấu: Nominatim tìm chữ Việt có dấu kém. Tối đa 2 request.
+    let results: NominatimResult[] = [];
+    for (const q of nominatimQueries(query)) {
+      results = (await this.openData.searchPlaces(q)).filter(
+        (r) =>
+          ['boundary', 'place'].includes(r.category) &&
+          r.addresstype in ACCEPTED_ADDRESS_TYPES &&
+          // Xã/phường đã có đủ trong seed (vietnam-wards.json): nhập từ OSM chỉ sinh dòng trùng.
+          !isWardName(r.name ?? ''),
+      );
+      if (results.length > 0) break;
+    }
 
     for (const result of results) {
       const name = result.name?.trim();
       if (!name) continue;
 
       const parent = await this.resolveProvince(result);
-      const ward = isWardName(name);
       // Khung bao lấy luôn từ Nominatim; node chỉ có một điểm thì dựng khung
       // quanh điểm theo cỡ của loại địa danh.
       const lat = Number(result.lat);
@@ -252,14 +258,12 @@ export class RegionsService {
         `INSERT INTO regions (source_key, name, type, boundary_version, level, parent_id, former_parent_id,
                               search_name, center, bbox_south, bbox_west, bbox_north, bbox_east,
                               area_fetched_at)
-         VALUES ($1, $2, $3, 'current', $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($8, $9), 4326),
-                 $10, $11, $12, $13, now())
+         VALUES ($1, $2, 'destination', 'current', NULL, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326),
+                 $8, $9, $10, $11, now())
          ON CONFLICT (source_key) DO NOTHING`,
         [
           `osm:${result.osm_type[0].toUpperCase()}${result.osm_id}`,
           name,
-          ward ? 'administrative' : 'destination',
-          ward ? 'ward' : null,
           parent.current,
           parent.former,
           searchKey(name),
