@@ -19,11 +19,26 @@ const base = {
 
 describe('PlaceSearchResults: thêm địa điểm của riêng bạn', () => {
   it('không có kết quả trong Rong: nút mở màn ghim với vùng và tên đang gõ', async () => {
-    await render(<PlaceSearchResults search={base} regionId="r1" regionName="Đà Lạt" query="Chè bà Tư" />);
+    await render(
+      <PlaceSearchResults
+        search={base}
+        regionId="r1"
+        regionName="Đà Lạt"
+        query="Chè bà Tư"
+        area={{ bbox: '108.35,11.85,108.55,12.05', lat: '11.94', lng: '108.44' }}
+      />,
+    );
     await fireEvent.press(screen.getByText('Thêm địa điểm của riêng bạn'));
     expect(router.push).toHaveBeenCalledWith({
       pathname: '/place/pin',
-      params: { regionId: 'r1', regionName: 'Đà Lạt', name: 'Chè bà Tư' },
+      params: {
+        regionId: 'r1',
+        regionName: 'Đà Lạt',
+        name: 'Chè bà Tư',
+        bbox: '108.35,11.85,108.55,12.05',
+        lat: '11.94',
+        lng: '108.44',
+      },
     });
   });
 

@@ -21,7 +21,8 @@ import { PlaceNotesService } from './place-notes.service.js';
 const ATTRIBUTIONS: Record<DetailRow['source'], string> = {
   google: 'Google Maps',
   web: 'Tổng hợp từ bài viết (AI) · Google Maps',
-  user: 'Vị trí do bạn ghim',
+  // Chi tiết dùng chung cho mọi người xem (thành viên nhóm cũng mở được): không nói "bạn".
+  user: 'Vị trí do người dùng ghim',
 };
 
 interface DetailRow {

@@ -95,7 +95,8 @@ export default function PinPlaceScreen() {
   const back = () => (step === 'info' ? setStep('pin') : router.back());
 
   const save = async (notes: Partial<PlaceNotes>) => {
-    if (!center || !region) return;
+    // Sửa thì không cần vùng: server kiểm tra theo vùng đã lưu (mở từ lịch trình không có `regionId`).
+    if (!center || (!editing && !region)) return;
     if (!name.trim()) {
       setError('Đặt tên cho địa điểm này nhé.');
       return;
@@ -109,7 +110,8 @@ export default function PinPlaceScreen() {
           category,
           lat: center.lat,
           lng: center.lng,
-          address: address.address,
+          // Chưa có địa chỉ (lỗi, hết lượt): giữ địa chỉ đã lưu thay vì xóa.
+          ...(address.address && { address: address.address }),
         };
         await authFetch<void>(`/places/user/${params.editPlaceId}`, { method: 'PATCH', body });
       } else {
@@ -118,7 +120,7 @@ export default function PinPlaceScreen() {
           category,
           lat: center.lat,
           lng: center.lng,
-          regionId: region.id,
+          regionId: region!.id,
           address: address.address,
           ...(Object.keys(notes).length > 0 && { notes }),
           ...(params.shareImportId && { shareImportId: params.shareImportId }),
@@ -194,7 +196,8 @@ export default function PinPlaceScreen() {
           <Button
             label="Ghim ở đây"
             size="lg"
-            disabled={!center || !inside || moving}
+            // Chờ địa chỉ dưới ghim trước khi cho ghim (tối đa ~3 giây; lỗi thì vẫn ghim được với tọa độ).
+            disabled={!center || !inside || moving || address.status !== 'done'}
             onPress={() => {
               setError(null);
               setStep('info');
