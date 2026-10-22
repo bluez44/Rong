@@ -58,54 +58,57 @@ export default function HomeScreen() {
   return (
     <Screen edges={['top']} style={styles.screen}>
       <ScrollView
+        stickyHeaderIndices={[0]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        {/* Top Header Branding */}
-        <View style={styles.header}>
-          <View style={styles.brandContainer}>
-            <View style={styles.logoPill}>
-              <Icon name="nature" size={18} color={Palette.forest900} />
+        <View style={styles.stickyHeader}>
+          {/* Top Header Branding */}
+          <View style={styles.header}>
+            <View style={styles.brandContainer}>
+              <View style={styles.logoPill}>
+                <Icon name="nature" size={18} color={Palette.forest900} />
+              </View>
+              <ThemedText type="title2" style={styles.brandTitle}>
+                Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
+              </ThemedText>
             </View>
-            <ThemedText type="title2" style={styles.brandTitle}>
-              Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tài khoản cá nhân"
+              onPress={() => router.push('/account')}
+              style={styles.avatarButton}>
+              <Icon name="person" size={20} color={Colors.light.primary} />
+            </Pressable>
+          </View>
+
+          {/* Greeting & Headline */}
+          <View style={styles.heroSection}>
+            <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
+            <ThemedText type="display" style={styles.mainHeadline}>
+              Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
             </ThemedText>
           </View>
+
+          {/* Elevated Search Pill */}
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Tài khoản cá nhân"
-            onPress={() => router.push('/account')}
-            style={styles.avatarButton}>
-            <Icon name="person" size={20} color={Colors.light.primary} />
+            accessibilityRole="search"
+            accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
+            onPress={() => router.push('/search')}
+            style={styles.searchContainer}>
+            <View style={styles.searchPill}>
+              <View style={styles.searchIconContainer}>
+                <Icon name="explore" size={20} color={Colors.light.secondary} />
+              </View>
+              <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
+                Tìm tỉnh, thành phố hoặc điểm đến
+              </Text>
+              <View style={styles.filterButton}>
+                <Icon name="tune" size={18} color={Colors.light.textSecondary} />
+              </View>
+            </View>
           </Pressable>
         </View>
-
-        {/* Greeting & Headline */}
-        <View style={styles.heroSection}>
-          <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
-          <ThemedText type="display" style={styles.mainHeadline}>
-            Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
-          </ThemedText>
-        </View>
-
-        {/* Elevated Search Pill */}
-        <Pressable
-          accessibilityRole="search"
-          accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
-          onPress={() => router.push('/search')}
-          style={styles.searchContainer}>
-          <View style={styles.searchPill}>
-            <View style={styles.searchIconContainer}>
-              <Icon name="explore" size={20} color={Colors.light.secondary} />
-            </View>
-            <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
-              Tìm tỉnh, thành phố hoặc điểm đến
-            </Text>
-            <View style={styles.filterButton}>
-              <Icon name="tune" size={18} color={Colors.light.textSecondary} />
-            </View>
-          </View>
-        </Pressable>
 
         {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
 
@@ -240,6 +243,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     gap: Spacing.four,
+  },
+  stickyHeader: {
+    gap: Spacing.four,
+    backgroundColor: Palette.parchment50,
+    zIndex: 1,
   },
   header: {
     flexDirection: 'row',

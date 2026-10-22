@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   credit: {
     position: 'absolute',
     right: Spacing.three,
-    bottom: Spacing.two,
+    top: Spacing.two,
     maxWidth: '60%',
     ...Type.caption,
     color: 'rgba(255,255,255,0.85)',
