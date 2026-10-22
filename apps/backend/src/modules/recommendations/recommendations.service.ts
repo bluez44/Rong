@@ -18,6 +18,7 @@ import { DataSource } from 'typeorm';
 import { ItinerariesService } from '../itineraries/itineraries.service.js';
 import { withItineraryPlaceData } from '../itineraries/itinerary-place-data.js';
 import { VisitsService } from '../visits/visits.service.js';
+import { WeatherService } from '../weather/weather.service.js';
 import { cardTitle, reasonText, type RecommendationReason } from './copy.js';
 import { daysBetween, shiftPlan, tripBounds, vietnamDate } from './draft-dates.js';
 import { DraftPool, type DraftRow } from './draft-pool.js';
@@ -76,6 +77,7 @@ export class RecommendationsService {
     private readonly queue: RecommendationsQueue,
     private readonly itineraries: ItinerariesService,
     private readonly visits: VisitsService,
+    private readonly weather: WeatherService,
   ) {}
 
   async feed(userId: string, themeKey = DEFAULT_THEME_KEY, retry = false): Promise<RecommendationFeed> {
@@ -305,9 +307,10 @@ export class RecommendationsService {
       author_url: string | null;
       source_url: string | null;
     }>;
-    return rows.map((r) => {
+    return Promise.all(rows.map(async (r) => {
       const visits = r.days.flatMap((d) => d.items).filter((i) => i.kind === 'visit' && i.place);
       const { endsAt } = tripBounds(vietnamDate(r.starts_at), Number(r.days_count));
+      const startsAt = r.starts_at.toISOString();
       const image: RegionImage | null =
         r.image_status === 'found' && !r.blocked && r.url && r.source
           ? { url: r.url, source: r.source, author: r.author, authorUrl: r.author_url, sourceUrl: r.source_url }
@@ -319,7 +322,7 @@ export class RecommendationsService {
         title: cardTitle(r.region_name, theme.kind === 'default' ? null : theme.label, draftCategories({ days: r.days })),
         dayCount: Number(r.days_count),
         nightCount: Number(r.days_count) - 1,
-        startsAt: r.starts_at.toISOString(),
+        startsAt,
         endsAt: new Date(Date.parse(endsAt)).toISOString(),
         placeCount: new Set(visits.map((i) => i.placeId)).size,
         highlights: [...new Set(visits.map((i) => i.place!.name))].slice(0, 3),
@@ -327,9 +330,10 @@ export class RecommendationsService {
         revisit: r.reason.revisit,
         image,
         estimatedCost: null,
-        weather: null,
+        // Thông tin phụ: lỗi hay chậm quá 2,5 s thì null, thẻ hiện "Đang cập nhật".
+        weather: await this.weather.summarizeTrip(r.region_id, startsAt, endsAt),
         savedItineraryId: r.saved_itinerary_id,
       };
-    });
+    }));
   }
 }
