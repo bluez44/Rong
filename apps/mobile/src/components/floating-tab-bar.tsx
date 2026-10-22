@@ -55,7 +55,7 @@ export const TabButton = forwardRef<View, TabButtonProps>(function TabButton(
       accessibilityRole="tab"
       accessibilityState={{ selected: !!isFocused }}
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.tab, isFocused && styles.tabFocused, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
       {...rest}>
       <Icon name={icon} size={20} color={color} />
       <Text style={[styles.label, { color }]} numberOfLines={1}>
@@ -73,7 +73,6 @@ const styles = StyleSheet.create({
     gap: 2,
     borderRadius: Radius.pill,
   },
-  tabFocused: { backgroundColor: Palette.forest900 },
   pressed: { transform: [{ scale: 0.97 }] },
   label: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, lineHeight: 14 },
 });
