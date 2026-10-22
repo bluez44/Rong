@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50, zIndex: 1,
     borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
+  stickyHeaderScrolled: { ...Shadow.header },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
   headerMark: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forest100 },

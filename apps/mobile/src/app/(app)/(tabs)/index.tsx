@@ -272,10 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50,
     zIndex: 1,
   },
-  stickyHeaderScrolled: {
-    backgroundColor: Palette.surface,
-    ...Shadow.glass,
-  },
+  stickyHeaderScrolled: { ...Shadow.header },
   stickyHeaderContent: { gap: Spacing.four },
   collapsibleHero: { overflow: "hidden" },
   header: {
