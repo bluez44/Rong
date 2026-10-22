@@ -88,20 +88,21 @@ Bản miễn phí: 10.000 lượt/ngày, 5.000/giờ, 600/phút; một request h
 - Khí hậu: ~260 lượt mỗi vùng, **một lần duy nhất**. Giới hạn số vùng tính mới mỗi ngày bằng
   `WEATHER_CLIMATE_DAILY_LIMIT` (mặc định 25, đếm trong bộ nhớ như giới hạn của admin refresh). Quá giới hạn: ngày xa
   của vùng đó tạm không có dữ liệu.
-- Script `pnpm weather:warm-climate` (chạy tay) lấp khí hậu cho 34 tỉnh, dừng khi chạm giới hạn ngày; chạy lại hôm
-  sau để làm tiếp.
+- Không có script lấp sẵn: khí hậu được tính dần khi vùng được xem; 34 tỉnh tự đầy sau vài ngày dùng. (Script Nest
+  chạy ngoài app cần build riêng vì `tsx` không phát decorator metadata, không đáng cho việc này.)
 
 ### Cấu hình
 
 Thêm vào `src/config/configuration.ts` và `.env.example`:
 
-- `WEATHER_ENABLED` (mặc định `true`): `false` thì endpoint luôn trả `unavailable`, thẻ gợi ý `weather: null`.
+- `WEATHER_ENABLED` (mặc định `true`, riêng `NODE_ENV=test` mặc định `false` để e2e không gọi mạng): `false` thì
+  endpoint luôn trả `unavailable`, thẻ gợi ý `weather: null`.
 - `WEATHER_CLIMATE_DAILY_LIMIT` (mặc định `25`).
 
 ### API
 
 `GET /api/regions/:id/weather?from=YYYY-MM-DD&to=YYYY-MM-DD` (cần đăng nhập như mặc định). Khoảng ngày tối đa 14 ngày
-(`MAX_TRIP_DAYS`).
+(hằng `WEATHER_MAX_RANGE_DAYS`; chuyến tối đa 7 ngày nên còn dư).
 
 Kiểu trong `packages/shared-types/src/weather.ts`:
 
@@ -181,7 +182,9 @@ Trong section "Thời gian", dưới hai ô "Bắt đầu"/"Kết thúc": dải 
 
 ### Chi tiết lịch trình (`components/itinerary-view/itinerary-view.tsx`)
 
-Cuối tiêu đề mỗi ngày (`Ngày 1 • T7, 25/10`): icon + `24°/17°` (`climate`: có `~`, màu nhạt). Bấm mở sheet nhỏ: mô tả,
+Ở dòng tiêu đề của ngày đang chọn (`Ngày 1` / `T7, 25/10 • 8:00–18:00`), badge "Lộ trình chính" được thay bằng
+badge thời tiết: icon + `24°/17°` (`climate`: có `~`, màu nhạt). Tab ngày giữ nguyên (đã chật). Không có dữ liệu thì
+giữ badge cũ. Bấm mở sheet nhỏ: mô tả,
 khả năng mưa, giải thích dự báo hay khí hậu, nguồn. Ngày đã qua không hiện gì.
 
 ### Thẻ gợi ý trang chủ (`components/recommendation-card.tsx`)
