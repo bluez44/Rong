@@ -44,7 +44,7 @@ export default function AccountScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
+      <StickyHeader scrolled={isScrolled} contentStyle={styles.stickyHeader}>
         <View style={styles.headerCopy}>
           <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
         </View>

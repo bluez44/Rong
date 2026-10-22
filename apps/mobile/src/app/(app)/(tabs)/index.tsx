@@ -79,7 +79,7 @@ export default function HomeScreen() {
         }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
+        <StickyHeader scrolled={isScrolled} contentStyle={styles.stickyHeader}>
           {/* Top Header Branding */}
           <View style={styles.header}>
             <View style={styles.brandContainer}>

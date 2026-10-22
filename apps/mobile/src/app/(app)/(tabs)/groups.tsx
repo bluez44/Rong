@@ -40,7 +40,7 @@ export default function GroupsScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
+      <StickyHeader scrolled={isScrolled} contentStyle={styles.stickyHeader}>
         <View style={styles.headingRow}>
           <View style={styles.headingCopy}>
             <Text style={styles.title} accessibilityRole="header">Nhóm</Text>
