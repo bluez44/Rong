@@ -74,6 +74,7 @@ Keep each external service behind its single gateway:
 | `modules/open-data/OpenDataService` | Nominatim (search, and reverse for the pin screen) | Per-host throttling, a User-Agent from `OPEN_DATA_CONTACT_EMAIL`. The app no longer calls Overpass or Wikidata at runtime. |
 | `modules/google/` | Google Places (New) | PRD §7.4: store nothing but `place_id`, cache Google coordinates for at most 30 days, never cache Google content, never rank or sort on Google data. Ratings, reviews and photos are fetched live, only on `GET /places/:id`. |
 | `modules/share-import/LinkMetadataService` | oEmbed, Open Graph of user-shared links | Blocks non-public IPs on every redirect, at most 5 redirects / 5 s / 1 MB. |
+| `modules/weather/OpenMeteoClient` | Open-Meteo (forecast, ERA5 archive) | Free non-commercial tier, CC BY 4.0: show "Dữ liệu thời tiết: Open-Meteo". Forecast cached in memory 3 h; monthly climate computed once per region into `region_climate`, at most `WEATHER_CLIMATE_DAILY_LIMIT` new regions/day. Weather never fails a request (`unavailable` / `weather: null`). `WEATHER_ENABLED` defaults to false under `NODE_ENV=test`. |
 | `src/langchain/` | Gemini | `LangchainService` (the `/langchain` route, `planItinerary`). `PlaceSearchService` plus `web-search.ts` (Tavily) find a region's places in web articles. Gemini models are created in `src/chat-models/`. |
 
 ### Places: one list per region, from web articles
@@ -119,6 +120,7 @@ Other behavior:
 `modules/recommendations` (spec `docs/superpowers/specs/2026-10-19-home-recommendations-design.md`) builds `GET /api/recommendations`'s home feed: 3 draft itineraries per (user, 6:00/15:00 window, theme), drawn from a shared `itinerary_drafts` pool built heuristically and upgraded to Gemini only once a draft is viewed or saved enough.
 - Only regions with a `ready` place list (`region_place_lists.status`) are eligible; only the scheduled `warm-featured-regions` job is allowed to build a list on demand.
 - Jobs run on two BullMQ queues, `recommendations` and `recommendations-ai` (Gemini work, rate-limited separately). `RECOMMENDATIONS_ENABLED=false`, or `NODE_ENV=test` in e2e, runs jobs inline in-process instead, with no cron schedule.
+- Card weather comes from `WeatherService.summarizeTrip` (forecast within 16 days, monthly climate beyond); null when unavailable.
 - Region card images come from Unsplash, falling back to an attributed article photo (`region_images.blocked` to unpublish one).
 - PRD deviation (FR-6.5): building a draft does not spend the user's AI-generation quota, since the draft pool is shared across users.
 

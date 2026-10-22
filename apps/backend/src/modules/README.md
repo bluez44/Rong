@@ -17,6 +17,7 @@ Mỗi thư mục tương ứng một nhóm tính năng trong [PRD](../../../../d
 | `realtime/` | FR-10.5 | WebSocket gateway + Redis adapter |
 | `mail/` | — | Gửi email qua SMTP (chưa cấu hình thì ghi ra log) |
 | `health/` | — | Kiểm tra sức khỏe service và kết nối PostGIS |
+| `weather/` | — | **Cổng duy nhất** gọi Open-Meteo: thời tiết từng ngày của chuyến (dự báo ≤ 16 ngày, khí hậu theo tháng cho ngày xa hơn), xem "Thời tiết theo ngày" |
 | `admin/` | — | Route quản trị: reset địa điểm của vùng (`POST /regions/:id/places/refresh`), tắt mặc định (xem "Reset địa điểm của vùng (admin)") |
 
 ## Vì sao `google/` đứng riêng
@@ -262,6 +263,20 @@ Quy tắc theo đối tượng, khung bữa ăn, thời lượng mặc định, 
 
 Nơi người dùng đã đi: suy ra từ lịch trình đã kết thúc (`inferred`), người dùng xác nhận lại sau chuyến đi
 (`confirmed`/`rejected`). Bộ gợi ý trang chủ bỏ các nơi `inferred` + `confirmed`.
+
+## Thời tiết theo ngày (`weather/`)
+
+Spec `2026-10-22-trip-weather`. `OpenMeteoClient` là chỗ duy nhất gọi Open-Meteo (bản miễn phí phi thương mại,
+CC BY 4.0: app ghi "Dữ liệu thời tiết: Open-Meteo"). `GET /regions/:id/weather?from&to` (tối đa 14 ngày):
+
+- Ngày còn ≤ 16 ngày nữa (tính cả hôm nay, giờ VN) là **dự báo**: một lần gọi 16 ngày cho cả vùng (tâm bbox), cache
+  bộ nhớ 3 giờ theo (vùng, hôm nay), các request cùng lúc dùng chung một lần gọi.
+- Ngày xa hơn là **khí hậu theo tháng**: lần đầu vùng cần, gọi archive ERA5 10 năm một lần, lưu `region_climate`;
+  tối đa `WEATHER_CLIMATE_DAILY_LIMIT` vùng mới mỗi ngày (mỗi vùng ~260 lượt). Request chỉ chờ 5 s, phần còn lại
+  tính nền.
+- Ngày đã qua bị bỏ. Lỗi nguồn không ném ra ngoài: ngày thiếu dữ liệu bị bỏ, không còn ngày nào thì `unavailable`.
+- `summarizeTrip` điền `RecommendationCard.weather` (chờ tối đa 2,5 s, lỗi thì `null`).
+- `WEATHER_ENABLED` mặc định bật, riêng `NODE_ENV=test` mặc định tắt để e2e không gọi mạng.
 
 ## Gợi ý trang chủ (`recommendations/`)
 

@@ -44,6 +44,7 @@ Hiện trạng liên quan (đã kiểm tra trong code):
 - Redis trên production (`infra/prod/docker-compose.yml`). Lượt này chỉ chạy Redis local qua `pnpm infra:up`.
   **Phải thêm trước khi deploy** (service `redis:7-alpine`, `appendonly yes`, cùng network với backend).
 - Chi phí ước tính thật (F7) và thời tiết: thẻ hiện placeholder "Đang cập nhật".
+  > **Cập nhật 2026-10-22:** thời tiết đã có (spec `2026-10-22-trip-weather`): `weather` là `TripWeatherSummary | null`.
 - Thông báo đẩy (gợi ý mới, nhắc xác nhận nơi đã đi).
 - Màn quản trị chủ đề cố định.
 - Đánh dấu "Đã đến" thủ công từ màn chi tiết địa điểm.
