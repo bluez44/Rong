@@ -272,8 +272,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50,
     zIndex: 1,
   },
-  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo và khoảng đệm dưới ô tìm kiếm,
-  // bóng của chính view (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
   stickyHeaderScrolled: {
     backgroundColor: Palette.surface,
     ...Shadow.glass,

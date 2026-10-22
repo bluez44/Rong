@@ -414,8 +414,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50, zIndex: 1,
     borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
   },
-  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo, bóng của chính view
-  // (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
   stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
