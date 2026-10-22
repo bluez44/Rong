@@ -1,4 +1,4 @@
-import type { Itinerary, ItineraryItem, ItineraryWarning } from '@rong/shared-types';
+import type { Itinerary, ItineraryItem, ItineraryWarning, RegionWeather } from '@rong/shared-types';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { DayWeatherBadge } from '@/components/day-weather-badge';
 import { viewStyles as styles } from '@/components/itinerary-view/styles';
 import { PlaceNotesSheet } from '@/components/place-notes-sheet';
 import { ThemedText } from '@/components/themed-text';
@@ -142,6 +143,8 @@ type ItineraryViewBodyProps = {
   notesEditable?: boolean;
   /** Sau khi sửa ghi chú: tải lại lịch trình để thấy ghi chú mới. */
   onNotesSaved?: () => void;
+  /** Thời tiết các ngày của chuyến (chỉ lịch trình đã lưu); không có thì giữ badge "Lộ trình chính". */
+  weather?: RegionWeather | null;
 };
 
 export function ItineraryViewBody({
@@ -153,9 +156,11 @@ export function ItineraryViewBody({
   footer,
   notesEditable,
   onNotesSaved,
+  weather,
 }: ItineraryViewBodyProps) {
   const [notesFor, setNotesFor] = useState<ItineraryItem | null>(null);
   const currentDay = itinerary.days[selectedDayIndex] ?? itinerary.days[0];
+  const dayWeather = currentDay ? weather?.days.find((d) => d.date === currentDay.date) : undefined;
   const totalActivities = itinerary.days.reduce((total, day) => total + day.items.length, 0);
   const routeStops = currentDay?.items
     .map((item) => item.place?.name)
@@ -253,9 +258,13 @@ export function ItineraryViewBody({
                 {formatPlanDate(currentDay.date)} • {formatTime(currentDay.startsAt)}–{formatTime(currentDay.endsAt)}
               </Text>
             </View>
-            <View style={styles.dayFocusBadge}>
-              <Text style={styles.dayFocusText}>Lộ trình chính</Text>
-            </View>
+            {dayWeather ? (
+              <DayWeatherBadge day={dayWeather} />
+            ) : (
+              <View style={styles.dayFocusBadge}>
+                <Text style={styles.dayFocusText}>Lộ trình chính</Text>
+              </View>
+            )}
           </View>
         ) : null}
       </View>
