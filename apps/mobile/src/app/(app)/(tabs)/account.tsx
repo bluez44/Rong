@@ -1,4 +1,5 @@
 import type { PlaceCategory } from '@rong/shared-types';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -30,6 +31,7 @@ export default function AccountScreen() {
   const trips = useItineraries();
   const saved = useSavedPlaces();
   const preferences = usePreferences();
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Làm mới số liệu khi quay về tab sau khi tạo hoặc xóa lịch trình.
   const focused = useRef(false);
@@ -49,9 +51,15 @@ export default function AccountScreen() {
         <View style={styles.headerMark}>
           <Icon name="person" size={19} color={Palette.forest700} />
         </View>
+        {isScrolled ? <HeaderBottomShadow /> : null}
       </View>
       <ScrollView
         style={styles.scrollView}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          const next = event.nativeEvent.contentOffset.y > Spacing.two;
+          setIsScrolled((current) => (current === next ? current : next));
+        }}
         contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
@@ -99,6 +107,18 @@ export default function AccountScreen() {
         </View>
       </ScrollView>
     </Screen>
+  );
+}
+
+function HeaderBottomShadow() {
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={styles.headerBottomShadow}
+    />
   );
 }
 
@@ -406,6 +426,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.six,
     backgroundColor: Palette.parchment50, zIndex: 1,
+    borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
+  },
+  headerBottomShadow: {
+    position: 'absolute', left: 0, right: 0, bottom: -Spacing.four, height: Spacing.four, zIndex: 2,
   },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },

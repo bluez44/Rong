@@ -1,4 +1,5 @@
 import type { GroupRole, GroupSummary } from '@rong/shared-types';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
@@ -26,6 +27,7 @@ export default function GroupsScreen() {
   const groups = useGroups();
   const { reload } = groups;
   const [creating, setCreating] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Tải lại khi quay về tab (vừa tạo, rời hay xoá nhóm), trừ lần đầu vì hook đã tự tải.
   const focused = useRef(false);
@@ -53,9 +55,15 @@ export default function GroupsScreen() {
             <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
           </Pressable>
         </View>
+        {isScrolled ? <HeaderBottomShadow /> : null}
       </View>
       <FlatList
         style={styles.list}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          const next = event.nativeEvent.contentOffset.y > Spacing.two;
+          setIsScrolled((current) => (current === next ? current : next));
+        }}
         data={groups.data ?? []}
         keyExtractor={(group) => group.id}
         renderItem={({ item }) => <GroupCard group={item} />}
@@ -68,6 +76,18 @@ export default function GroupsScreen() {
       />
       <CreateGroupSheet visible={creating} onClose={() => setCreating(false)} />
     </Screen>
+  );
+}
+
+function HeaderBottomShadow() {
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={styles.headerBottomShadow}
+    />
   );
 }
 
@@ -125,45 +145,129 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   content: { paddingHorizontal: Spacing.four },
   stickyHeader: {
-    paddingHorizontal: Spacing.four, paddingTop: Spacing.five, paddingBottom: Spacing.four,
-    backgroundColor: Palette.parchment50, zIndex: 1,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.four,
+    backgroundColor: Palette.parchment50,
+    zIndex: 1,
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
   },
-  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  headerBottomShadow: {
+    position: 'absolute', left: 0, right: 0, bottom: -Spacing.four, height: Spacing.four, zIndex: 2,
+  },
+  headingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
   headingCopy: { flex: 1, gap: Spacing.one },
-  title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 29, lineHeight: 37, color: Palette.forest900 },
-  subtitle: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: Palette.charcoalMuted },
-  createButton: {
-    minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one,
-    paddingHorizontal: Spacing.three, borderRadius: Radius.pill, backgroundColor: Palette.forest900,
+  title: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 29,
+    lineHeight: 37,
+    color: Palette.forest900,
   },
-  createButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: Palette.onPine },
+  subtitle: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: Palette.charcoalMuted,
+  },
+  createButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.forest900,
+  },
+  createButtonText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    color: Palette.onPine,
+  },
   listGap: { height: Spacing.three },
   card: {
-    overflow: 'hidden', borderRadius: Radius.lg, backgroundColor: '#FFFFFF',
-    borderWidth: 1, borderColor: Palette.parchment200,
+    overflow: "hidden",
+    borderRadius: Radius.lg,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Palette.parchment200,
   },
-  band: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.three },
-  bandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Palette.turmeric500 },
+  band: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+  },
+  bandDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Palette.turmeric500,
+  },
   bandDotMuted: { backgroundColor: Palette.parchment300 },
-  bandText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 9, letterSpacing: 0.7, color: Palette.onPine },
-  cardBody: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
+  bandText: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 9,
+    letterSpacing: 0.7,
+    color: Palette.onPine,
+  },
+  cardBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+  },
   cardText: { flex: 1, gap: 2 },
-  groupName: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 20, lineHeight: 25, color: Palette.charcoal },
-  groupMeta: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, color: Palette.charcoalMuted },
+  groupName: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 20,
+    lineHeight: 25,
+    color: Palette.charcoal,
+  },
+  groupMeta: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 11,
+    color: Palette.charcoalMuted,
+  },
   loading: { paddingVertical: Spacing.six },
-  inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
+  inlineAction: { alignSelf: "flex-start", marginLeft: -Spacing.three },
   empty: {
-    alignItems: 'center', gap: Spacing.two, marginTop: Spacing.four, padding: Spacing.five,
-    borderRadius: Radius.lg, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: Palette.parchment200,
+    alignItems: "center",
+    gap: Spacing.two,
+    marginTop: Spacing.four,
+    padding: Spacing.five,
+    borderRadius: Radius.lg,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Palette.parchment200,
   },
   emptyIcon: {
-    width: 64, height: 64, alignItems: 'center', justifyContent: 'center',
-    borderRadius: Radius.lg, backgroundColor: Palette.forest100, marginBottom: Spacing.one,
+    width: 64,
+    height: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.forest100,
+    marginBottom: Spacing.one,
   },
-  emptyTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 20, color: Palette.forest900 },
+  emptyTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 20,
+    color: Palette.forest900,
+  },
   emptyHint: {
-    fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, lineHeight: 18, color: Palette.charcoalMuted, textAlign: 'center',
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    color: Palette.charcoalMuted,
+    textAlign: "center",
   },
-  emptyAction: { marginTop: Spacing.two, alignSelf: 'stretch' },
+  emptyAction: { marginTop: Spacing.two, alignSelf: "stretch" },
   pressed: { opacity: 0.76 },
 });

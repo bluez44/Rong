@@ -1,4 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,6 +29,7 @@ export default function TripsScreen() {
   const trips = useItineraries();
   const { reload } = trips;
   const [filter, setFilter] = useState<TripFilter>('all');
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Tải lại khi quay về tab (vừa tạo hoặc xóa lịch trình), trừ lần đầu vì hook đã tự tải.
   const focused = useRef(false);
@@ -68,9 +70,15 @@ export default function TripsScreen() {
           <FilterChip label="Đang chuẩn bị" active={filter === 'upcoming'} onPress={() => setFilter('upcoming')} />
           <FilterChip label="Đã đi (Ký ức)" active={filter === 'past'} onPress={() => setFilter('past')} />
         </ScrollView>
+        {isScrolled ? <HeaderBottomShadow /> : null}
       </View>
       <FlatList
         style={styles.list}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          const next = event.nativeEvent.contentOffset.y > Spacing.two;
+          setIsScrolled((current) => (current === next ? current : next));
+        }}
         data={visibleTrips}
         keyExtractor={(trip) => trip.id}
         renderItem={({ item }) => <TripCard trip={item} />}
@@ -92,6 +100,18 @@ export default function TripsScreen() {
         }
       />
     </Screen>
+  );
+}
+
+function HeaderBottomShadow() {
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={styles.headerBottomShadow}
+    />
   );
 }
 
@@ -178,58 +198,155 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   content: { paddingHorizontal: Spacing.four },
   stickyHeader: {
-    gap: Spacing.four, paddingHorizontal: Spacing.four, paddingTop: Spacing.five, paddingBottom: Spacing.four,
-    backgroundColor: Palette.parchment50, zIndex: 1,
+    gap: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.four,
+    backgroundColor: Palette.parchment50,
+    zIndex: 1,
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
+  },
+  headerBottomShadow: {
+    position: 'absolute', left: 0, right: 0, bottom: -Spacing.four, height: Spacing.four, zIndex: 2,
   },
   listHeader: { gap: Spacing.four, marginBottom: Spacing.four },
-  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  headingCopy: { gap: Spacing.one },
-  title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 29, lineHeight: 37, color: Palette.forest900 },
-  createButton: {
-    minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one,
-    paddingHorizontal: Spacing.three, borderRadius: Radius.pill, backgroundColor: Palette.forest900,
+  headingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
   },
-  createButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: Palette.onPine },
-  filters: { flexDirection: 'row', gap: Spacing.two, paddingRight: Spacing.four },
+  headingCopy: { gap: Spacing.one },
+  title: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 29,
+    lineHeight: 37,
+    color: Palette.forest900,
+  },
+  createButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.forest900,
+  },
+  createButtonText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    color: Palette.onPine,
+  },
+  filters: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingRight: Spacing.four,
+  },
   filterChip: {
-    minHeight: 36, justifyContent: 'center', paddingHorizontal: Spacing.three,
-    borderRadius: Radius.pill, backgroundColor: Palette.parchment200,
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.parchment200,
   },
   filterChipActive: { backgroundColor: Palette.forest900 },
-  filterText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 11, color: Palette.charcoalMuted },
+  filterText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 11,
+    color: Palette.charcoalMuted,
+  },
   filterTextActive: { color: Palette.onPine },
   savedCard: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.three,
-    padding: Spacing.three, borderRadius: Radius.lg, backgroundColor: '#FFFFFF',
-    borderWidth: 1, borderColor: Palette.parchment200,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Radius.lg,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: Palette.parchment200,
   },
   savedIcon: {
-    width: 48, height: 48, alignItems: 'center', justifyContent: 'center',
-    borderRadius: Radius.md, backgroundColor: Palette.terracotta100,
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.md,
+    backgroundColor: Palette.terracotta100,
   },
   savedCopy: { flex: 1, gap: Spacing.one },
-  savedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  savedTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 18, color: Palette.forest900 },
-  savedCount: {
-    overflow: 'hidden', paddingHorizontal: Spacing.two, paddingVertical: 2,
-    borderRadius: Radius.pill, backgroundColor: Palette.terracotta100,
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9, color: Palette.terracotta700,
+  savedTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
   },
-  savedDescription: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, lineHeight: 15, color: Palette.charcoalMuted },
-  savedMetaRow: { flexDirection: 'row', alignItems: 'center' },
-  savedMeta: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 9, color: Palette.forest700 },
-  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.one },
-  sectionTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 18, color: Palette.charcoal },
-  countPill: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 10, color: Palette.charcoalMuted },
+  savedTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 18,
+    color: Palette.forest900,
+  },
+  savedCount: {
+    overflow: "hidden",
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.terracotta100,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 9,
+    color: Palette.terracotta700,
+  },
+  savedDescription: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 10,
+    lineHeight: 15,
+    color: Palette.charcoalMuted,
+  },
+  savedMetaRow: { flexDirection: "row", alignItems: "center" },
+  savedMeta: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 9,
+    color: Palette.forest700,
+  },
+  sectionHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  sectionTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 18,
+    color: Palette.charcoal,
+  },
+  countPill: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 10,
+    color: Palette.charcoalMuted,
+  },
   listGap: { height: Spacing.three },
   loading: { paddingVertical: Spacing.six },
-  inlineAction: { alignSelf: 'flex-start', marginLeft: -Spacing.three },
+  inlineAction: { alignSelf: "flex-start", marginLeft: -Spacing.three },
   empty: {
-    gap: Spacing.two, marginTop: Spacing.two, padding: Spacing.four,
-    borderRadius: Radius.lg, backgroundColor: '#FFFFFF', alignItems: 'flex-start',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+    padding: Spacing.four,
+    borderRadius: Radius.lg,
+    backgroundColor: "#FFFFFF",
+    alignItems: "flex-start",
   },
-  emptyTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 17, color: Palette.forest900 },
-  emptyHint: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, lineHeight: 18, color: Palette.charcoalMuted },
+  emptyTitle: {
+    fontFamily: "PlayfairDisplay_700Bold",
+    fontSize: 17,
+    color: Palette.forest900,
+  },
+  emptyHint: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    lineHeight: 18,
+    color: Palette.charcoalMuted,
+  },
   emptyAction: { marginTop: Spacing.one },
   pressed: { opacity: 0.76 },
 });
