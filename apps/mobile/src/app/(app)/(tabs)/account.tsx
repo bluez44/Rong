@@ -1,5 +1,4 @@
 import type { PlaceCategory } from '@rong/shared-types';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,7 +11,7 @@ import { Chip } from '@/components/ui/chip';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { TextField } from '@/components/ui/text-field';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useItineraries } from '@/hooks/use-itineraries';
 import { ApiError } from '@/lib/api';
 import { updatePreferences, usePreferences } from '@/lib/preferences';
@@ -44,14 +43,13 @@ export default function AccountScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <View style={styles.stickyHeader}>
+      <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
         <View style={styles.headerCopy}>
           <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
         </View>
         <View style={styles.headerMark}>
           <Icon name="person" size={19} color={Palette.forest700} />
         </View>
-        {isScrolled ? <HeaderBottomShadow /> : null}
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -107,18 +105,6 @@ export default function AccountScreen() {
         </View>
       </ScrollView>
     </Screen>
-  );
-}
-
-function HeaderBottomShadow() {
-  return (
-    <LinearGradient
-      pointerEvents="none"
-      colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.headerBottomShadow}
-    />
   );
 }
 
@@ -428,9 +414,9 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50, zIndex: 1,
     borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
   },
-  headerBottomShadow: {
-    position: 'absolute', left: 0, right: 0, bottom: -Spacing.four, height: Spacing.four, zIndex: 2,
-  },
+  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo, bóng của chính view
+  // (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
+  stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
   headerMark: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forest100 },
