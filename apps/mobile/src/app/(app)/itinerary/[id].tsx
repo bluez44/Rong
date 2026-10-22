@@ -26,6 +26,7 @@ import { Notice } from '@/components/ui/notice';
 import { Colors, MinTouch, Palette, Spacing } from '@/constants/theme';
 import { useItinerary } from '@/hooks/use-itineraries';
 import { useItineraryEditor, type SaveState } from '@/hooks/use-itinerary-editor';
+import { useRegionWeather } from '@/hooks/use-region-weather';
 import { ApiError } from '@/lib/api';
 import { itineraryShareUrl, resolveShareToken } from '@/lib/share-link';
 import { formatDateRange } from '@/lib/trip-format';
@@ -40,6 +41,7 @@ export default function ItineraryScreen() {
   const [editMode, setEditing] = useState(edit === '1');
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const data = editor.itinerary ?? itinerary.data;
+  const { weather } = useRegionWeather(data?.regionId, data?.days[0]?.date ?? null, data?.days[data.days.length - 1]?.date ?? null);
   // Người chỉ xem trong nhóm không sửa được (backend cũng từ chối), kể cả khi mở với `edit=1`.
   const canEdit = data ? data.myRole !== 'viewer' : false;
   const editing = editMode && canEdit;
@@ -242,6 +244,7 @@ export default function ItineraryScreen() {
             // Ghi chú trong lịch trình là của người tạo: chỉ người tạo sửa.
             notesEditable={data.myRole === 'creator'}
             onNotesSaved={itinerary.reload}
+            weather={weather}
             footer={
               data.myRole === 'creator' || data.myRole === 'owner' ? (
                 <>
