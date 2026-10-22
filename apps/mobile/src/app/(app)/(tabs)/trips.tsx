@@ -193,8 +193,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.lg,
     borderBottomRightRadius: Radius.lg,
   },
-  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo, bóng của chính view
-  // (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
   stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
   listHeader: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: {
