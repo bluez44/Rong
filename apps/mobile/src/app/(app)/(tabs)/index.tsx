@@ -57,7 +57,6 @@ export default function HomeScreen() {
       height: heroHeight === 0 ? undefined : interpolate(collapseProgress.value, [0, 1], [heroHeight, 0]),
       opacity: 1 - collapseProgress.value,
       transform: [{ translateY: -12 * collapseProgress.value }],
-      marginBottom: -Spacing.four * collapseProgress.value,
     }),
     [heroHeight],
   );
@@ -81,55 +80,53 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
         <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
-          <View style={styles.stickyHeaderContent}>
-            {/* Top Header Branding */}
-            <View style={styles.header}>
-              <View style={styles.brandContainer}>
-                <View style={styles.logoPill}>
-                  <Icon name="nature" size={18} color={Palette.forest900} />
-                </View>
-                <ThemedText type="title2" style={styles.brandTitle}>
-                  Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
-                </ThemedText>
+          {/* Top Header Branding */}
+          <View style={styles.header}>
+            <View style={styles.brandContainer}>
+              <View style={styles.logoPill}>
+                <Icon name="nature" size={18} color={Palette.forest900} />
               </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Tài khoản cá nhân"
-                onPress={() => router.push('/account')}
-                style={styles.avatarButton}>
-                <Icon name="person" size={20} color={Colors.light.primary} />
-              </Pressable>
-            </View>
-
-            {/* Greeting & Headline */}
-            <Animated.View
-              onLayout={(event) => setHeroHeight((current) => current || event.nativeEvent.layout.height)}
-              style={[styles.heroSection, styles.collapsibleHero, heroCollapseStyle]}>
-              <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
-              <ThemedText type="display" style={styles.mainHeadline}>
-                Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
+              <ThemedText type="title2" style={styles.brandTitle}>
+                Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
               </ThemedText>
-            </Animated.View>
-
-            {/* Elevated Search Pill */}
+            </View>
             <Pressable
-              accessibilityRole="search"
-              accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
-              onPress={() => router.push('/search')}
-              style={styles.searchContainer}>
-              <View style={styles.searchPill}>
-                <View style={styles.searchIconContainer}>
-                  <Icon name="explore" size={20} color={Colors.light.secondary} />
-                </View>
-                <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
-                  Tìm tỉnh, thành phố hoặc điểm đến
-                </Text>
-                <View style={styles.filterButton}>
-                  <Icon name="tune" size={18} color={Colors.light.textSecondary} />
-                </View>
-              </View>
+              accessibilityRole="button"
+              accessibilityLabel="Tài khoản cá nhân"
+              onPress={() => router.push('/account')}
+              style={styles.avatarButton}>
+              <Icon name="person" size={20} color={Colors.light.primary} />
             </Pressable>
           </View>
+
+          {/* Greeting & Headline */}
+          <Animated.View
+            onLayout={(event) => setHeroHeight((current) => current || event.nativeEvent.layout.height)}
+            style={[styles.heroSection, styles.collapsibleHero, heroCollapseStyle]}>
+            <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
+            <ThemedText type="display" style={styles.mainHeadline}>
+              Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
+            </ThemedText>
+          </Animated.View>
+
+          {/* Elevated Search Pill */}
+          <Pressable
+            accessibilityRole="search"
+            accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
+            onPress={() => router.push('/search')}
+            style={styles.searchContainer}>
+            <View style={styles.searchPill}>
+              <View style={styles.searchIconContainer}>
+                <Icon name="explore" size={20} color={Colors.light.secondary} />
+              </View>
+              <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
+                Tìm tỉnh, thành phố hoặc điểm đến
+              </Text>
+              <View style={styles.filterButton}>
+                <Icon name="tune" size={18} color={Colors.light.textSecondary} />
+              </View>
+            </View>
+          </Pressable>
         </StickyHeader>
 
         {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
@@ -269,7 +266,6 @@ const styles = StyleSheet.create({
   stickyHeader: {
     paddingBottom: Spacing.four,
   },
-  stickyHeaderContent: { gap: Spacing.four },
   collapsibleHero: { overflow: "hidden" },
   header: {
     flexDirection: "row",
@@ -277,6 +273,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.two,
+    marginBottom: Spacing.four,
   },
   brandContainer: {
     flexDirection: "row",
@@ -312,6 +309,7 @@ const styles = StyleSheet.create({
   heroSection: {
     paddingHorizontal: Spacing.five,
     paddingTop: Spacing.one,
+    paddingBottom: Spacing.four,
   },
   greeting: {
     ...Type.caption,
