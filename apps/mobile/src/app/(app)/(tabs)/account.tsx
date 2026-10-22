@@ -42,19 +42,19 @@ export default function AccountScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
+      <View style={styles.stickyHeader}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
+        </View>
+        <View style={styles.headerMark}>
+          <Icon name="person" size={19} color={Palette.forest700} />
+        </View>
+      </View>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        <View style={styles.header}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
-          </View>
-          <View style={styles.headerMark}>
-            <Icon name="person" size={19} color={Palette.forest700} />
-          </View>
-        </View>
-
         <ProfileCard
           initial={initial}
           name={name}
@@ -400,8 +400,13 @@ function DeleteAccount() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Palette.parchment50 },
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, gap: Spacing.six },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  scrollView: { flex: 1 },
+  content: { paddingHorizontal: Spacing.four, paddingTop: 0, gap: Spacing.six },
+  stickyHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.six,
+    backgroundColor: Palette.parchment50, zIndex: 1,
+  },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
   headerMark: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forest100 },

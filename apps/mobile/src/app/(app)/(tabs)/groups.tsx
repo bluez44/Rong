@@ -37,31 +37,30 @@ export default function GroupsScreen() {
   );
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} style={styles.screen}>
+      <View style={styles.stickyHeader}>
+        <View style={styles.headingRow}>
+          <View style={styles.headingCopy}>
+            <Text style={styles.title} accessibilityRole="header">Nhóm</Text>
+            <Text style={styles.subtitle}>Cùng bạn bè lên lịch trình</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Tạo nhóm"
+            onPress={() => setCreating(true)}
+            style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
+            <Icon name="add" size={17} color={Palette.onPine} />
+            <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
+          </Pressable>
+        </View>
+      </View>
       <FlatList
+        style={styles.list}
         data={groups.data ?? []}
         keyExtractor={(group) => group.id}
         renderItem={({ item }) => <GroupCard group={item} />}
         contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         ItemSeparatorComponent={() => <View style={styles.listGap} />}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.headingRow}>
-              <View style={styles.headingCopy}>
-                <Text style={styles.title} accessibilityRole="header">Nhóm</Text>
-                <Text style={styles.subtitle}>Cùng bạn bè lên lịch trình</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Tạo nhóm"
-                onPress={() => setCreating(true)}
-                style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
-                <Icon name="add" size={17} color={Palette.onPine} />
-                <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
-              </Pressable>
-            </View>
-          </View>
-        }
         ListEmptyComponent={<GroupsEmptyState groups={groups} onCreate={() => setCreating(true)} />}
         refreshControl={
           <RefreshControl refreshing={groups.status === 'refreshing'} onRefresh={reload} tintColor={Palette.forest700} />
@@ -122,8 +121,13 @@ function GroupsEmptyState({ groups, onCreate }: { groups: ReturnType<typeof useG
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.five },
-  header: { gap: Spacing.four, marginBottom: Spacing.four },
+  screen: { backgroundColor: Palette.parchment50 },
+  list: { flex: 1 },
+  content: { paddingHorizontal: Spacing.four },
+  stickyHeader: {
+    paddingHorizontal: Spacing.four, paddingTop: Spacing.five, paddingBottom: Spacing.four,
+    backgroundColor: Palette.parchment50, zIndex: 1,
+  },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   headingCopy: { flex: 1, gap: Spacing.one },
   title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 29, lineHeight: 37, color: Palette.forest900 },

@@ -80,7 +80,7 @@ export default function HomeScreen() {
         }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+        <View style={styles.stickyHeader}>
           <View style={styles.stickyHeaderContent}>
             {/* Top Header Branding */}
             <View style={styles.header}>
@@ -276,13 +276,11 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   stickyHeader: {
-    paddingBottom: Spacing.two,
-    backgroundColor: Palette.parchment50,
-    zIndex: 1,
-  },
-  stickyHeaderScrolled: {
+    paddingBottom: Spacing.four,
     borderBottomLeftRadius: Radius.lg,
     borderBottomRightRadius: Radius.lg,
+    backgroundColor: Palette.parchment50,
+    zIndex: 1,
   },
   headerBottomShadow: {
     position: 'absolute',

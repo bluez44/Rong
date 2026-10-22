@@ -44,40 +44,40 @@ export default function TripsScreen() {
   const visibleTrips = filter === 'upcoming' ? upcoming : filter === 'past' ? past : data;
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} style={styles.screen}>
+      <View style={styles.stickyHeader}>
+        <View style={styles.headingRow}>
+          <View style={styles.headingCopy}>
+            <Text style={styles.title} accessibilityRole="header">Chuyến đi</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Lên lịch mới"
+            onPress={() => router.push('/itinerary/new')}
+            style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
+            <Icon name="add" size={17} color={Palette.onPine} />
+            <Text numberOfLines={1} style={styles.createButtonText}>Lên lịch mới</Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+          accessibilityLabel="Lọc hành trình">
+          <FilterChip label={`Tất cả hành trình  ${data.length}`} active={filter === 'all'} onPress={() => setFilter('all')} />
+          <FilterChip label="Đang chuẩn bị" active={filter === 'upcoming'} onPress={() => setFilter('upcoming')} />
+          <FilterChip label="Đã đi (Ký ức)" active={filter === 'past'} onPress={() => setFilter('past')} />
+        </ScrollView>
+      </View>
       <FlatList
+        style={styles.list}
         data={visibleTrips}
         keyExtractor={(trip) => trip.id}
         renderItem={({ item }) => <TripCard trip={item} />}
-        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.content, { paddingBottom: tabBarInset }]}
         ItemSeparatorComponent={() => <View style={styles.listGap} />}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.headingRow}>
-              <View style={styles.headingCopy}>
-                <Text style={styles.title} accessibilityRole="header">Chuyến đi</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Lên lịch mới"
-                onPress={() => router.push('/itinerary/new')}
-                style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}>
-                <Icon name="add" size={17} color={Palette.onPine} />
-                <Text numberOfLines={1} style={styles.createButtonText}>Lên lịch mới</Text>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filters}
-              accessibilityLabel="Lọc hành trình">
-              <FilterChip label={`Tất cả hành trình  ${data.length}`} active={filter === 'all'} onPress={() => setFilter('all')} />
-              <FilterChip label="Đang chuẩn bị" active={filter === 'upcoming'} onPress={() => setFilter('upcoming')} />
-              <FilterChip label="Đã đi (Ký ức)" active={filter === 'past'} onPress={() => setFilter('past')} />
-            </ScrollView>
-
+          <View style={styles.listHeader}>
             <SavedEntry />
 
             <View style={styles.sectionHeading}>
@@ -174,8 +174,14 @@ function TripsEmptyState({ trips, filter }: { trips: ReturnType<typeof useItiner
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingTop: Spacing.five },
-  header: { gap: Spacing.four, marginBottom: Spacing.four },
+  screen: { backgroundColor: Palette.parchment50 },
+  list: { flex: 1 },
+  content: { paddingHorizontal: Spacing.four },
+  stickyHeader: {
+    gap: Spacing.four, paddingHorizontal: Spacing.four, paddingTop: Spacing.five, paddingBottom: Spacing.four,
+    backgroundColor: Palette.parchment50, zIndex: 1,
+  },
+  listHeader: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   headingCopy: { gap: Spacing.one },
   title: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 29, lineHeight: 37, color: Palette.forest900 },
