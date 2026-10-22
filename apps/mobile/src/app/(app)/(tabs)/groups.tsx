@@ -1,5 +1,4 @@
 import type { GroupRole, GroupSummary } from '@rong/shared-types';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { ROLE_LABELS } from '@/constants/groups';
-import { Palette, Radius, Spacing } from '@/constants/theme';
+import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useGroups } from '@/hooks/use-groups';
 
 /** Màu dải trên thẻ nhóm theo vai trò của mình. */
@@ -40,7 +39,7 @@ export default function GroupsScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <View style={styles.stickyHeader}>
+      <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
         <View style={styles.headingRow}>
           <View style={styles.headingCopy}>
             <Text style={styles.title} accessibilityRole="header">Nhóm</Text>
@@ -55,7 +54,6 @@ export default function GroupsScreen() {
             <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
           </Pressable>
         </View>
-        {isScrolled ? <HeaderBottomShadow /> : null}
       </View>
       <FlatList
         style={styles.list}
@@ -76,18 +74,6 @@ export default function GroupsScreen() {
       />
       <CreateGroupSheet visible={creating} onClose={() => setCreating(false)} />
     </Screen>
-  );
-}
-
-function HeaderBottomShadow() {
-  return (
-    <LinearGradient
-      pointerEvents="none"
-      colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.headerBottomShadow}
-    />
   );
 }
 
@@ -153,9 +139,9 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.lg,
     borderBottomRightRadius: Radius.lg,
   },
-  headerBottomShadow: {
-    position: 'absolute', left: 0, right: 0, bottom: -Spacing.four, height: Spacing.four, zIndex: 2,
-  },
+  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo, bóng của chính view
+  // (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
+  stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
   headingRow: {
     flexDirection: "row",
     alignItems: "center",
