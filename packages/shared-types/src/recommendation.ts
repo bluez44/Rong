@@ -1,3 +1,4 @@
+import type { TripWeatherSummary } from './weather';
 import type {
   BudgetTier,
   ItineraryDay,
@@ -82,8 +83,8 @@ export interface RecommendationCard {
   image: RegionImage | null;
   /** Chưa có (F7): luôn null, app hiện "Đang cập nhật". */
   estimatedCost: null;
-  /** Chưa có nguồn: luôn null. */
-  weather: null;
+  /** Tóm tắt thời tiết cả chuyến; null khi chưa có dữ liệu (app hiện "Đang cập nhật"). */
+  weather: TripWeatherSummary | null;
   savedItineraryId: string | null;
 }
 
