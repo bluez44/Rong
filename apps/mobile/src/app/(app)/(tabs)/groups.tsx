@@ -6,11 +6,12 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Tex
 import { CreateGroupSheet } from '@/components/create-group-sheet';
 import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
+import { StickyHeader } from '@/components/sticky-header';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { ROLE_LABELS } from '@/constants/groups';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useGroups } from '@/hooks/use-groups';
 
 /** Màu dải trên thẻ nhóm theo vai trò của mình. */
@@ -39,7 +40,7 @@ export default function GroupsScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+      <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
         <View style={styles.headingRow}>
           <View style={styles.headingCopy}>
             <Text style={styles.title} accessibilityRole="header">Nhóm</Text>
@@ -54,7 +55,7 @@ export default function GroupsScreen() {
             <Text numberOfLines={1} style={styles.createButtonText}>Tạo nhóm</Text>
           </Pressable>
         </View>
-      </View>
+      </StickyHeader>
       <FlatList
         style={styles.list}
         scrollEventThrottle={16}
@@ -134,12 +135,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.five,
     paddingBottom: Spacing.four,
-    backgroundColor: Palette.parchment50,
-    zIndex: 1,
-    borderBottomLeftRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { ...Shadow.header },
   headingRow: {
     flexDirection: "row",
     alignItems: "center",

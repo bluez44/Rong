@@ -6,12 +6,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useAuth } from '@/auth/auth-context';
 import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
+import { StickyHeader } from '@/components/sticky-header';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { TextField } from '@/components/ui/text-field';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useItineraries } from '@/hooks/use-itineraries';
 import { ApiError } from '@/lib/api';
 import { updatePreferences, usePreferences } from '@/lib/preferences';
@@ -43,14 +44,14 @@ export default function AccountScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+      <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
         <View style={styles.headerCopy}>
           <Text style={styles.pageTitle} accessibilityRole="header">Tài khoản</Text>
         </View>
         <View style={styles.headerMark}>
           <Icon name="person" size={19} color={Palette.forest700} />
         </View>
-      </View>
+      </StickyHeader>
       <ScrollView
         style={styles.scrollView}
         scrollEventThrottle={16}
@@ -411,10 +412,7 @@ const styles = StyleSheet.create({
   stickyHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.six,
-    backgroundColor: Palette.parchment50, zIndex: 1,
-    borderBottomLeftRadius: Radius.lg, borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { ...Shadow.header },
   headerCopy: { gap: Spacing.one },
   pageTitle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 27, lineHeight: 35, color: Palette.forest900 },
   headerMark: { width: 40, height: 40, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: Palette.forest100 },
