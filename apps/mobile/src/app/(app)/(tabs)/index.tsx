@@ -1,5 +1,4 @@
 import type { PendingVisitReview } from '@rong/shared-types';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -80,7 +79,7 @@ export default function HomeScreen() {
         }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        <View style={styles.stickyHeader}>
+        <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
           <View style={styles.stickyHeaderContent}>
             {/* Top Header Branding */}
             <View style={styles.header}>
@@ -130,15 +129,6 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           </View>
-          {isScrolled ? (
-            <LinearGradient
-              pointerEvents="none"
-              colors={['rgba(8, 60, 41, 0.14)', 'rgba(8, 60, 41, 0)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.headerBottomShadow}
-            />
-          ) : null}
         </View>
 
         {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
@@ -282,20 +272,13 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.parchment50,
     zIndex: 1,
   },
-  headerBottomShadow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: -Spacing.four,
-    height: Spacing.four,
-    zIndex: 2,
+  // Khi cuộn, header nổi lên trên nền parchment: nền trắng làm lộ góc bo và khoảng đệm dưới ô tìm kiếm,
+  // bóng của chính view (elevation trên Android) đi theo góc bo thay vì một dải gradient vuông.
+  stickyHeaderScrolled: {
+    backgroundColor: Palette.surface,
+    ...Shadow.glass,
   },
-  stickyHeaderContent: {
-    gap: Spacing.four,
-    zIndex: 1,
-    borderBottomLeftRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
-  },
+  stickyHeaderContent: { gap: Spacing.four },
   collapsibleHero: { overflow: "hidden" },
   header: {
     flexDirection: "row",
