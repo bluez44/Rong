@@ -13,11 +13,12 @@ import {
 
 import { useTabBarInset } from '@/components/floating-tab-bar';
 import { Screen } from '@/components/screen';
+import { StickyHeader } from '@/components/sticky-header';
 import { isPastTrip, TripCard } from '@/components/trip-card';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
-import { Palette, Radius, Shadow, Spacing } from '@/constants/theme';
+import { Palette, Radius, Spacing } from '@/constants/theme';
 import { useItineraries } from '@/hooks/use-itineraries';
 import { useSavedPlaces } from '@/lib/saved-places';
 
@@ -46,7 +47,7 @@ export default function TripsScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+      <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
         <View style={styles.headingRow}>
           <View style={styles.headingCopy}>
             <Text style={styles.title} accessibilityRole="header">Chuyến đi</Text>
@@ -69,7 +70,7 @@ export default function TripsScreen() {
           <FilterChip label="Đang chuẩn bị" active={filter === 'upcoming'} onPress={() => setFilter('upcoming')} />
           <FilterChip label="Đã đi (Ký ức)" active={filter === 'past'} onPress={() => setFilter('past')} />
         </ScrollView>
-      </View>
+      </StickyHeader>
       <FlatList
         style={styles.list}
         scrollEventThrottle={16}
@@ -188,12 +189,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.five,
     paddingBottom: Spacing.four,
-    backgroundColor: Palette.parchment50,
-    zIndex: 1,
-    borderBottomLeftRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { ...Shadow.header },
   listHeader: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: {
     flexDirection: "row",

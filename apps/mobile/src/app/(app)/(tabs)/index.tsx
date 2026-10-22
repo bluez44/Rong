@@ -9,6 +9,7 @@ import { useAuth } from '@/auth/auth-context';
 import { useTabBarInset } from '@/components/floating-tab-bar';
 import { RecommendationCard, RecommendationCardSkeleton } from '@/components/recommendation-card';
 import { Screen } from '@/components/screen';
+import { StickyHeader } from '@/components/sticky-header';
 import { ThemeChips } from '@/components/theme-chips';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
@@ -79,7 +80,7 @@ export default function HomeScreen() {
         }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        <View style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+        <StickyHeader scrolled={isScrolled} style={styles.stickyHeader}>
           <View style={styles.stickyHeaderContent}>
             {/* Top Header Branding */}
             <View style={styles.header}>
@@ -129,7 +130,7 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           </View>
-        </View>
+        </StickyHeader>
 
         {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
 
@@ -267,12 +268,7 @@ const styles = StyleSheet.create({
   },
   stickyHeader: {
     paddingBottom: Spacing.four,
-    borderBottomLeftRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
-    backgroundColor: Palette.parchment50,
-    zIndex: 1,
   },
-  stickyHeaderScrolled: { ...Shadow.header },
   stickyHeaderContent: { gap: Spacing.four },
   collapsibleHero: { overflow: "hidden" },
   header: {
