@@ -116,6 +116,18 @@ export interface RecommendationsConfig {
   unsplashAccessKey: string | null;
 }
 
+/** Thời tiết theo ngày của chuyến (spec 2026-10-22-trip-weather). Chỉ module `weather/` gọi Open-Meteo. */
+export interface WeatherConfig {
+  /** Tắt thì endpoint trả `unavailable`, thẻ gợi ý `weather: null`. Mặc định tắt khi NODE_ENV=test (e2e không gọi mạng). */
+  enabled: boolean;
+  forecastUrl: string;
+  archiveUrl: string;
+  /** User-Agent có thông tin liên hệ, như Nominatim. */
+  contactEmail: string;
+  /** Số vùng tính khí hậu mới mỗi ngày (mỗi vùng ~260 lượt của bản miễn phí). */
+  climateDailyLimit: number;
+}
+
 /**
  * Route quản trị (reset địa điểm của vùng). Tắt (route trả 404) khi thiếu `emails` hoặc `apiKey`: gọi được phải
  * đăng nhập bằng tài khoản có email đã xác minh nằm trong `emails` và gửi kèm khóa.
@@ -146,6 +158,7 @@ export interface AppConfig {
   oauth: OAuthConfig;
   recommendations: RecommendationsConfig;
   admin: AdminConfig;
+  weather: WeatherConfig;
 }
 
 class MissingEnvError extends Error {
@@ -330,6 +343,18 @@ export function loadConfig(): AppConfig {
         ? requireStrongSecret(process.env.ADMIN_API_KEY, 'ADMIN_API_KEY')
         : null,
       refreshDailyLimit: positiveInt('ADMIN_REFRESH_DAILY_LIMIT', 30),
+    },
+    weather: {
+      enabled: process.env.WEATHER_ENABLED
+        ? process.env.WEATHER_ENABLED !== 'false'
+        : process.env.NODE_ENV !== 'test',
+      forecastUrl:
+        process.env.OPEN_METEO_FORECAST_URL || 'https://api.open-meteo.com',
+      archiveUrl:
+        process.env.OPEN_METEO_ARCHIVE_URL ||
+        'https://archive-api.open-meteo.com',
+      contactEmail: process.env.OPEN_DATA_CONTACT_EMAIL || 'dev@rong.local',
+      climateDailyLimit: positiveInt('WEATHER_CLIMATE_DAILY_LIMIT', 25),
     },
   };
 }
