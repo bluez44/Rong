@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.lg,
     borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
+  stickyHeaderScrolled: { ...Shadow.header },
   listHeader: { gap: Spacing.four, marginBottom: Spacing.four },
   headingRow: {
     flexDirection: "row",

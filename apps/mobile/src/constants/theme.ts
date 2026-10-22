@@ -143,6 +143,10 @@ export const Shadow = {
     ios: { shadowColor: Palette.ink, shadowOpacity: 0.14, shadowRadius: 15, shadowOffset: { width: 0, height: 10 } },
     default: { elevation: 6 },
   }),
+  header: Platform.select<ViewStyle>({
+    ios: { shadowColor: Palette.ink, shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } },
+    default: { elevation: 10 },
+  }),
   card: Platform.select<ViewStyle>({
     ios: { shadowColor: Palette.ink, shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 4 } },
     default: { elevation: 1 },

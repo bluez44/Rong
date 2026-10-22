@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Radius.lg,
     borderBottomRightRadius: Radius.lg,
   },
-  stickyHeaderScrolled: { backgroundColor: Palette.surface, ...Shadow.glass },
+  stickyHeaderScrolled: { ...Shadow.header },
   headingRow: {
     flexDirection: "row",
     alignItems: "center",
