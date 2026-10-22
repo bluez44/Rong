@@ -6,6 +6,7 @@ import { AdaptiveImage } from '@/components/ui/adaptive-image';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Palette, Radius, Shadow, Spacing, Type } from '@/constants/theme';
+import { formatTemps, summaryLabel, WEATHER_ICONS } from '@/lib/weather';
 
 /** "Ảnh: Nguyễn A / Unsplash" hoặc "Ảnh: blog.example". */
 function credit(image: RegionImage): { text: string; url: string | null } {
@@ -139,11 +140,17 @@ export function RecommendationCard({
       <View style={styles.cardFooter}>
         <View style={styles.footerLeft}>
           <View style={styles.activityIconCircle}>
-            <Icon name="sun" size={18} color={Palette.forest900} />
+            <Icon name={card.weather ? WEATHER_ICONS[card.weather.condition] : 'sun'} size={18} color={Palette.forest900} />
           </View>
           <View>
-            <Text style={styles.costLabel}>Chi phí · Thời tiết</Text>
-            <Text style={styles.pending}>Đang cập nhật</Text>
+            <Text style={styles.costLabel}>Thời tiết</Text>
+            {card.weather ? (
+              <Text style={styles.weatherValue} numberOfLines={1}>
+                {formatTemps(card.weather)} · {summaryLabel(card.weather)}
+              </Text>
+            ) : (
+              <Text style={styles.pending}>Đang cập nhật</Text>
+            )}
           </View>
         </View>
         <View style={styles.exploreButton}>
@@ -278,6 +285,7 @@ const styles = StyleSheet.create({
   reason: { ...Type.subhead, color: Colors.light.text },
   highlights: { ...Type.footnote, color: Colors.light.textSecondary },
   pending: { ...Type.subhead, color: Colors.light.textSecondary },
+  weatherValue: { ...Type.subhead, color: Palette.forest900 },
   skeleton: { backgroundColor: Palette.parchment200 },
   skeletonLine: { height: 12, borderRadius: Radius.sm, backgroundColor: Palette.parchment200 },
 });
