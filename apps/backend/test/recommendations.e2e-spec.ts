@@ -4,12 +4,14 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { LangchainService } from '../src/langchain/langchain.service.js';
 import { RecommendationsQueue } from '../src/modules/recommendations/queue/recommendations-queue.js';
+import { addDays, vietnamDate } from '../src/modules/recommendations/draft-dates.js';
 import { UnsplashClient } from '../src/modules/recommendations/unsplash.client.js';
+import { OpenMeteoClient, WEATHER_CONFIG } from '../src/modules/weather/open-meteo.client.js';
 import {
   cleanupRecommendationRegions,
   seedRecommendationRegions,
@@ -25,6 +27,8 @@ describe('Gợi ý trang chủ (e2e)', () => {
   let regions: RecommendationRegionsFixture['regions'];
   const planItinerary = vi.fn();
   const suggestThemes = vi.fn();
+  const forecast = vi.fn();
+  const archive = vi.fn();
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -32,6 +36,10 @@ describe('Gợi ý trang chủ (e2e)', () => {
       .useValue({ planItinerary, suggestThemes })
       .overrideProvider(UnsplashClient)
       .useValue({ enabled: false, searchLandscape: async () => null })
+      .overrideProvider(OpenMeteoClient)
+      .useValue({ forecast, archive })
+      .overrideProvider(WEATHER_CONFIG)
+      .useValue({ enabled: true, forecastUrl: '', archiveUrl: '', contactEmail: 'e2e@rong.local', climateDailyLimit: 25 })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -44,6 +52,12 @@ describe('Gợi ý trang chủ (e2e)', () => {
     queue = app.get(RecommendationsQueue);
     fixture = await seedRecommendationRegions(db, 'api');
     regions = fixture.regions;
+  });
+
+  // Mặc định Open-Meteo lỗi: các test cũ vẫn thấy `weather: null`, và e2e không bao giờ gọi mạng.
+  beforeEach(() => {
+    forecast.mockReset().mockRejectedValue(new Error('offline'));
+    archive.mockReset().mockRejectedValue(new Error('offline'));
   });
 
   afterAll(async () => {
@@ -414,5 +428,35 @@ describe('Gợi ý trang chủ (e2e)', () => {
     )) as Array<{ recent: boolean }>;
     expect(recent).toBe(true);
     await queue.idle();
+  });
+  it('thẻ có tóm tắt thời tiết khi Open-Meteo trả dữ liệu', async () => {
+    forecast.mockImplementation(async () => {
+      const today = vietnamDate(new Date());
+      const time = Array.from({ length: 16 }, (_, i) => addDays(today, i));
+      return {
+        time,
+        weather_code: time.map(() => 2),
+        temperature_2m_max: time.map(() => 31),
+        temperature_2m_min: time.map(() => 24),
+        precipitation_probability_max: time.map(() => 20),
+      };
+    });
+    archive.mockImplementation(async (_lat: number, _lng: number, from: string, to: string) => {
+      const time: string[] = [];
+      for (let d = from; d <= to; d = addDays(d, 1)) time.push(d);
+      return {
+        time,
+        temperature_2m_max: time.map(() => 29),
+        temperature_2m_min: time.map(() => 21),
+        precipitation_sum: time.map(() => 0),
+      };
+    });
+    const u = await newUser('-weather');
+    const feed = await readyFeed(u.token, u.theme);
+    expect(feed.items[0].weather).toMatchObject({
+      condition: 'partly_cloudy',
+      tempMax: expect.any(Number),
+      tempMin: expect.any(Number),
+    });
   });
 });

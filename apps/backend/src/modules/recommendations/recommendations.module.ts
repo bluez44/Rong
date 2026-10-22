@@ -6,6 +6,7 @@ import { PlacesModule } from '../places/places.module.js';
 import { VisitsModule } from '../visits/visits.module.js';
 import type { AppConfig } from '../../config/configuration.js';
 import { LangchainModule } from '../../langchain/langchain.module.js';
+import { WeatherModule } from '../weather/weather.module.js';
 import { DraftPool } from './draft-pool.js';
 import { RecommendationMaintenance } from './maintenance.js';
 import { JOB_RUNNER } from './queue/jobs.js';
@@ -27,7 +28,7 @@ import { RECOMMENDATIONS_CONFIG, UnsplashClient } from './unsplash.client.js';
  * BullMQ chỉ được tạo khi `BullQueuesModule` được nạp (hàng đợi bật).
  */
 @Module({
-  imports: [ItinerariesModule, PlacesModule, VisitsModule, LangchainModule],
+  imports: [ItinerariesModule, PlacesModule, VisitsModule, LangchainModule, WeatherModule],
   controllers: [RecommendationsController],
   providers: [
     DraftPool,
