@@ -15,6 +15,7 @@ import { Icon } from '@/components/ui/icon';
 import { Notice } from '@/components/ui/notice';
 import { Stepper } from '@/components/ui/stepper';
 import { TextField } from '@/components/ui/text-field';
+import { WeatherStrip } from '@/components/weather-strip';
 import { CATEGORIES, CATEGORY_LABELS } from '@/constants/places';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 import { useRegionPlaces } from '@/hooks/use-region-places';
@@ -22,6 +23,7 @@ import { ApiError } from '@/lib/api';
 import { usePreferences } from '@/lib/preferences';
 import { tripDraft, useTripDraft, type DraftPlace } from '@/lib/trip-draft';
 import { BUDGET_LABELS, PACE_LABELS, TRANSPORT_LABELS, TRAVEL_PARTY_LABELS } from '@/lib/trip-format';
+import { localDay } from '@/lib/weather';
 
 type Params = { regionId: string; regionName?: string };
 
@@ -172,6 +174,7 @@ export default function NewItineraryScreen() {
         <Section title="Thời gian">
           <DateTimeField label="Bắt đầu" value={startsAt} onChange={setStartsAt} minimumDate={now} />
           <DateTimeField label="Kết thúc" value={endsAt} onChange={setEndsAt} minimumDate={startsAt} error={showErrors ? dateError : null} />
+          {dateError ? null : <WeatherStrip regionId={regionId} from={localDay(startsAt)} to={localDay(endsAt)} />}
         </Section>
 
         <Section title="Ai đi" error={showErrors ? partyError : null}>
