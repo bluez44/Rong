@@ -1,4 +1,5 @@
 import type { PendingVisitReview } from '@rong/shared-types';
+import { BlurTargetView, BlurView, type BlurTargetViewProps } from 'expo-blur';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -30,6 +31,9 @@ import { useRecommendations } from '@/hooks/use-recommendations';
 
 export default function HomeScreen() {
   const tabBarInset = useTabBarInset();
+  const blurTarget = useRef<NonNullable<BlurTargetViewProps['ref']>['current']>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const { session } = useAuth();
   const name = session?.user.displayName ?? session?.user.email?.split('@')[0] ?? 'bạn';
   const [theme, setTheme] = useState('default');
@@ -57,170 +61,188 @@ export default function HomeScreen() {
 
   return (
     <Screen edges={['top']} style={styles.screen}>
-      <ScrollView
-        stickyHeaderIndices={[0]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}>
-        <View style={styles.stickyHeader}>
-          {/* Top Header Branding */}
-          <View style={styles.header}>
-            <View style={styles.brandContainer}>
-              <View style={styles.logoPill}>
-                <Icon name="nature" size={18} color={Palette.forest900} />
-              </View>
-              <ThemedText type="title2" style={styles.brandTitle}>
-                Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
-              </ThemedText>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Tài khoản cá nhân"
-              onPress={() => router.push('/account')}
-              style={styles.avatarButton}>
-              <Icon name="person" size={20} color={Colors.light.primary} />
-            </Pressable>
-          </View>
+      <BlurTargetView ref={blurTarget} style={styles.blurTarget}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            const next = event.nativeEvent.contentOffset.y > Spacing.one;
+            setIsScrolled((current) => (current === next ? current : next));
+          }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.scrollContent, { paddingTop: headerHeight + Spacing.four, paddingBottom: tabBarInset }]}>
 
-          {/* Greeting & Headline */}
-          <View style={styles.heroSection}>
-            <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
-            <ThemedText type="display" style={styles.mainHeadline}>
-              Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
-            </ThemedText>
-          </View>
+          {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
 
-          {/* Elevated Search Pill */}
-          <Pressable
-            accessibilityRole="search"
-            accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
-            onPress={() => router.push('/search')}
-            style={styles.searchContainer}>
-            <View style={styles.searchPill}>
-              <View style={styles.searchIconContainer}>
-                <Icon name="explore" size={20} color={Colors.light.secondary} />
+          {/* AI Travel Assistant Banner */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.aiBanner}>
+              <View style={styles.aiBadge}>
+                <Icon name="sparkles" size={14} color={Palette.forest200} />
+                <Text style={styles.aiBadgeText}>Trợ lý Rong AI</Text>
               </View>
-              <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
-                Tìm tỉnh, thành phố hoặc điểm đến
+              <Text style={styles.aiHeadline}>Lên lịch ngẫu hứng trong 30 giây?</Text>
+              <Text style={styles.aiSubtitle}>
+                Chỉ cần chọn ngân sách & cảm xúc, Rong gợi ý lịch trình trọn vẹn kèm phương tiện.
               </Text>
-              <View style={styles.filterButton}>
-                <Icon name="tune" size={18} color={Colors.light.textSecondary} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Khởi tạo ngẫu hứng"
+                onPress={() => router.push('/itinerary/new')}
+                style={styles.aiActionBtn}>
+                <Icon name="arrowForward" size={20} color={Palette.forest900} />
+              </Pressable>
+            </View>
+          </View>
+
+          {visits.pending ? (
+            <Animated.View entering={enterItem()} exiting={fadeOut} style={styles.sectionContainer}>
+              <Notice
+                title={`Chuyến ${visits.pending.regionName} đã kết thúc`}
+                action={
+                  <View style={styles.visitActions}>
+                    <Button label="Để sau" variant="plain" size="sm" onPress={visits.dismiss} />
+                    <Button label="Trả lời" size="sm" onPress={() => {
+                        setReviewTarget(visits.pending);
+                        setReviewing(true);
+                      }}
+                    />
+                  </View>
+                }>
+                Bạn đã đến những nơi nào?
+              </Notice>
+            </Animated.View>
+          ) : null}
+
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <View style={styles.sectionDot} />
+                <ThemedText type="title2" style={styles.sectionTitle}>
+                  Gợi ý cho bạn
+                </ThemedText>
               </View>
             </View>
-          </Pressable>
-        </View>
 
-        {themes.length > 0 ? <ThemeChips themes={themes} selected={theme} onSelect={setTheme} /> : null}
+            <Animated.View layout={layoutShift} style={styles.cardsStack}>
+              {recs.status === 'loading' || recs.status === 'building'
+                ? [0, 1, 2].map((i) => (
+                    <Animated.View key={`skeleton-${i}`} entering={fadeIn} exiting={fadeOut}>
+                      <RecommendationCardSkeleton />
+                    </Animated.View>
+                  ))
+                : null}
 
-        {/* AI Travel Assistant Banner */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.aiBanner}>
-            <View style={styles.aiBadge}>
-              <Icon name="sparkles" size={14} color={Palette.forest200} />
-              <Text style={styles.aiBadgeText}>Trợ lý Rong AI</Text>
-            </View>
-            <Text style={styles.aiHeadline}>Lên lịch ngẫu hứng trong 30 giây?</Text>
-            <Text style={styles.aiSubtitle}>
-              Chỉ cần chọn ngân sách & cảm xúc, Rong gợi ý lịch trình trọn vẹn kèm phương tiện.
+              {recs.status === 'timeout' ? (
+                <Notice
+                  title="Chưa có gợi ý"
+                  action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.retry} />}>
+                  Rong đang bận một chút. Thử lại sau ít phút nhé.
+                </Notice>
+              ) : null}
+
+              {recs.status === 'error' && recs.error ? (
+                <Notice
+                  tone="danger"
+                  title="Chưa tải được gợi ý"
+                  action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.reload} />}>
+                  {recs.error.message}
+                </Notice>
+              ) : null}
+
+              {recs.status === 'ready' && recs.feed?.items.length === 0 ? (
+                <Notice
+                  title="Chưa có gợi ý"
+                  action={<Button label="Chọn sở thích" variant="plain" size="sm" onPress={() => router.push('/account')} />}>
+                  Chọn sở thích hoặc mở vài điểm đến để Rong gợi ý cho bạn.
+                </Notice>
+              ) : null}
+
+              {recs.status === 'ready'
+                ? recs.feed?.items.map((card, index) => (
+                    <Animated.View key={card.id} entering={enterItem(index)} exiting={fadeOut} layout={layoutShift}>
+                      <RecommendationCard
+                        card={card}
+                        themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
+                        onPress={() =>
+                          card.savedItineraryId
+                            ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
+                            : router.push({ pathname: '/recommendation/[id]', params: { id: card.id } })
+                        }
+                      />
+                    </Animated.View>
+                  ))
+                : null}
+            </Animated.View>
+          </View>
+
+          {/* Editorial Cultural Quote Footer */}
+          <View style={styles.quoteCard}>
+            <Text style={styles.quoteText}>
+              {'“Rong chơi không chỉ là dịch chuyển, mà là để lòng mình rộng mở cùng xứ sở.”'}
             </Text>
+          </View>
+        </ScrollView>
+        <View
+          onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+          style={[styles.stickyHeader, isScrolled && styles.stickyHeaderScrolled]}>
+          <BlurView
+            blurTarget={blurTarget}
+            blurMethod="dimezisBlurViewSdk31Plus"
+            intensity={42}
+            tint="light"
+            pointerEvents="none"
+            style={[styles.stickyBlur, isScrolled && styles.stickyBlurScrolled]}
+          />
+          <View style={styles.stickyHeaderContent}>
+            {/* Top Header Branding */}
+            <View style={styles.header}>
+              <View style={styles.brandContainer}>
+                <View style={styles.logoPill}>
+                  <Icon name="nature" size={18} color={Palette.forest900} />
+                </View>
+                <ThemedText type="title2" style={styles.brandTitle}>
+                  Rong <Text style={styles.brandSubtitle}>Thong Dong</Text>
+                </ThemedText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Tài khoản cá nhân"
+                onPress={() => router.push('/account')}
+                style={styles.avatarButton}>
+                <Icon name="person" size={20} color={Colors.light.primary} />
+              </Pressable>
+            </View>
+
+            {/* Greeting & Headline */}
+            <View style={styles.heroSection}>
+              <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
+              <ThemedText type="display" style={styles.mainHeadline}>
+                Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
+              </ThemedText>
+            </View>
+
+            {/* Elevated Search Pill */}
             <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Khởi tạo ngẫu hứng"
-              onPress={() => router.push('/itinerary/new')}
-              style={styles.aiActionBtn}>
-              <Icon name="arrowForward" size={20} color={Palette.forest900} />
+              accessibilityRole="search"
+              accessibilityLabel="Tìm tỉnh, thành phố hoặc điểm đến"
+              onPress={() => router.push('/search')}
+              style={styles.searchContainer}>
+              <View style={styles.searchPill}>
+                <View style={styles.searchIconContainer}>
+                  <Icon name="explore" size={20} color={Colors.light.secondary} />
+                </View>
+                <Text style={styles.searchPlaceholder} numberOfLines={1} ellipsizeMode="tail">
+                  Tìm tỉnh, thành phố hoặc điểm đến
+                </Text>
+                <View style={styles.filterButton}>
+                  <Icon name="tune" size={18} color={Colors.light.textSecondary} />
+                </View>
+              </View>
             </Pressable>
           </View>
         </View>
-
-        {visits.pending ? (
-          <Animated.View entering={enterItem()} exiting={fadeOut} style={styles.sectionContainer}>
-            <Notice
-              title={`Chuyến ${visits.pending.regionName} đã kết thúc`}
-              action={
-                <View style={styles.visitActions}>
-                  <Button label="Để sau" variant="plain" size="sm" onPress={visits.dismiss} />
-                  <Button label="Trả lời" size="sm" onPress={() => {
-                      setReviewTarget(visits.pending);
-                      setReviewing(true);
-                    }}
-                  />
-                </View>
-              }>
-              Bạn đã đến những nơi nào?
-            </Notice>
-          </Animated.View>
-        ) : null}
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderLeft}>
-              <View style={styles.sectionDot} />
-              <ThemedText type="title2" style={styles.sectionTitle}>
-                Gợi ý cho bạn
-              </ThemedText>
-            </View>
-          </View>
-
-          <Animated.View layout={layoutShift} style={styles.cardsStack}>
-            {recs.status === 'loading' || recs.status === 'building'
-              ? [0, 1, 2].map((i) => (
-                  <Animated.View key={`skeleton-${i}`} entering={fadeIn} exiting={fadeOut}>
-                    <RecommendationCardSkeleton />
-                  </Animated.View>
-                ))
-              : null}
-
-            {recs.status === 'timeout' ? (
-              <Notice
-                title="Chưa có gợi ý"
-                action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.retry} />}>
-                Rong đang bận một chút. Thử lại sau ít phút nhé.
-              </Notice>
-            ) : null}
-
-            {recs.status === 'error' && recs.error ? (
-              <Notice
-                tone="danger"
-                title="Chưa tải được gợi ý"
-                action={<Button label="Thử lại" variant="plain" size="sm" onPress={recs.reload} />}>
-                {recs.error.message}
-              </Notice>
-            ) : null}
-
-            {recs.status === 'ready' && recs.feed?.items.length === 0 ? (
-              <Notice
-                title="Chưa có gợi ý"
-                action={<Button label="Chọn sở thích" variant="plain" size="sm" onPress={() => router.push('/account')} />}>
-                Chọn sở thích hoặc mở vài điểm đến để Rong gợi ý cho bạn.
-              </Notice>
-            ) : null}
-
-            {recs.status === 'ready'
-              ? recs.feed?.items.map((card, index) => (
-                  <Animated.View key={card.id} entering={enterItem(index)} exiting={fadeOut} layout={layoutShift}>
-                    <RecommendationCard
-                      card={card}
-                      themeIcon={themes.find((t) => t.key === theme)?.icon ?? 'sparkles'}
-                      onPress={() =>
-                        card.savedItineraryId
-                          ? router.push({ pathname: '/itinerary/[id]', params: { id: card.savedItineraryId, regionName: card.regionName } })
-                          : router.push({ pathname: '/recommendation/[id]', params: { id: card.id } })
-                      }
-                    />
-                  </Animated.View>
-                ))
-              : null}
-          </Animated.View>
-        </View>
-
-        {/* Editorial Cultural Quote Footer */}
-        <View style={styles.quoteCard}>
-          <Text style={styles.quoteText}>
-            {'“Rong chơi không chỉ là dịch chuyển, mà là để lòng mình rộng mở cùng xứ sở.”'}
-          </Text>
-        </View>
-      </ScrollView>
+      </BlurTargetView>
 
       {reviewTarget ? (
         <VisitReviewSheet
@@ -241,13 +263,38 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: Palette.parchment50,
   },
+  blurTarget: { flex: 1 },
   scrollContent: {
     gap: Spacing.four,
   },
   stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     gap: Spacing.four,
-    backgroundColor: Palette.parchment50,
+    paddingBottom: Spacing.two,
+    backgroundColor: 'rgba(252, 249, 241, 0.58)',
     zIndex: 1,
+  },
+  stickyHeaderScrolled: {
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
+    shadowColor: Palette.forest900,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
+  },
+  stickyHeaderContent: { gap: Spacing.four, zIndex: 1 },
+  stickyBlur: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(252, 249, 241, 0.28)',
+  },
+  stickyBlurScrolled: {
+    borderBottomLeftRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
   },
   header: {
     flexDirection: 'row',

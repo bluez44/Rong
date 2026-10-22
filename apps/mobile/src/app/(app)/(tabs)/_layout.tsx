@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { usePathname } from 'expo-router';
-import { TabList, Tabs, TabSlot, TabTrigger } from 'expo-router/ui';
+import { TabList, Tabs, TabSlot, TabTrigger, type TabSlotProps } from 'expo-router/ui';
 import { StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue, withSpring } from 'react-native-reanimated';
+import { Screen } from 'react-native-screens';
+import Animated, { useAnimatedStyle, useDerivedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { TAB_BAR_HEIGHT, TabButton, useKeyboardVisible, useTabBarBottom } from '@/components/floating-tab-bar';
 import { Glass } from '@/components/glass';
@@ -34,7 +35,7 @@ export default function TabsLayout() {
   }), [tabWidth]);
   return (
     <Tabs style={styles.root}>
-      <TabSlot />
+      <TabSlot renderFn={renderTabScreen} />
       {/*
         Ẩn bằng `display: 'none'` chứ không bỏ ra: TabList khai báo các tab, bỏ đi thì mất route.
         Không dùng `<TabList asChild>`: Slot của Radix không gộp được style dạng mảng, bản release mất hết
@@ -66,8 +67,58 @@ export default function TabsLayout() {
   );
 }
 
+const renderTabScreen: NonNullable<TabSlotProps['renderFn']> = (
+  descriptor,
+  { isFocused, loaded, detachInactiveScreens },
+) => {
+  const { lazy = true, unmountOnBlur, freezeOnBlur } = descriptor.options;
+  if ((unmountOnBlur && !isFocused) || (lazy && !loaded && !isFocused)) return null;
+
+  return (
+    <TabScreenTransition
+      key={descriptor.route.key}
+      isFocused={isFocused}
+      detachInactiveScreens={detachInactiveScreens}
+      freezeOnBlur={freezeOnBlur}>
+      {descriptor.render()}
+    </TabScreenTransition>
+  );
+};
+
+function TabScreenTransition({
+  children,
+  isFocused,
+  detachInactiveScreens,
+  freezeOnBlur,
+}: {
+  children: ReactNode;
+  isFocused: boolean;
+  detachInactiveScreens: boolean;
+  freezeOnBlur?: boolean;
+}) {
+  const progress = useDerivedValue(() => withTiming(isFocused ? 1 : 0, { duration: 180 }), [isFocused]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateX: (1 - progress.value) * 10 }],
+  }));
+
+  return (
+    <Screen
+      enabled={detachInactiveScreens}
+      activityState={isFocused ? 2 : 0}
+      freezeOnBlur={freezeOnBlur}
+      style={[styles.screen, isFocused ? styles.focusedScreen : styles.inactiveScreen]}>
+      <Animated.View style={[styles.screenContent, animatedStyle]}>{children}</Animated.View>
+    </Screen>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  screen: { flex: 1, position: 'relative', height: '100%' },
+  focusedScreen: { zIndex: 1, display: 'flex', flexShrink: 0, flexGrow: 1 },
+  inactiveScreen: { zIndex: -1, display: 'none', flexShrink: 1, flexGrow: 0 },
+  screenContent: { flex: 1 },
   bar: {
     position: 'absolute',
     left: Spacing.four,
