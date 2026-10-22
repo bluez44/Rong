@@ -102,11 +102,13 @@ export default function HomeScreen() {
           {/* Greeting & Headline */}
           <Animated.View
             onLayout={(event) => setHeroHeight((current) => current || event.nativeEvent.layout.height)}
-            style={[styles.heroSection, styles.collapsibleHero, heroCollapseStyle]}>
-            <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
-            <ThemedText type="display" style={styles.mainHeadline}>
-              Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
-            </ThemedText>
+            style={[styles.collapsibleHero, heroCollapseStyle]}>
+            <View style={styles.heroSection}>
+              <Text style={styles.greeting}>CHÀO {name.toUpperCase()},</Text>
+              <ThemedText type="display" style={styles.mainHeadline}>
+                Cuối tuần này <Text style={styles.italicHeadline}>đi đâu?</Text>
+              </ThemedText>
+            </View>
           </Animated.View>
 
           {/* Elevated Search Pill */}
