@@ -233,6 +233,27 @@ describe('Thời tiết theo ngày (e2e)', () => {
     expect(res.body).toMatchObject({ status: 'unavailable', days: [] });
   });
 
+  it('dự báo treo → unavailable trong vài giây, không treo theo', async () => {
+    const id = await newRegion();
+    forecast.mockImplementation(() => new Promise(() => undefined));
+    const started = Date.now();
+    const res = await get(
+      `/regions/${id}/weather?from=${today}&to=${addDays(today, 1)}`,
+    ).expect(200);
+    expect(Date.now() - started).toBeLessThan(8000);
+    expect(res.body).toMatchObject({ status: 'unavailable', days: [] });
+  }, 15_000);
+
+  it('Open-Meteo lỗi thì nhớ lỗi một lúc: request sau trả ngay, không gọi lại', async () => {
+    const id = await newRegion();
+    forecast.mockRejectedValue(new Error('down'));
+    const q = `from=${today}&to=${addDays(today, 1)}`;
+    await get(`/regions/${id}/weather?${q}`).expect(200);
+    const again = await get(`/regions/${id}/weather?${q}`).expect(200);
+    expect(again.body.status).toBe('unavailable');
+    expect(forecast).toHaveBeenCalledTimes(1);
+  });
+
   it('bỏ ngày đã qua', async () => {
     const id = await newRegion();
     const res = await get(
