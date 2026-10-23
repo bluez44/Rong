@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/lib/api';
 
 /** Địa điểm có trong danh mục (có id) — mục AI chưa khớp danh mục thì không lưu được. */
-export type SaveablePlace = {
+type SaveablePlace = {
   id: string;
   name: string;
   category: PlaceCategory;

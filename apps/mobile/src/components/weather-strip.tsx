@@ -38,7 +38,7 @@ export function WeatherStrip({ regionId, from, to }: WeatherStripProps) {
 }
 
 /** Một ngày: thứ/ngày, icon, nhiệt độ, mưa. Ngày khí hậu viền đứt, màu nhạt. */
-export function WeatherDayChip({ day }: { day: WeatherDay }) {
+function WeatherDayChip({ day }: { day: WeatherDay }) {
   const climate = day.kind === 'climate';
   const rain = rainText(day);
   const label = [

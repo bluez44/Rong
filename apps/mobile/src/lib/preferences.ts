@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
  * sở thích chọn ở giới thiệu / Tài khoản: điền sẵn form tạo lịch trình (F6) và
  * gửi lên server cho gợi ý ở trang chủ.
  */
-export type Preferences = {
+type Preferences = {
   onboarded: boolean;
   interests: PlaceCategory[];
   /** Sở thích đổi trên máy mà chưa gửi được lên server; gửi lại lần mở app sau. */

@@ -23,7 +23,7 @@ function credit(image: RegionImage): { text: string; url: string | null } {
 }
 
 /** Icon chủ đề app biết vẽ; icon lạ từ backend thì dùng sparkles. */
-export const THEME_ICONS = [
+const THEME_ICONS = [
   'sparkles',
   'forest',
   'sun',
@@ -38,7 +38,7 @@ export const THEME_ICONS = [
   'explore',
 ] as const satisfies readonly IconName[];
 
-export type ThemeIcon = (typeof THEME_ICONS)[number];
+type ThemeIcon = (typeof THEME_ICONS)[number];
 
 export const isThemeIcon = (name: string): name is ThemeIcon => (THEME_ICONS as readonly string[]).includes(name);
 
@@ -58,7 +58,7 @@ const THEME_GRADIENTS: Record<ThemeIcon, [string, string]> = {
   sparkles: [Palette.forest700, Palette.forest900],
 };
 
-export function themeGradient(icon: string): [string, string] {
+function themeGradient(icon: string): [string, string] {
   return THEME_GRADIENTS[isThemeIcon(icon) ? icon : 'sparkles'];
 }
 

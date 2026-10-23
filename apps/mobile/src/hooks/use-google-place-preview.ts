@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/lib/api';
 
-export type GooglePlacePreviewState = {
+type GooglePlacePreviewState = {
   status: 'loading' | 'done' | 'error';
   data: GooglePlacePreviewResponse | null;
   error: ApiError | null;

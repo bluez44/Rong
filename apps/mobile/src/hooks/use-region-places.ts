@@ -7,7 +7,7 @@ import { ApiError } from '@/lib/api';
 /** Vùng chưa có danh sách thì backend trả `building`: hỏi lại sau chừng này. */
 const BUILDING_RETRY_MS = 3000;
 
-export type RegionPlacesState = {
+type RegionPlacesState = {
   /** `building`: backend đang tổng hợp lần đầu cho vùng này (10–30 giây). */
   status: 'loading' | 'building' | 'done' | 'error';
   items: PlaceListItem[];

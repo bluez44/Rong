@@ -13,7 +13,7 @@ import {
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 
-export type TextFieldProps = Omit<TextInputProps, 'style'> & {
+type TextFieldProps = Omit<TextInputProps, 'style'> & {
   label: string;
   /** Gợi ý luôn hiện dưới ô, ví dụ yêu cầu độ dài mật khẩu. Bị thay bằng `error` khi có lỗi. */
   hint?: string;

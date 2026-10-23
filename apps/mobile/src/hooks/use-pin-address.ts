@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '@/auth/auth-context';
 
-export type PinAddressState = { status: 'moving' | 'loading' | 'done'; address: string | null };
+type PinAddressState = { status: 'moving' | 'loading' | 'done'; address: string | null };
 
 /**
  * Địa chỉ dưới ghim ở màn ghim vị trí: chỉ hỏi server khi ghim đứng yên `settledMs` (1 giây; kéo tiếp thì đếm lại),

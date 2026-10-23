@@ -37,7 +37,7 @@ import {
 } from '@/lib/trip-format';
 
 /** Phần lịch trình dùng chung cho lịch trình đã lưu và bản nháp gợi ý. */
-export type ItineraryViewData = Pick<
+type ItineraryViewData = Pick<
   Itinerary,
   'input' | 'days' | 'unscheduled' | 'warnings' | 'tips' | 'planner'
 >;

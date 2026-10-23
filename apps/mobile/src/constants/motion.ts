@@ -14,9 +14,9 @@ export const Duration = {
 } as const;
 
 /** Khoảng cách giữa các mục khi hiện lần lượt (danh sách thẻ). */
-export const STAGGER_MS = 70;
+const STAGGER_MS = 70;
 
-export const EaseOut = Easing.out(Easing.cubic);
+const EaseOut = Easing.out(Easing.cubic);
 
 export const timing = { easing: EaseOut, reduceMotion: ReduceMotion.System } as const;
 

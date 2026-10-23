@@ -1,7 +1,7 @@
 /** Kiểm tra phía client, khớp với DTO của backend (auth.dto.ts) để báo lỗi trước khi gửi. */
 
 export const MIN_PASSWORD_LENGTH = 8;
-export const MAX_PASSWORD_LENGTH = 128;
+const MAX_PASSWORD_LENGTH = 128;
 export const MAX_DISPLAY_NAME_LENGTH = 60;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/auth/auth-context';
 import { ApiError } from '@/lib/api';
 
-export type PlaceDetailState = {
+type PlaceDetailState = {
   status: 'loading' | 'done' | 'error';
   place: PlaceDetail | null;
   error: ApiError | null;

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '@/components/ui/icon';
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 
-export const APPROXIMATE_LOCATION_NOTE =
+const APPROXIMATE_LOCATION_NOTE =
   'Chưa tìm thấy địa điểm này trên Google Maps. Vị trí do AI ước đoán từ bài viết nên có thể lệch, thời gian di chuyển tới đây chỉ là ước tính.';
 
 /**
