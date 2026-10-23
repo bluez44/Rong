@@ -20,6 +20,12 @@ describe('shouldRetry', () => {
     expect(shouldRetry(0, new ApiError(400, 'VALIDATION_ERROR', 'sai'))).toBe(false);
   });
 
+  it('5xx có mã riêng của backend (ví dụ PLACES_UNAVAILABLE) không thử lại: gọi lại là chạy lại việc tốn tiền', () => {
+    expect(shouldRetry(0, new ApiError(503, 'PLACES_UNAVAILABLE', 'chưa có'))).toBe(false);
+    expect(shouldRetry(0, new ApiError(503, 'PROVIDER_NOT_CONFIGURED', 'thiếu cấu hình'))).toBe(false);
+    expect(shouldRetry(0, new ApiError(502, 'HTTP_502', 'gateway'))).toBe(true);
+  });
+
   it('lỗi lạ coi như UNKNOWN: không thử lại', () => {
     expect(shouldRetry(0, new Error('boom'))).toBe(false);
   });
