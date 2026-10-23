@@ -488,7 +488,7 @@ function placeOfTray(itinerary: Itinerary, placeId: string, name?: string): Edit
   return { id: placeId, name: name ?? known?.name ?? 'Địa điểm đã chọn', category };
 }
 
-export function itemTitle(item: ItineraryItem): string {
+function itemTitle(item: ItineraryItem): string {
   return item.place?.name ?? (item.kind === 'rest' ? 'Nghỉ ngơi' : 'Hoạt động');
 }
 

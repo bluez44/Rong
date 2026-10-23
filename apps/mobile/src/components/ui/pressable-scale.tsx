@@ -5,7 +5,7 @@ import { Duration, timing } from '@/constants/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export type PressableScaleProps = Omit<PressableProps, 'style'> & {
+type PressableScaleProps = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
   /** Tỉ lệ khi đang nhấn. */
   scaleTo?: number;

@@ -5,7 +5,7 @@ import { Glass } from '@/components/glass';
 import { Icon } from '@/components/ui/icon';
 import { Colors, MinTouch, Spacing, Type } from '@/constants/theme';
 
-export type SearchFieldProps = Omit<TextInputProps, 'style'> & {
+type SearchFieldProps = Omit<TextInputProps, 'style'> & {
   /** Thường là nút "Hủy" khi đang tìm. Nằm ngoài viên kính. */
   trailing?: ReactNode;
 };

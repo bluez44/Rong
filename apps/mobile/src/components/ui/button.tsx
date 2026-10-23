@@ -5,9 +5,9 @@ import { Glass } from '@/components/glass';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Colors, MinTouch, Radius, Spacing, Type } from '@/constants/theme';
 
-export type ButtonVariant = 'primary' | 'glass' | 'ai' | 'plain' | 'danger';
+type ButtonVariant = 'primary' | 'glass' | 'ai' | 'plain' | 'danger';
 
-export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
+type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   variant?: ButtonVariant;
   size?: 'sm' | 'md' | 'lg';

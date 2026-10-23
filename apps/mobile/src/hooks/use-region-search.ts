@@ -7,7 +7,7 @@ import { ApiError } from '@/lib/api';
 const DEBOUNCE_MS = 250;
 const MAX_QUERY_LENGTH = 100;
 
-export type RegionSearchState = {
+type RegionSearchState = {
   status: 'idle' | 'loading' | 'done' | 'error';
   results: RegionSearchResult[];
   /** Kết quả hiện tại đã hỏi thêm nguồn ngoài (người dùng bấm Tìm). */

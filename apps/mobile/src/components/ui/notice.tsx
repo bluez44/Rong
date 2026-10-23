@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Radius, Spacing, Type } from '@/constants/theme';
 
-export type NoticeTone = 'warning' | 'danger' | 'info' | 'ai';
+type NoticeTone = 'warning' | 'danger' | 'info' | 'ai';
 
 const TONE = {
   warning: { background: Colors.light.warningBackground, accent: Colors.light.warning },

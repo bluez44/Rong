@@ -162,7 +162,7 @@ export const Shadow = {
  * React Native không tự chọn file theo fontWeight với font tự nạp, nên mỗi độ
  * đậm là một family riêng.
  */
-export const FontFamily = {
+const FontFamily = {
   regular: 'BeVietnamPro_400Regular',
   medium: 'BeVietnamPro_500Medium',
   semibold: 'BeVietnamPro_600SemiBold',
@@ -191,5 +191,3 @@ export type TypeStyle = keyof typeof Type;
 
 /** Vùng chạm tối thiểu. */
 export const MinTouch = 44;
-
-export const MaxContentWidth = 800;

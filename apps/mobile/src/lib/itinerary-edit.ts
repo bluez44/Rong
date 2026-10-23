@@ -17,7 +17,7 @@ import { formatTime } from '@/lib/trip-format';
 export type EditPlace = { id: string; name: string; category: PlaceCategory };
 
 /** Thời lượng mặc định khi thêm điểm mới, phút. */
-export function defaultDuration(category: PlaceCategory): number {
+function defaultDuration(category: PlaceCategory): number {
   if (category === 'food') return 60;
   if (category === 'cafe') return 45;
   if (category === 'stay') return 90;
@@ -29,7 +29,7 @@ export function durationOf(item: ItineraryItem): number {
 }
 
 /** UUID v4 cho mục mới: server giữ nguyên id client gửi lên. */
-export function newId(): string {
+function newId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
@@ -56,7 +56,7 @@ export function toRequest(itinerary: Itinerary): UpdateItineraryRequest {
 }
 
 /** Vị trí của mục trong lịch trình. */
-export function locate(itinerary: Itinerary, itemId: string): { day: number; index: number } | null {
+function locate(itinerary: Itinerary, itemId: string): { day: number; index: number } | null {
   for (const [day, d] of itinerary.days.entries()) {
     const index = d.items.findIndex((i) => i.id === itemId);
     if (index >= 0) return { day, index };

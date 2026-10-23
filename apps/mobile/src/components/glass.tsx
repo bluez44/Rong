@@ -4,10 +4,10 @@ import { AccessibilityInfo, Platform, StyleSheet, View, type ViewProps } from 'r
 
 import { GlassTokens, Palette, Radius, Shadow, Spacing } from '@/constants/theme';
 
-export type GlassVariant = 'regular' | 'clear' | 'strong' | 'tinted';
-export type GlassShape = 'rounded' | 'capsule' | 'circle';
+type GlassVariant = 'regular' | 'clear' | 'strong' | 'tinted';
+type GlassShape = 'rounded' | 'capsule' | 'circle';
 
-export type GlassProps = ViewProps & {
+type GlassProps = ViewProps & {
   variant?: GlassVariant;
   shape?: GlassShape;
   padded?: boolean;

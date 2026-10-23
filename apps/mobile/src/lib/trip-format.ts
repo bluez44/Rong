@@ -1,4 +1,4 @@
-import type { BudgetTier, DayPart, MealType, Pace, PlannerKind, Transport, TravelParty } from '@rong/shared-types';
+import type { BudgetTier, MealType, Pace, PlannerKind, Transport, TravelParty } from '@rong/shared-types';
 
 /**
  * Hiển thị ngày giờ theo giờ Việt Nam (UTC+7, không có giờ mùa hè), bất kể
@@ -22,13 +22,13 @@ export function formatTime(value: string | Date): string {
 }
 
 /** "04/10" */
-export function formatShortDate(value: string | Date): string {
+function formatShortDate(value: string | Date): string {
   const d = vn(value);
   return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}`;
 }
 
 /** "Thứ Bảy, 04/10" */
-export function formatDayTitle(value: string | Date): string {
+function formatDayTitle(value: string | Date): string {
   return `${WEEKDAYS[vn(value).getUTCDay()]}, ${formatShortDate(value)}`;
 }
 
@@ -92,13 +92,6 @@ export const TRANSPORT_LABELS: Record<Transport, string> = {
   motorbike: 'Xe máy',
   car: 'Ô tô',
   taxi: 'Taxi/xe công nghệ',
-};
-
-export const DAY_PART_LABELS: Record<DayPart, string> = {
-  morning: 'Sáng',
-  noon: 'Trưa',
-  afternoon: 'Chiều',
-  evening: 'Tối',
 };
 
 export const MEAL_LABELS: Record<MealType, string> = {
