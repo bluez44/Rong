@@ -9,6 +9,7 @@
     "@expo/ui": "~57.0.20",
     "@react-native-google-signin/google-signin": "^16.1.5",
     "@rong/shared-types": "workspace:*",
+    "@tanstack/react-query": "^5.104.5",
     "expo": "~57.0.25",
     "expo-constants": "~57.0.19",
     "expo-dev-client": "~57.0.20",
