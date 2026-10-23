@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { QueryProvider } from '@/api/query-provider';
 import { AuthProvider, useAuth } from '@/auth/auth-context';
 import { Colors } from '@/constants/theme';
 import { loadPreferences, usePreferences } from '@/lib/preferences';
@@ -43,7 +44,9 @@ export default function RootLayout() {
     <ShareIntentProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
-          <RootNavigator />
+          <QueryProvider>
+            <RootNavigator />
+          </QueryProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </ShareIntentProvider>
