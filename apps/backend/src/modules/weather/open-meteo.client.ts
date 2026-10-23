@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { WeatherConfig } from '../../config/configuration.js';
-import { ThrottledHttp } from '../open-data/http.js';
 import type { ArchiveDaily, ForecastDaily } from './weather-rules.js';
 
 export const WEATHER_CONFIG = 'WEATHER_CONFIG';
@@ -14,11 +13,10 @@ const ARCHIVE_TIMEOUT_MS = 30_000;
 /** Gọi HTTP tới Open-Meteo. Tách khỏi `WeatherService` để e2e thay bằng bản giả. */
 @Injectable()
 export class OpenMeteoClient {
-  private readonly http: ThrottledHttp;
+  private readonly userAgent: string;
 
   constructor(@Inject(WEATHER_CONFIG) private readonly config: WeatherConfig) {
-    // Bản miễn phí cho 600 lượt/phút: không cần giãn cách giữa các request.
-    this.http = new ThrottledHttp(`Rong/0.1 (${config.contactEmail})`, {});
+    this.userAgent = `Rong/0.1 (${config.contactEmail})`;
   }
 
   /** Dự báo 16 ngày, tính từ hôm nay (giờ Việt Nam). */
@@ -32,7 +30,7 @@ export class OpenMeteoClient {
       timezone: TIMEZONE,
       forecast_days: '16',
     }).toString();
-    const body = await this.http.getJson<{ daily: ForecastDaily }>(
+    const body = await this.getJson<{ daily: ForecastDaily }>(
       url.toString(),
       {},
       FORECAST_TIMEOUT_MS,
@@ -56,11 +54,33 @@ export class OpenMeteoClient {
       daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum',
       timezone: TIMEZONE,
     }).toString();
-    const body = await this.http.getJson<{ daily: ArchiveDaily }>(
+    const body = await this.getJson<{ daily: ArchiveDaily }>(
       url.toString(),
       {},
       ARCHIVE_TIMEOUT_MS,
     );
     return body.daily;
+  }
+  /**
+   * Không dùng `ThrottledHttp`: nó xếp mọi request cùng host thành hàng, nên một request treo làm các vùng khác chờ
+   * theo. Bản miễn phí cho 600 lượt/phút, các request chạy song song, mỗi cái có timeout riêng.
+   */
+  private async getJson<T>(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+  ): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set('User-Agent', this.userAgent);
+    headers.set('Accept', 'application/json');
+    const response = await fetch(url, {
+      ...init,
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`${new URL(url).host} trả về HTTP ${response.status}`);
+    }
+    return (await response.json()) as T;
   }
 }

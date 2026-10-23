@@ -32,6 +32,10 @@ import {
 } from './weather-rules.js';
 
 const FORECAST_TTL_MS = 3 * 60 * 60 * 1000;
+/** Open-Meteo lỗi: nhớ lỗi chừng này, request trong lúc đó trả ngay thay vì chờ timeout và gọi thêm. */
+const FORECAST_FAILURE_TTL_MS = 5 * 60 * 1000;
+/** Request chờ dự báo tối đa chừng này rồi trả những gì có (spec: `unavailable` sau khoảng 5 s). */
+const FORECAST_WAIT_MS = 5000;
 /** Lần đầu một vùng cần khí hậu: request chỉ chờ chừng này, phần còn lại tính nền. */
 const CLIMATE_WAIT_MS = 5000;
 /** Feed gợi ý không chờ thời tiết lâu hơn chừng này. */
@@ -49,7 +53,8 @@ export class WeatherService {
   private readonly logger = new Logger(WeatherService.name);
   private readonly forecasts = new Map<
     string,
-    { today: string; at: number; days: Map<string, WeatherDay> }
+    /** `days: null`: lần gọi gần nhất lỗi, giữ `FORECAST_FAILURE_TTL_MS`. */
+    { today: string; at: number; days: Map<string, WeatherDay> | null }
   >();
   private readonly forecastInFlight = new Map<
     string,
@@ -100,7 +105,10 @@ export class WeatherService {
     const needClimate = dates.some((d) => !isForecastDate(d, today));
     const [forecast, climate] = await Promise.all([
       needForecast
-        ? this.forecast(regionId, point, today, now.getTime())
+        ? withTimeout(
+            this.forecast(regionId, point, today, now.getTime()),
+            FORECAST_WAIT_MS,
+          )
         : null,
       needClimate
         ? withTimeout(this.climate(regionId, point, today), CLIMATE_WAIT_MS)
@@ -169,7 +177,8 @@ export class WeatherService {
     nowMs: number,
   ): Promise<Map<string, WeatherDay> | null> {
     const cached = this.forecasts.get(regionId);
-    if (cached && cached.today === today && nowMs - cached.at < FORECAST_TTL_MS)
+    const ttl = cached?.days ? FORECAST_TTL_MS : FORECAST_FAILURE_TTL_MS;
+    if (cached && cached.today === today && nowMs - cached.at < ttl)
       return Promise.resolve(cached.days);
     let pending = this.forecastInFlight.get(regionId);
     if (!pending) {
@@ -184,6 +193,7 @@ export class WeatherService {
           this.logger.warn(
             `Không lấy được dự báo Open-Meteo (${regionId}): ${(error as Error).message}`,
           );
+          this.forecasts.set(regionId, { today, at: nowMs, days: null });
           return null;
         })
         .finally(() => this.forecastInFlight.delete(regionId));

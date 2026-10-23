@@ -29,6 +29,8 @@ describe('Gợi ý trang chủ (e2e)', () => {
   const suggestThemes = vi.fn();
   const forecast = vi.fn();
   const archive = vi.fn();
+  // Tắt mặc định: các test cũ thấy `weather: null` mà không gọi client (lỗi sẽ bị nhớ 5 phút); test thời tiết bật lên.
+  const weatherConfig = { enabled: false, forecastUrl: '', archiveUrl: '', contactEmail: 'e2e@rong.local', climateDailyLimit: 25 };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -39,7 +41,7 @@ describe('Gợi ý trang chủ (e2e)', () => {
       .overrideProvider(OpenMeteoClient)
       .useValue({ forecast, archive })
       .overrideProvider(WEATHER_CONFIG)
-      .useValue({ enabled: true, forecastUrl: '', archiveUrl: '', contactEmail: 'e2e@rong.local', climateDailyLimit: 25 })
+      .useValue(weatherConfig)
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api');
@@ -54,8 +56,9 @@ describe('Gợi ý trang chủ (e2e)', () => {
     regions = fixture.regions;
   });
 
-  // Mặc định Open-Meteo lỗi: các test cũ vẫn thấy `weather: null`, và e2e không bao giờ gọi mạng.
+  // e2e không bao giờ gọi mạng: client luôn là bản giả, mặc định lỗi.
   beforeEach(() => {
+    weatherConfig.enabled = false;
     forecast.mockReset().mockRejectedValue(new Error('offline'));
     archive.mockReset().mockRejectedValue(new Error('offline'));
   });
@@ -430,6 +433,7 @@ describe('Gợi ý trang chủ (e2e)', () => {
     await queue.idle();
   });
   it('thẻ có tóm tắt thời tiết khi Open-Meteo trả dữ liệu', async () => {
+    weatherConfig.enabled = true;
     forecast.mockImplementation(async () => {
       const today = vietnamDate(new Date());
       const time = Array.from({ length: 16 }, (_, i) => addDays(today, i));
