@@ -1,5 +1,6 @@
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { render } from '@testing-library/react-native';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { render, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 import { QueryProvider } from './query-provider';
 
@@ -35,5 +36,20 @@ describe('QueryProvider', () => {
     mockUserId = null;
     await view.rerender(tree());
     expect(client!.getQueryData(['probe'])).toBeUndefined();
+  });
+  it('đăng nhập (chưa có ai → có người dùng): query đầu tiên của phiên mới vẫn tải xong', async () => {
+    function FirstQuery() {
+      const query = useQuery({ queryKey: ['first'], queryFn: async () => 'ok' });
+      return <Text>{query.status}</Text>;
+    }
+    mockUserId = null;
+    const view = await render(<QueryProvider>{null}</QueryProvider>);
+    mockUserId = 'u2';
+    await view.rerender(
+      <QueryProvider>
+        <FirstQuery />
+      </QueryProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('success')).toBeTruthy());
   });
 });

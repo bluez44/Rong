@@ -12,9 +12,11 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   const previousUserId = useRef(userId);
 
   useEffect(() => {
-    if (previousUserId.current === userId) return;
+    const previous = previousUserId.current;
     previousUserId.current = userId;
-    client.clear();
+    // Chỉ xóa khi rời một người dùng: lúc đăng nhập (null → người dùng) cache đã trống, và effect này chạy sau
+    // effect của query con, nên xóa lúc đó sẽ hủy luôn các query đầu tiên của phiên mới.
+    if (previous !== null && previous !== userId) client.clear();
   }, [client, userId]);
 
   useEffect(() => connectFocusManager(), []);
