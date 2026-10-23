@@ -10,11 +10,10 @@
     },
     "debug": {
       "extends": "base",
+      "developmentClient": true,
       "environment": "development",
       "distribution": "internal",
-      "withoutCredentials": true,
       "android": {
-        "gradleCommand": ":app:assembleDebug",
         "buildType": "apk"
       }
     },
